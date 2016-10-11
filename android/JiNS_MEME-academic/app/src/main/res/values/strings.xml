@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Data Logger</string>
+    <string name="app_title">JINS MEME DATA LOGGER</string>
+    <string name="label_version">version %s</string>
+    <!-- category label -->
+    <string name="text_label_open_usb">Open the USB Serial port</string>
+    <string name="text_label_connect_meme">Connect to MEME device</string>
+    <string name="text_label_measure">Measure</string>
+    <!-- parts label -->
+    <string name="text_label_version_ble">MEME ver. %s</string>
+    <string name="text_label_version_usb">Dongle ver. %s</string>
+    <string name="text_label_status">Status:</string>
+    <string name="text_state_open">Open</string>
+    <string name="text_state_close">Close</string>
+    <string name="text_state_connected">Connected</string>
+    <string name="text_state_disconnect">Disconnect</string>
+    <string name="text_label_notice">recording&#8230;</string>
+    <string name="text_label_set_mode">Select mode</string>
+    <string name="text_label_set_quality">Transmission speed</string>
+    <string name="text_label_set_range">Measurement range</string>
+    <string name="text_label_set_acceleration">of Accelerometer</string>
+    <string name="text_label_set_gyroacope">of Gyroscope</string>
+    <string name="button_scan_device">Scan device</string>
+    <string name="button_open">Open</string>
+    <string name="button_close">Close</string>
+    <string name="button_connect">Connect</string>
+    <string name="button_disconnect">Disconnect</string>
+    <string name="button_initialize">Initialize</string>
+    <string name="button_measurement_start">Start Measurement</string>
+    <string name="button_measurement_stop">Stop Measurement</string>
+    <string name="button_free_marking">Free Marking</string>
+    <string name="button_dialog_ok">OK</string>
+    <string name="button_dailog_no">Cancel</string>
+    <!-- message label -->
+    <string name="msg_default_text"></string>
+    <string name="msg_tap_to_next">TAP TO NEXT</string>
+    <string name="msg_use_usb">USE USB</string>
+    <string name="msg_use_ble">USE BLE</string>
+    <string name="msg_finish_app">Exit the application?</string>
+    <string name="msg_start_measurement">"START" the measurement?</string>
+    <string name="msg_stop_measurement">"STOP" the measurement?</string>
+    <string name="msg_failed_get_information">Failed to get the device information</string>
+    <string name="msg_failed_get_mode">Failed to get Mode and Quality</string>
+    <string name="msg_failed_get_params">Failed to get Sensor parameter</string>
+    <string name="msg_failed_connection">Failed to connection</string>
+    <string name="msg_failed_disconnection">Failed to disconnection</string>
+    <string name="msg_success_initialize">Success to initialize</string>
+    <string name="msg_failed_initialize">Failed to initialize</string>
+    <string name="msg_failed_set_mode">Failed to set Mode and Quality</string>
+    <string name="msg_failed_set_params">failed to set Sensor parameter</string>
+    <string name="msg_failed_start">failed to start the measurement</string>
+    <string name="msg_failed_open_port">failed to open port</string>
+    <string name="msg_unmount_storage">Not found the storage. Check your mobile.</string>
+    <!-- array label -->
+    <string name="array_mode_1">Standard</string>
+    <string name="array_mode_2">Full</string>
+    <string name="array_mode_3">Quaternion</string>
+    <string name="array_quality_1">100Hz</string>
+    <string name="array_quality_2">50Hz</string>
+    <string name="array_ac_range_0"> 2g</string>
+    <string name="array_ac_range_1"> 4g</string>
+    <string name="array_ac_range_2"> 8g</string>
+    <string name="array_ac_range_3">16g</string>
+    <string name="array_gy_range_0"> 250dps</string>
+    <string name="array_gy_range_1"> 500dps</string>
+    <string name="array_gy_range_2">1000dps</string>
+    <string name="array_gy_range_3">2000dps</string>
+    <!-- pref key -->
+    <string name="key_pref_path">key_pref_path</string>
+    <!-- action label -->
+    <string name="action_information_ble"></string>
+    <string name="action_information_usb"></string>
+    <string name="graph">Graph</string>
+    <string name="eog_graph_enable">EOG Graph Enable</string>
+    <string name="eog_graph_disable">EOG Graph Disable</string>
+    <string name="acc_graph_enable">ACC Graph Enable</string>
+    <string name="acc_graph_disable">ACC Graph Disable</string>
+    <string name="gyro_graph_enable">GYRO Graph Enable</string>
+    <string name="gyro_graph_disable">GYRO Graph Disable</string>
+
+</resources>

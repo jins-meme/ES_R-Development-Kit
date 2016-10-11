@@ -1,0 +1,6 @@
+framework module Pods_JINS_MEME_DataLogger {
+  umbrella header "Pods-JINS_MEME_DataLogger-umbrella.h"
+
+  export *
+  module * { export * }
+}

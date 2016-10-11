@@ -1,0 +1,324 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Comment CommentText="通信データアクセスクラス定義">
+    <Position X="9.75" Y="1.24" Height="0.312" Width="2.387" />
+  </Comment>
+  <Comment CommentText="センサーデータ管理・通信制御系クラス定義">
+    <Position X="5.5" Y="1.25" Height="0.312" Width="2.825" />
+  </Comment>
+  <Comment CommentText="グラフデータ関連クラス定義">
+    <Position X="9.75" Y="6.75" Height="0.312" Width="2.825" />
+  </Comment>
+  <Comment CommentText="グラフ画面関連クラス定義">
+    <Position X="5.5" Y="6.75" Height="0.312" Width="2.825" />
+  </Comment>
+  <Comment CommentText="データ表示・操作画面クラス定義">
+    <Position X="1.25" Y="1.25" Height="0.312" Width="2.825" />
+  </Comment>
+  <Comment CommentText="ログ出力関連クラス定義">
+    <Position X="1.25" Y="6.75" Height="0.312" Width="2.825" />
+  </Comment>
+  <Comment CommentText="JINS MEME Data Logger クラス構成一覧　（関数、変数等の詳細は、クラスダイアグラム、及び、各クラス定義を参照）">
+    <Position X="0.5" Y="0.5" Height="0.458" Width="8.189" />
+  </Comment>
+  <Class Name="JINS_MEME_DataLogger.BaseForm" Collapsed="true">
+    <Position X="1.25" Y="1.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Fields" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAAAAQAAACAAAAAAAACAAAECAACAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>BaseForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ComboBoxEx" Collapsed="true">
+    <Position X="1.25" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAIAA=</HashCode>
+      <FileName>ComboBoxEx.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.DataManager" Collapsed="true">
+    <Position X="5.5" Y="1.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AgIAgCAIEFIZggI0hAABhQQJD5OAPRCAHihQTxIQFOI=</HashCode>
+      <FileName>Data\DataManager.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.FileAccess" Collapsed="true">
+    <Position X="5.5" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>JoAQQiDoCYYCiAGiAMFDsFiFAAACCRJGEAICaEgAChg=</HashCode>
+      <FileName>Data\FileAccess.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.SensorDataArgs" Collapsed="true">
+    <Position X="7.25" Y="1.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>QAAAIABAIAIAAQgAAEAAEABCgQAAAgAAAAAAAAAABAA=</HashCode>
+      <FileName>Data\SensorDataArgs.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.TCPServer" Collapsed="true">
+    <Position X="5.5" Y="2.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>ACAAgAAIQAABKIACAICgABAAACAACAACAAIAgACAACA=</HashCode>
+      <FileName>Data\TCPServer.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.DailyTraceListener" Collapsed="true">
+    <Position X="1.25" Y="9" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAQABCAEIAAISAgAAEASwCWAoAQAAgEgJRWMABA=</HashCode>
+      <FileName>Diagostics\DailyTraceListener.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.mainForm" Collapsed="true">
+    <Position X="1.25" Y="2.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Fields" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>D4SWMrJmFuAM2QSAIxDEekobrLEXIaCA1iJ1oAMXqTU=</HashCode>
+      <FileName>FormMain.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.AxisBean" Collapsed="true">
+    <Position X="9.75" Y="10.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAACAQQAAAAkQBgEAAAAgAQCCAAAAIAAAggBAAAJAhA=</HashCode>
+      <FileName>Graph\AxisBean.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.AxisMaster" Collapsed="true">
+    <Position X="9.75" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AIAAgIAABAAAAAAAAAAQAAAAAAAAAQAAAABAAAgAAIA=</HashCode>
+      <FileName>Graph\AxisMaster.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.AxisMasterForm" Collapsed="true">
+    <Position X="5.5" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>QABEABAAACGEEAwAAECQgAACgQIOAACAAAGAWAIgIBE=</HashCode>
+      <FileName>Graph\AxisMasterForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ColorUtil" Collapsed="true">
+    <Position X="11.5" Y="9.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAA=</HashCode>
+      <FileName>Graph\ColorUtil.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.CsvUtil" Collapsed="true">
+    <Position X="9.75" Y="9.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAACAAAAAAAAAgAAAAAAAAAAAAAAAAQAAAAAAAAAAA=</HashCode>
+      <FileName>Graph\Csvutil.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.GraphControl" Collapsed="true">
+    <Position X="7.25" Y="8.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>0ByQKGBAACCILARQUciokHICkMDACIIgQwIIJAASAEA=</HashCode>
+      <FileName>Graph\GraphControl.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.GraphSettingForm" Collapsed="true">
+    <Position X="7.25" Y="7.25" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>BCAAAEAQUiQVABAAAACBAgAiBECAAAAEgAAACCAAAAA=</HashCode>
+      <FileName>Graph\GraphSettingForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.GraphView" Collapsed="true">
+    <Position X="5.5" Y="8.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>RFhBBogERCgQB/SEGQ7wQOgLNAHASSQAUwgRohBQVXQ=</HashCode>
+      <FileName>Graph\GraphView.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ItemBean" Collapsed="true">
+    <Position X="11.5" Y="10.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AQACAAAAAIAgQRAAAAAAAAQgAAAAAAAIgAAAgAAAAhA=</HashCode>
+      <FileName>Graph\ItemBean.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ItemListAccess" Collapsed="true">
+    <Position X="11.5" Y="8.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAIAgAAAAAEAAAAAAQAAAAAAAAACAAAAEAAA=</HashCode>
+      <FileName>Graph\ItemListAccess.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ItemMaster" Collapsed="true">
+    <Position X="11.5" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>CAAAgIAAAAAAAAAAAAAAAAAAQAAAAAgAAABAIIAAAIA=</HashCode>
+      <FileName>Graph\ItemMaster.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ItemMasterBean" Collapsed="true">
+    <Position X="11.5" Y="8" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>gAAAAAAAAAAAAAgAAAAAgAQAAAAAAAAAAAAAAAAAABA=</HashCode>
+      <FileName>Graph\ItemMasterBean.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.MeasureBean" Collapsed="true">
+    <Position X="9.75" Y="8.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYBA=</HashCode>
+      <FileName>Graph\MeasureBean.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.SettingTable" Collapsed="true">
+    <Position X="1.25" Y="4.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AGLAAAogAEAAAIQACAAAACAAAgQGQACAAAgAAAAIIAI=</HashCode>
+      <FileName>Graph\SettingTable.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.ToolStripCheckBox" Collapsed="true">
+    <Position X="7.25" Y="9.25" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>ARAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Graph\ToolStripCheckBox.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.SettingForm" Collapsed="true">
+    <Position X="3" Y="3.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Fields" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>IAABEFBACKQBSBACAByiQog7KEmAKABKECAQAAkAABA=</HashCode>
+      <FileName>SettingForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Tracer" Collapsed="true">
+    <Position X="1.25" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AADAAAAIAAAAAAAAQAEBAAAAEAAAABAEAAAAAAEBAAA=</HashCode>
+      <FileName>Tracer.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.VersionForm" Collapsed="true">
+    <Position X="3" Y="2.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Fields" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAACAAAAAAAICAAAACIAABAAgAAAASCABAAAA=</HashCode>
+      <FileName>VersionForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_ACADEMIA1" Collapsed="true">
+    <Position X="9.75" Y="1.75" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAAAAAABAAwBwAAAAEAQAAAAACAI=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_ACADEMIA2" Collapsed="true">
+    <Position X="9.75" Y="2.5" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAABAACBAEAAAAABAAwBwAAAAAAAAAAIAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_ACADEMIA3" Collapsed="true">
+    <Position X="9.75" Y="3.25" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAIAAAACEAAAAAAAgAAAAABAAwAAAAAAAAAAAAAAAEA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_DEV_INFO" Collapsed="true">
+    <Position X="12.75" Y="1.75" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAAAAAABAAQACAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_MODE" Collapsed="true">
+    <Position X="9.75" Y="4" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAQAAAAAAAAAABAAQAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_6AXIS_PARAMS" Collapsed="true">
+    <Position X="12.75" Y="2.5" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAQAAAAAAAAAAACBAAQAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.APU_REPORT_RESP" Collapsed="true">
+    <Position X="12.75" Y="3.25" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAAAAAARAAQAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.DON_RES_DEVICE_NAME" Collapsed="true">
+    <Position X="9.75" Y="4.75" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAAAAAABAAQAAACAAAAAIAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.DON_RES_DEVICE_VERSION" Collapsed="true">
+    <Position X="12.75" Y="4.75" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAEAAAABAAQAAACAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.DON_RES_SCAN_BLUETOOTH" Collapsed="true">
+    <Position X="12.75" Y="5.5" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAACAAAAAAABAAQAAACAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.DON_RES_CONNECT_BLUETOOTH" Collapsed="true">
+    <Position X="9.75" Y="5.5" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAACAAAAAAAAAAAAAABAAQAAACAAAAAAAAAAAAA=</HashCode>
+      <FileName>Data\APUData.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Data.Communication" Collapsed="true">
+    <Position X="7.25" Y="2.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAIAAQAgCAAEAQAwAAMACAAAAgCAgAAGxkAAAAQgAA=</HashCode>
+      <FileName>Data\Communication.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="JINS_MEME_DataLogger.Graph.ItemControl" Collapsed="true">
+    <Position X="5.5" Y="9.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>SAAAAAkAEKAAAAAAAADAwAACQACCICkAkAAA6ggDAEg=</HashCode>
+      <FileName>Graph\ItemControl.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="System.Security.DynamicSecurityMethodAttribute" Collapsed="true">
+    <Position X="1.25" Y="8" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Tracer.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Enum Name="JINS_MEME_DataLogger.AxisIds" Collapsed="true">
+    <Position X="9.75" Y="8" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>BAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAEAAAQAAA=</HashCode>
+      <FileName>Graph\AxisBean.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="メイリオ" Size="9" />
+</ClassDiagram>

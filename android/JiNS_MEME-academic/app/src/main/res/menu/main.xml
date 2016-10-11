@@ -1,0 +1,16 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto" >
+
+    <item
+        android:id="@+id/action_information_ble"
+        android:orderInCategory="800"
+        android:title="@string/action_information_ble"
+        app:showAsAction="never"/>
+    <item
+        android:id="@+id/action_information_usb"
+        android:orderInCategory="900"
+        android:title="@string/action_information_usb"
+        android:visible="false"
+        app:showAsAction="never"/>
+
+</menu>

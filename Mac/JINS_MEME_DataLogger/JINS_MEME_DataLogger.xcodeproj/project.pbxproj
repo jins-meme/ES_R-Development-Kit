@@ -1,0 +1,386 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		244913261D20F9770075165D /* libDecEnc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 244913251D20F9770075165D /* libDecEnc.a */; };
+		2A035AEE1D177489005DFCB9 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2A035AED1D177489005DFCB9 /* AppDelegate.m */; };
+		2A035AF11D177489005DFCB9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2A035AF01D177489005DFCB9 /* main.m */; };
+		2A035AF41D177489005DFCB9 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2A035AF31D177489005DFCB9 /* ViewController.m */; };
+		2A035AF61D177489005DFCB9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2A035AF51D177489005DFCB9 /* Assets.xcassets */; };
+		2A035AF91D177489005DFCB9 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2A035AF71D177489005DFCB9 /* Main.storyboard */; };
+		B756A51127317BE1F1AA7E96 /* Pods_JINS_MEME_DataLogger.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3BA842082899818ED5119209 /* Pods_JINS_MEME_DataLogger.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		244913251D20F9770075165D /* libDecEnc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libDecEnc.a; path = JINS_MEME_DataLogger/libDecEnc.a; sourceTree = "<group>"; };
+		2768D66ECF7DED5E8708F40C /* Pods-JINS_MEME_DataLogger.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-JINS_MEME_DataLogger.debug.xcconfig"; path = "Pods/Target Support Files/Pods-JINS_MEME_DataLogger/Pods-JINS_MEME_DataLogger.debug.xcconfig"; sourceTree = "<group>"; };
+		2A035AE91D177489005DFCB9 /* JINS_MEME_DataLogger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JINS_MEME_DataLogger.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2A035AEC1D177489005DFCB9 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		2A035AED1D177489005DFCB9 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		2A035AF01D177489005DFCB9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		2A035AF21D177489005DFCB9 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		2A035AF31D177489005DFCB9 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
+		2A035AF51D177489005DFCB9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2A035AF81D177489005DFCB9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		2A035AFA1D177489005DFCB9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3BA842082899818ED5119209 /* Pods_JINS_MEME_DataLogger.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_JINS_MEME_DataLogger.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		A64A4856F0B5E696C81A0848 /* Pods-JINS_MEME_DataLogger.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-JINS_MEME_DataLogger.release.xcconfig"; path = "Pods/Target Support Files/Pods-JINS_MEME_DataLogger/Pods-JINS_MEME_DataLogger.release.xcconfig"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2A035AE61D177489005DFCB9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				244913261D20F9770075165D /* libDecEnc.a in Frameworks */,
+				B756A51127317BE1F1AA7E96 /* Pods_JINS_MEME_DataLogger.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2A035AE01D177489005DFCB9 = {
+			isa = PBXGroup;
+			children = (
+				2A035AEB1D177489005DFCB9 /* JINS_MEME_DataLogger */,
+				2A035AEA1D177489005DFCB9 /* Products */,
+				95E7A943AAA5B4F7B1415EA5 /* Pods */,
+				741B4C5A68F3A0286E346ABE /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		2A035AEA1D177489005DFCB9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2A035AE91D177489005DFCB9 /* JINS_MEME_DataLogger.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2A035AEB1D177489005DFCB9 /* JINS_MEME_DataLogger */ = {
+			isa = PBXGroup;
+			children = (
+				2A035AEC1D177489005DFCB9 /* AppDelegate.h */,
+				2A035AED1D177489005DFCB9 /* AppDelegate.m */,
+				2A035AF21D177489005DFCB9 /* ViewController.h */,
+				2A035AF31D177489005DFCB9 /* ViewController.m */,
+				2A035AF51D177489005DFCB9 /* Assets.xcassets */,
+				2A035AF71D177489005DFCB9 /* Main.storyboard */,
+				2A035AFA1D177489005DFCB9 /* Info.plist */,
+				2A035AEF1D177489005DFCB9 /* Supporting Files */,
+			);
+			path = JINS_MEME_DataLogger;
+			sourceTree = "<group>";
+		};
+		2A035AEF1D177489005DFCB9 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				2A035AF01D177489005DFCB9 /* main.m */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		741B4C5A68F3A0286E346ABE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				244913251D20F9770075165D /* libDecEnc.a */,
+				3BA842082899818ED5119209 /* Pods_JINS_MEME_DataLogger.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		95E7A943AAA5B4F7B1415EA5 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				2768D66ECF7DED5E8708F40C /* Pods-JINS_MEME_DataLogger.debug.xcconfig */,
+				A64A4856F0B5E696C81A0848 /* Pods-JINS_MEME_DataLogger.release.xcconfig */,
+			);
+			name = Pods;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2A035AE81D177489005DFCB9 /* JINS_MEME_DataLogger */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2A035AFD1D177489005DFCB9 /* Build configuration list for PBXNativeTarget "JINS_MEME_DataLogger" */;
+			buildPhases = (
+				EA88B8784E090800F96ABB7B /* [CP] Check Pods Manifest.lock */,
+				2A035AE51D177489005DFCB9 /* Sources */,
+				2A035AE61D177489005DFCB9 /* Frameworks */,
+				2A035AE71D177489005DFCB9 /* Resources */,
+				C455C42AE17DD3651D427BDE /* [CP] Embed Pods Frameworks */,
+				37811B02286A2EC3DD7EE60E /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JINS_MEME_DataLogger;
+			productName = JINS_MEME_DataLogger;
+			productReference = 2A035AE91D177489005DFCB9 /* JINS_MEME_DataLogger.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2A035AE11D177489005DFCB9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0730;
+				ORGANIZATIONNAME = RYOSAITO;
+				TargetAttributes = {
+					2A035AE81D177489005DFCB9 = {
+						CreatedOnToolsVersion = 7.3.1;
+					};
+				};
+			};
+			buildConfigurationList = 2A035AE41D177489005DFCB9 /* Build configuration list for PBXProject "JINS_MEME_DataLogger" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2A035AE01D177489005DFCB9;
+			productRefGroup = 2A035AEA1D177489005DFCB9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2A035AE81D177489005DFCB9 /* JINS_MEME_DataLogger */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2A035AE71D177489005DFCB9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A035AF61D177489005DFCB9 /* Assets.xcassets in Resources */,
+				2A035AF91D177489005DFCB9 /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		37811B02286A2EC3DD7EE60E /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-JINS_MEME_DataLogger/Pods-JINS_MEME_DataLogger-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		C455C42AE17DD3651D427BDE /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-JINS_MEME_DataLogger/Pods-JINS_MEME_DataLogger-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		EA88B8784E090800F96ABB7B /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [[ $? != 0 ]] ; then\n    cat << EOM\nerror: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\nEOM\n    exit 1\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2A035AE51D177489005DFCB9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A035AF41D177489005DFCB9 /* ViewController.m in Sources */,
+				2A035AF11D177489005DFCB9 /* main.m in Sources */,
+				2A035AEE1D177489005DFCB9 /* AppDelegate.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		2A035AF71D177489005DFCB9 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2A035AF81D177489005DFCB9 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		2A035AFB1D177489005DFCB9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2A035AFC1D177489005DFCB9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		2A035AFE1D177489005DFCB9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 2768D66ECF7DED5E8708F40C /* Pods-JINS_MEME_DataLogger.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = JINS_MEME_DataLogger/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/JINS_MEME_DataLogger",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.JINS-MEME-DataLogger";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2A035AFF1D177489005DFCB9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A64A4856F0B5E696C81A0848 /* Pods-JINS_MEME_DataLogger.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = JINS_MEME_DataLogger/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/JINS_MEME_DataLogger",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.JINS-MEME-DataLogger";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2A035AE41D177489005DFCB9 /* Build configuration list for PBXProject "JINS_MEME_DataLogger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2A035AFB1D177489005DFCB9 /* Debug */,
+				2A035AFC1D177489005DFCB9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2A035AFD1D177489005DFCB9 /* Build configuration list for PBXNativeTarget "JINS_MEME_DataLogger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2A035AFE1D177489005DFCB9 /* Debug */,
+				2A035AFF1D177489005DFCB9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2A035AE11D177489005DFCB9 /* Project object */;
+}
