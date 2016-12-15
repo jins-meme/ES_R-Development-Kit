@@ -6,7 +6,7 @@
 
 * Supported Devices and OS. 
 
-| Model | OS| Operation Varification |
+| Model | OS| Direct connection |
 |:--:|:--:|:--:|
 |Nexus5|6.0.1|-|
 |Nexus5|4.4|✔|
