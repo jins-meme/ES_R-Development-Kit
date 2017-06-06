@@ -5,6 +5,7 @@
 * Checked runnning on Windows 10 and Visual studio 2010, 2013 and 2015.
 * Dongle(BLE receiver) in needed to connect JINS MEME ES_R with windows PC.
 * To record the data, you need to write codes as needed.
+* For general instruction, please go [here](https://github.com/jins-meme/ES_R-DataLogger-for-Windows/releases) and see manual.
 
 ### STEP1 Download and Build the xcode project
 * Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
