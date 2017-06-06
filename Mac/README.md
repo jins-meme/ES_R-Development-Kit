@@ -11,3 +11,5 @@ ES_R means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
 * Then, build the project
 
 When, successfully build, sample UI shows up.
+
+
