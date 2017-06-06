@@ -23,9 +23,8 @@ When, successfully build, sample UI shows up.
 * When device NO(28A183055C47 in the image) shows, press "Connect" button.
 ![screen shot 2017-06-06 at 21 43 47](https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png)
 
-
-![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
-
 * When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
+![screen shot 2017-06-06 at 21 46 42](https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png)
+
 * Press "Start Measurement" button to start working JINS MEME
-![screen shot 2017-06-06 at 18 02 08](https://cloud.githubusercontent.com/assets/18042520/26821755/7ef5c136-4ae2-11e7-9913-27c6ee52397d.png)
+![screen shot 2017-06-06 at 21 46 57](https://cloud.githubusercontent.com/assets/18042520/26829813/d52af17e-4b01-11e7-83e2-4eaf662d5ff8.png)
