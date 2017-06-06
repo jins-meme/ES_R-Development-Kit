@@ -10,5 +10,6 @@
 * Then, build the project
 
 When, successfully build, sample UI shows up.
+![successbuild](https://cloud.githubusercontent.com/assets/18042520/26821411/48e4c6ce-4ae1-11e7-844b-b424ae910582.png)
 
 
