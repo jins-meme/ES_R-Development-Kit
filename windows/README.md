@@ -27,4 +27,4 @@ When, successfully build, sample UI shows up.
 ![screen shot 2017-06-06 at 21 46 42](https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png)
 
 * Press "Start Measurement" button to start working JINS MEME
-![screen shot 2017-06-06 at 21 46 57](https://cloud.githubusercontent.com/assets/18042520/26829813/d52af17e-4b01-11e7-83e2-4eaf662d5ff8.png)
+![screen shot 2017-06-06 at 21 48 40](https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png)
