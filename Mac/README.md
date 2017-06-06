@@ -14,9 +14,8 @@ When, successfully build, sample UI shows up.
 ![successbuild](https://cloud.githubusercontent.com/assets/18042520/26821411/48e4c6ce-4ae1-11e7-844b-b424ae910582.png)
 
 ### STEP2 Connect JINS MEME ES_R
-* press "Scan MEME" then fine 
-
-
+* press "Scan MEME" then connect your JINS MEME
+* NOTICE that your
 ![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
 
 ![screen shot 2017-06-06 at 18 02 08](https://cloud.githubusercontent.com/assets/18042520/26821755/7ef5c136-4ae2-11e7-9913-27c6ee52397d.png)
