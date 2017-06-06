@@ -12,7 +12,7 @@
 * launch "MEME_Academic_Sample.sln"
 * Then, build the project
 
-When, successfully build, sample UI shows up.
+When, successfully build, sample UI shows up.  
 ![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829201/8bd45be8-4aff-11e7-85a1-2ca54a05dbe2.png)
 
 ### STEP2 Connect JINS MEME ES_R
