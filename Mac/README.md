@@ -1,8 +1,9 @@
-### ES_R-DevelopmentKit-Mac
+### Summary of ES_R-DevelopmentKit-Mac 
 * "ES_R" means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
 * sample code included  
 * Checked runnning on macOS Sierra, Version 10.12.5 and Xcode Version 8.3.2(8E2002)
 * Dongle(BLE receiver) in NOT needed for Mac
+* To record the data, you need to write codes as needed.
 
 ### STEP1 Download and Build the xcode project
 * Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
