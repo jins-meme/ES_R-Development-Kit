@@ -8,12 +8,12 @@
 
 ### STEP1 Download and Build the xcode project
 * Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
-* go to /ES_R-Development-Kit-master/Mac/ES_R_DevKit_Mac/
-* launch "MEME_Academic.xcodeproj"
+* go to /ES_R-Development-Kit-master/windows/ES_R_DevKit_Windows/
+* launch "MEME_Academic_Sample.sln"
 * Then, build the project
 
 When, successfully build, sample UI shows up.
-![successbuild](https://cloud.githubusercontent.com/assets/18042520/26821411/48e4c6ce-4ae1-11e7-844b-b424ae910582.png)
+![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829201/8bd45be8-4aff-11e7-85a1-2ca54a05dbe2.png)
 
 ### STEP2 Connect JINS MEME ES_R
 * press "Scan MEME" then connect your JINS MEME
