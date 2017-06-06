@@ -17,8 +17,8 @@ When, successfully build, sample UI shows up.
 
 ### STEP2 Connect JINS MEME ES_R
 * Insert the USB dongle of JINS MEME ES_R
-* press "Scan port"
-* NOTICE that device Number shown in UI (e.g) 1C1-1047 in the image) is not equivalent to Bluetooth ID of JINS MEME  
+* press "Scan port", and after COM Number shows press "Open"
+* 
 ![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
 
 * When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
