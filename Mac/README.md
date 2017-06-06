@@ -15,7 +15,7 @@ When, successfully build, sample UI shows up.
 
 ### STEP2 Connect JINS MEME ES_R
 * press "Scan MEME" then connect your JINS MEME
-* NOTICE that your
+* NOTICE that device no shown in UI (e.g) 1C1-1047 in the image) is not equivalent to Bluetooth ID of JINS MEME  
 ![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
 
 ![screen shot 2017-06-06 at 18 02 08](https://cloud.githubusercontent.com/assets/18042520/26821755/7ef5c136-4ae2-11e7-9913-27c6ee52397d.png)
