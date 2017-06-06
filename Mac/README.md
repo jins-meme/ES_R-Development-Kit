@@ -4,5 +4,10 @@ ES_R means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
 * sample code included  
 * Checked runnning on macOS Sierra, Version 10.12.5 and Xcode Version 8.3.2(8E2002)
 
-### How to Use
+### How to Use (Easiest way)
+* Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
+* go to /ES_R-Development-Kit-master/Mac/ES_R_DevKit_Mac/
+* launch "MEME_Academic.xcodeproj"
+* Then, build the project
 
+When, successfully build, sample UI shows up.
