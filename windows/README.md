@@ -13,7 +13,7 @@
 * Then, build the project
 
 When, successfully build, sample UI shows up.  
-* ![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png)
+  ![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png)
 
 ### STEP2 Connect JINS MEME ES_R
 * Insert the USB dongle of JINS MEME ES_R
