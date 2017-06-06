@@ -1,3 +1,6 @@
+#ES_R-DevelopmentKit-Android
+ES_R means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
+
 ##### Android SDK for JINS MEME ACADEMIC PACK
 
 * When developing your own software with Android SDK, you have 2 choices regarding how to connect JINS MEME Hardware with Android. One way is a connection using the official USB(BLE) dongle, and the other is the direct connection with BLD embedded in Android device. 
