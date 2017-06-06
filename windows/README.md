@@ -16,7 +16,8 @@ When, successfully build, sample UI shows up.
 ![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png)
 
 ### STEP2 Connect JINS MEME ES_R
-* press "Scan MEME" then connect your JINS MEME
+* Insert the USB dongle of JINS MEME ES_R
+* press "Scan port"
 * NOTICE that device Number shown in UI (e.g) 1C1-1047 in the image) is not equivalent to Bluetooth ID of JINS MEME  
 ![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
 
