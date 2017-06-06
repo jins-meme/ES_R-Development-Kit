@@ -3,7 +3,7 @@
 * sample code included  
 * Checked runnning on macOS Sierra, Version 10.12.5 and Xcode Version 8.3.2(8E2002)
 
-### How to Use (Easiest way)
+### How to Setup and Connect JINS MEME ES_R (Easiest way)
 * Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
 * go to /ES_R-Development-Kit-master/Mac/ES_R_DevKit_Mac/
 * launch "MEME_Academic.xcodeproj"
