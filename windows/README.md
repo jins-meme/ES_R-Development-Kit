@@ -18,7 +18,7 @@ When, successfully build, sample UI shows up.
 ### STEP2 Connect JINS MEME ES_R
 * Insert the USB dongle of JINS MEME ES_R
 * press "Scan port", and after COM Number shows press "Open"
-* 
+* ![screen shot 2017-06-06 at 21 39 25](https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png)
 ![screen shot 2017-06-06 at 18 01 45](https://cloud.githubusercontent.com/assets/18042520/26821738/6faa99d6-4ae2-11e7-9e48-d62387ad4bf9.png)
 
 * When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
