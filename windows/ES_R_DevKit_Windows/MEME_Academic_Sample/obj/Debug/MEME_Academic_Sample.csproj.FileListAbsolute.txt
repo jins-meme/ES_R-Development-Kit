@@ -1,0 +1,11 @@
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\bin\Debug\MEME_Academic_Sample.exe.config
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\bin\Debug\MEME_Academic_Sample.exe
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\bin\Debug\MEME_Academic_Sample.pdb
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\bin\Debug\MEMELib_Academic.dll
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.csprojResolveAssemblyReference.cache
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.MEME_Academic_Sample.resources
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.Properties.Resources.resources
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.VersionForm.resources
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.csproj.GenerateResource.Cache
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.exe
+\\Mac\Home\Desktop\Internal-AP-Development-Windows-master\MEME_Academic_Sample\MEME_Academic_Sample\obj\Debug\MEME_Academic_Sample.pdb
