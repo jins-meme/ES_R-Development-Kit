@@ -7,13 +7,14 @@
 
 ### Validation of connectivity: with/without the USB dongle
 When developing your own software with ES_R-DevelopmentKit-android, you have 2 choices regarding how to connect JINS MEME ES_R with an Android device. One way is to use the official USB(BLE) dongle, and the other way is a direct connection with BLE chip embedded in the Android device. If you use the official USB dongle, please check supported(validated) android OS and devices [here](https://github.com/jins-meme/ES_R-DataLogger-for-Android).
+If circumstances allow, we would recommend to use the dongle to avoid unexpected problems.
 
-In case, you would like to connect JINS MEME ES_R withouth the official USB dongle, please be sure that several tricky combinations exit. 
+In case, you would like to connect JINS MEME ES_R with Android without the official USB dongle, please be sure that several tricky combinations between Device and OS exit. 
 
-
+So far, we have velified that direct BLE connection is successful in the following combination. 
 | Device Model | OS| Direct connection |
 |:--:|:--:|:--:|
-|Nexus5|7.x|-|
+|Nexus5|7.x|-
 |Nexus5|6.x|-|
 |Nexus5|4.4|✔|
 |Nexus9|6.0.1|-|
