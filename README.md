@@ -10,3 +10,8 @@ We've prepared ES_R development Kit for three environment, and please go to the 
 
 ## Japanese
 本ES_R-Development-Kitでは、JINS MEME ES_R（Academic Pack）用の開発用サンプルコードを提供しています。
+
+現在，以下の環境でご利用が可能です。
+* [ES_R Development Kit for Windows](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/windows)
+* [ES_R Development Kit for Android]
+* [ES_R Development Kit for Mac](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/Mac)
