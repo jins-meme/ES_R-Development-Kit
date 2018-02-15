@@ -1,3 +1,5 @@
+## English
+
 ### Summary of ES_R-DevelopmentKit-Windows
 * "ES_R" means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
 * sample code included.
@@ -31,3 +33,5 @@ When, successfully build, sample UI shows up.
 ![screen shot 2017-06-06 at 21 48 40](https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png)
 
 ### STEP3 Enjoy making your original application
+
+## Japanese(準備中です）
