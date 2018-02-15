@@ -5,8 +5,9 @@
 * sample code included.
 * To record the data, you need to write codes as needed.
 
-### Validation of connectivity: with/without the USB Dongle
-When developing your own software with Android SDK, you have 2 choices regarding how to connect JINS MEME Hardware with Android. One way is a connection using the official USB(BLE) dongle, and the other is the direct connection with BLD embedded in Android device. 
+### Validation of connectivity: with/without the USB dongle
+When developing your own software with ES_R-DevelopmentKit-android, you have 2 choices regarding how to connect JINS MEME ES_R with an Android device. One way is to use the official USB(BLE) dongle, and the other way is a direct connection with BLE chip embedded in the Android device. If you use the official USB dongle, please check supported(validated) android OS and devices [here](https://github.com/jins-meme/ES_R-DataLogger-for-Android).
+
 * It seems that direct connection on Android OS 6 doesn't work correctly (edited 6.Jun.2016).
 
 * Supported Devices and OS. 
