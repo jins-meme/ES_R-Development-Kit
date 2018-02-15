@@ -1,3 +1,5 @@
+## English
+
 ### Summary of ES_R-DevelopmentKit-Mac 
 * "ES_R" means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
 * sample code included  
@@ -24,3 +26,5 @@ When, successfully build, sample UI shows up.
 ![screen shot 2017-06-06 at 18 02 08](https://cloud.githubusercontent.com/assets/18042520/26821755/7ef5c136-4ae2-11e7-9913-27c6ee52397d.png)
 
 ### STEP3 Enjoy making your original application
+
+## Japanese(準備中です）
