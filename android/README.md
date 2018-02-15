@@ -12,6 +12,7 @@ If circumstances allow, we would recommend to use the dongle to avoid unexpected
 In case, you would like to connect JINS MEME ES_R with Android without the official USB dongle, please be sure that several tricky combinations between Device and OS exit. 
 
 So far, we have velified that direct BLE connection is successful in the following combination. 
+
 | Device Model | OS| Direct connection |
 |:--:|:--:|:--:|
 |Nexus5|7.x|-
