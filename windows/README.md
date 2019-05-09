@@ -7,7 +7,7 @@
 
 This project includes sample code to use JINS MEME ES_R(also called JINS MEME Academic pack). To run this project, please be sure that you have JINS MEME ES_R and BLE dongle. For general instruction, please go [here](https://jins-meme.github.io/apdoc/en/) and see manual.
 
-## System environment
+## System requirment
 * Requirment: Microsoft .Net Framework 4.5 or Net Framework4.7
 * Windows 10
 * Visual Studio 2017, 2019
