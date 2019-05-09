@@ -22,7 +22,7 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 
 <a name="fig.0"></a>
 <div align="center">
-<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="850">
+<img src="https://user-images.githubusercontent.com/18042520/57450353-323e0980-7299-11e9-840c-56518d3d3bee.png" alt="属性" title="Figure. 0" width="850">
 </div>
 <div style="text-align: center;">Figure. 0</div>
 
