@@ -1,4 +1,5 @@
-* ## Development Kit for JINS MEME ES_R (JINS MEME Academic Pack).
+# Development Kit for JINS MEME ES_R on Windows
+
 # English
 ([日本語補足](#japanesedoc))
 ## Summary of ES_R-DevelopmentKit-Windows
@@ -20,14 +21,12 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc". See Figure. 0 (b).
 
 <a name="fig.0"></a>
-<div align="center">
-<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="600">
+<div align="right">
+<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="750">
 </div>
 <div style="text-align: center;">Figure. 0</div>
 
-5. Finally, build the project.
-
-When, successfully build, sample UI shows up.
+5. Finally, build the project. When, successfully build, sample UI shows up.
 <a name="fig.1"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png" alt="属性" title="Figure. 1" width="400">
@@ -35,30 +34,30 @@ When, successfully build, sample UI shows up.
 <div style="text-align: center;">Figure. 1</div>
 
 ## STEP2 Connect JINS MEME ES_R
-* Insert the USB dongle of JINS MEME ES_R
-* Press "Scan port". After COM Number(COM4 in the image) shows, press "Open".
+1. Insert the USB dongle of JINS MEME ES_R
+2. Press "Scan port". After COM Number(COM4 in the image) shows, press "Open".
 <a name="fig.2"></a>  
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png" alt="属性" title="Figure. 2" width="400">
 </div>
 <div style="text-align: center;">Figure. 2</div>
 
-* Turn JINS MEME ES_R on and then press "Scan MEME"
-* When device NO(28A183055C47 in the image) shows, press "Connect" button.
+3. Turn JINS MEME ES_R on and then press "Scan MEME"
+4. When device NO(28A183055C47 in the image) shows, press "Connect" button.
 <a name="fig.3"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png" alt="属性" title="Figure. 3" width="400">
 </div>
 <div style="text-align: center;">Figure. 3</div>
 
-* When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
+5. When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
 <a name="fig.4"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png" alt="属性" title="Figure. 4" width="400">
 </div>
 <div style="text-align: center;">Figure. 4</div>
 
-* Press "Start Measurement" button to start working JINS MEME 
+6. Press "Start Measurement" button to start working JINS MEME 
 <a name="fig.5"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png" alt="属性" title="Figure. 5" width="400">
@@ -99,7 +98,7 @@ Figure below shows the connection and data flow.
 | EogH | Horizontal eye movement |
 | EogV | Vertical eye movement |
 
-# 　　
+---
 <a name="japanesedoc"></a>
 # 日本語
 ## はじめに
@@ -135,12 +134,12 @@ Figure below shows the connection and data flow.
 * PCはUSBドングル経由でJINS MEME ES_Rと接続を行います.
 * 接続後にMemeLibのstartDataReportメソッドを呼び出すとデータの取得が可能になります.
 
-### センサー値の取得方法
+## センサー値の取得方法
 MEME_Academic_Sample.cs ファイルの中のデリゲートを実装している部分，memeAcademicFullDataReceivedメソッドでセンサー値を受け取ることができます．
 * このメソッドはJINS MEME ES_Rの動作クロックに合わせて複数回呼び出されます．
 * 実際のセンサー値はAcademicFullDataクラスのインスタンスに格納されています．
 
-### AcademicFullDataクラスの変数
+## AcademicFullDataクラスの変数
 | 変数名 | 意味 |
 ----|---- 
 | Cnt | データのカウント値 |
