@@ -17,7 +17,7 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 ## STEP 1: How to build
 1. Download or Clone this project
 2. Open "MEME_Academic_Sample.sln" with Visual Studio 2019/2017
-3. Go to "Serch Solution Explore", right click on "References", and then go to "Manage NuGet Packages". See Figure. 0 (a).
+3. Go to "Solution Explore", right click on "References", and then go to "Manage NuGet Packages". See Figure. 0 (a).
 4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc". See Figure. 0 (b).
 
 <a name="fig.0"></a>
@@ -138,7 +138,7 @@ Figure below shows the connection and data flow.
 ## STEP 1: ビルド
 1. Githubからプロジェクトをクローンまたはダウンロードします.
 2. 「MEME_Academic_Sample.sln」をVisualStudio 2019(または2017)で開きます．
-3. 「Serch Solution Explore」の中にある「References」を右クリックし，「Manage NuGet Packages」を選択します．（上述の[Figure. 0 (a)](#fig.0))
+3. 「Solution Explore」の中にある「References」を右クリックし，「Manage NuGet Packages」を選択します．（上述の[Figure. 0 (a)](#fig.0))
 4. 検索窓で「JINS MEME」を検索し，検索結果から「JINSMEME_ES_R by JINS Inc.」を選択しインストールします．（上述の[Figure. 0 (b)](#fig.0))
 5. ビルドを実行します．
     *  ビルドが問題なく行われた場合，データ取得のためUIサンプルが表示されます．（上述の[Figure. 1](#fig.1))
