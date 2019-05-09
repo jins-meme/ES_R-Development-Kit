@@ -21,8 +21,8 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc". See Figure. 0 (b).
 
 <a name="fig.0"></a>
-<div align="right">
-<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="750">
+<div align="center">
+<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="850">
 </div>
 <div style="text-align: center;">Figure. 0</div>
 
