@@ -27,7 +27,7 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 <div style="text-align: center;">
 　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 0
 </div>  
-
+  
 5. Finally, build the project. When, successfully build, sample UI shows up.
 <a name="fig.1"></a>
 <div align="center">
