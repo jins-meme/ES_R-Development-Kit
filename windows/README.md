@@ -21,8 +21,10 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 5. Finally, build the project.
 
 When, successfully build, sample UI shows up.
-<a name="fig.1"></a>  
-　　![successbuild](https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png)  
+<a name="fig.1"></a>
+<div align="center">
+<img src="https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png" alt="属性" title="Figure. 1">
+</div>
 　　　Figure. 1
 
 ### STEP2 Connect JINS MEME ES_R
