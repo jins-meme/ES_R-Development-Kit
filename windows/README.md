@@ -16,8 +16,15 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 ## STEP 1: How to build
 1. Download or Clone this project
 2. Open "MEME_Academic_Sample.sln" with Visual Studio 2019/2017
-3. Go to "Serch Solution Explore", right click on "References", and then go to "Manage NuGet Packages".
-4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc".
+3. Go to "Serch Solution Explore", right click on "References", and then go to "Manage NuGet Packages". See Figure. 0 (a).
+4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc". See Figure. 0 (b).
+
+<a name="fig.0"></a>
+<div align="center">
+<img src="https://user-images.githubusercontent.com/18042520/57449031-d2922f00-7295-11e9-8376-15fff2b5c5f7.png" alt="属性" title="Figure. 0" width="600">
+</div>
+<div style="text-align: center;">Figure. 0</div>
+
 5. Finally, build the project.
 
 When, successfully build, sample UI shows up.
@@ -26,46 +33,57 @@ When, successfully build, sample UI shows up.
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png" alt="属性" title="Figure. 1" width="400">
 </div>
 <div style="text-align: center;">Figure. 1</div>
-　　　
 
-### STEP2 Connect JINS MEME ES_R
+## STEP2 Connect JINS MEME ES_R
 * Insert the USB dongle of JINS MEME ES_R
-* Press "Scan port". After COM Number(COM4 in the image) shows press "Open".
+* Press "Scan port". After COM Number(COM4 in the image) shows, press "Open".
 <a name="fig.2"></a>  
-　　　![screen shot 2017-06-06 at 21 39 25](https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png)  
-Figure. 2
+<div align="center">
+<img src="https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png" alt="属性" title="Figure. 2" width="400">
+</div>
+<div style="text-align: center;">Figure. 2</div>
 
 * Turn JINS MEME ES_R on and then press "Scan MEME"
 * When device NO(28A183055C47 in the image) shows, press "Connect" button.
-<a name="fig.3"></a>  
-　　　![screen shot 2017-06-06 at 21 43 47](https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png)  
-Figure. 3
+<a name="fig.3"></a>
+<div align="center">
+<img src="https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png" alt="属性" title="Figure. 3" width="400">
+</div>
+<div style="text-align: center;">Figure. 3</div>
 
 * When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
-<a name="fig.4"></a>  
-　　　![screen shot 2017-06-06 at 21 46 42](https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png)  
-Figure. 4
+<a name="fig.4"></a>
+<div align="center">
+<img src="https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png" alt="属性" title="Figure. 4" width="400">
+</div>
+<div style="text-align: center;">Figure. 4</div>
 
 * Press "Start Measurement" button to start working JINS MEME 
-<a name="fig.5"></a>   
-![screen shot 2017-06-06 at 21 48 40](https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png)  
-Figure. 5
+<a name="fig.5"></a>
+<div align="center">
+<img src="https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png" alt="属性" title="Figure. 5" width="400">
+</div>
+<div style="text-align: center;">Figure. 5</div>
 
 ### STEP 3 Prepare for Edit code: Overview 
 Figure below shows the connection and data flow.
-<a name="fig.6"></a>  
-　　　<img src="https://user-images.githubusercontent.com/18042520/57433993-d1043f00-7274-11e9-9460-d873d87fedc4.png" width="550">  
-　　Figure. 6
+
+<a name="fig.6"></a>
+<div align="center">
+<img src="https://user-images.githubusercontent.com/18042520/57433993-d1043f00-7274-11e9-9460-d873d87fedc4.png" alt="属性" title="Figure. 6" width="450">
+</div>
+<div style="text-align: center;">Figure. 6</div>
 
 * PC gets data from JINS MEME ES_R via USB dongle.
 * After connected, you can call "startDataReport" method in "MemeLib" to get ready to receive data.
 
-### STEP 4 Get sensor data
+## STEP 4 Get sensor data
 * call "memeAcademicFullDataReceived" method to receive sensor data. The method is in delegate part in "MEME_Academic_Sample.cs" file.
 * Project calls this method several times.
 * Instance of "AcademicFullData" class stores sensor values.
 
-### Class variables of AcademicFullData class
+## Class variables of AcademicFullData class
+
 | variables | meaning |
 ----|---- 
 | Cnt | data count |
@@ -98,8 +116,8 @@ Figure below shows the connection and data flow.
 ## STEP 1: ビルド
 1. Githubからプロジェクトをクローンまたはダウンロードします.
 2. 「MEME_Academic_Sample.sln」をVisualStudio 2019(または2017)で開きます．
-3. 「Serch Solution Explore」の中にある「References」を右クリックし，「Manage NuGet Packages」を選択します．
-4. 検索窓で「JINS MEME」を検索し，検索結果から「JINSMEME_ES_R by JINS Inc.」を選択しインストールします．
+3. 「Serch Solution Explore」の中にある「References」を右クリックし，「Manage NuGet Packages」を選択します．（上述の[Figure. 0 (a)](#fig.0))
+4. 検索窓で「JINS MEME」を検索し，検索結果から「JINSMEME_ES_R by JINS Inc.」を選択しインストールします．（上述の[Figure. 0 (b)](#fig.0))
 5. ビルドを実行します．
     *  ビルドが問題なく行われた場合，データ取得のためUIサンプルが表示されます．（上述の[Figure. 1](#fig.1))
 
