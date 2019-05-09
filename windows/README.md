@@ -24,14 +24,14 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 <div align="center">
 <img src="https://user-images.githubusercontent.com/18042520/57450353-323e0980-7299-11e9-840c-56518d3d3bee.png" alt="属性" title="Figure. 0" width="850">
 </div>
-<div style="text-align: center;">Figure. 0</div>
+<div style="text-align: center;">Figure. 0</div>  
 
 5. Finally, build the project. When, successfully build, sample UI shows up.
 <a name="fig.1"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png" alt="属性" title="Figure. 1" width="400">
 </div>
-<div style="text-align: center;">Figure. 1</div>
+<div style="text-align: center;">Figure. 1</div>  
 
 ## STEP2 Connect JINS MEME ES_R
 1. Insert the USB dongle of JINS MEME ES_R
@@ -40,7 +40,7 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png" alt="属性" title="Figure. 2" width="400">
 </div>
-<div style="text-align: center;">Figure. 2</div>
+<div style="text-align: center;">Figure. 2</div>  
 
 3. Turn JINS MEME ES_R on and then press "Scan MEME"
 4. When device NO(28A183055C47 in the image) shows, press "Connect" button.
@@ -48,21 +48,21 @@ This project includes sample code to use JINS MEME ES_R(also called JINS MEME Ac
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png" alt="属性" title="Figure. 3" width="400">
 </div>
-<div style="text-align: center;">Figure. 3</div>
+<div style="text-align: center;">Figure. 3</div>  
 
 5. When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
 <a name="fig.4"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png" alt="属性" title="Figure. 4" width="400">
 </div>
-<div style="text-align: center;">Figure. 4</div>
+<div style="text-align: center;">Figure. 4</div>  
 
 6. Press "Start Measurement" button to start working JINS MEME 
 <a name="fig.5"></a>
 <div align="center">
 <img src="https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png" alt="属性" title="Figure. 5" width="400">
 </div>
-<div style="text-align: center;">Figure. 5</div>
+<div style="text-align: center;">Figure. 5</div>  
 
 ### STEP 3 Prepare for Edit code: Overview 
 Figure below shows the connection and data flow.
@@ -71,7 +71,7 @@ Figure below shows the connection and data flow.
 <div align="center">
 <img src="https://user-images.githubusercontent.com/18042520/57433993-d1043f00-7274-11e9-9460-d873d87fedc4.png" alt="属性" title="Figure. 6" width="450">
 </div>
-<div style="text-align: center;">Figure. 6</div>
+<div style="text-align: center;">Figure. 6</div>  
 
 * PC gets data from JINS MEME ES_R via USB dongle.
 * After connected, you can call "startDataReport" method in "MemeLib" to get ready to receive data.
