@@ -4,10 +4,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layout_marginBottom="@dimen/activity_vertical_margin"
     android:layout_marginLeft="@dimen/activity_horizontal_margin"
+    android:layout_marginTop="@dimen/activity_vertical_margin"
     android:layout_marginRight="@dimen/activity_horizontal_margin"
-    android:layout_marginTop="@dimen/activity_vertical_margin" >
+    android:layout_marginBottom="@dimen/activity_vertical_margin">
 
     <android.support.v7.widget.Toolbar
         android:id="@+id/header"
@@ -25,13 +25,13 @@
         android:layout_height="match_parent"
         android:layout_below="@+id/header"
         android:layout_centerHorizontal="true"
-        android:visibility="visible" >
+        android:visibility="visible">
 
         <RelativeLayout
             android:id="@+id/body"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="top" >
+            android:layout_gravity="top">
 
             <LinearLayout
                 android:id="@+id/category_usb"
@@ -40,7 +40,7 @@
                 android:layout_centerHorizontal="true"
                 android:layout_margin="8dp"
                 android:gravity="center_vertical"
-                android:orientation="vertical" >
+                android:orientation="vertical">
 
                 <TextView
                     style="@android:style/TextAppearance.Large"
@@ -56,7 +56,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="2dp"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal" >
+                    android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/button_open_usb"
@@ -72,14 +72,14 @@
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
                         android:gravity="center_vertical"
-                        android:orientation="vertical" >
+                        android:orientation="vertical">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_margin="4dp"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal" >
+                            android:orientation="horizontal">
 
                             <TextView
                                 style="@android:style/TextAppearance"
@@ -113,7 +113,7 @@
                 android:layout_centerHorizontal="true"
                 android:layout_margin="8dp"
                 android:gravity="center_vertical"
-                android:orientation="vertical" >
+                android:orientation="vertical">
 
                 <TextView
                     style="@android:style/TextAppearance.Large"
@@ -129,7 +129,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="2dp"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal" >
+                    android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/button_scan"
@@ -159,7 +159,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="2dp"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal" >
+                    android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/button_connect_ble"
@@ -175,14 +175,14 @@
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
                         android:gravity="center_vertical"
-                        android:orientation="vertical" >
+                        android:orientation="vertical">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_margin="4dp"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal" >
+                            android:orientation="horizontal">
 
                             <TextView
                                 style="@android:style/TextAppearance"
@@ -214,16 +214,16 @@
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/category_ble"
                 android:layout_centerHorizontal="true"
-                android:layout_marginBottom="@dimen/activity_vertical_margin"
                 android:layout_marginLeft="@dimen/activity_horizontal_margin"
-                android:layout_marginRight="@dimen/activity_horizontal_margin"
                 android:layout_marginTop="@dimen/activity_vertical_margin"
+                android:layout_marginRight="@dimen/activity_horizontal_margin"
+                android:layout_marginBottom="@dimen/activity_vertical_margin"
                 android:orientation="vertical"
-                android:padding="8dp" >
+                android:padding="8dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" >
+                    android:layout_height="wrap_content">
 
                     <TextView
                         style="@android:style/TextAppearance.Large"
@@ -269,14 +269,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:layout_marginEnd="8dp"
-                    android:layout_marginStart="8dp" >
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp">
 
                     <TableRow
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
-                        android:gravity="center_vertical" >
+                        android:gravity="center_vertical">
 
                         <TextView
                             style="@android:style/TextAppearance"
@@ -298,7 +298,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
-                        android:gravity="center_vertical" >
+                        android:gravity="center_vertical">
 
                         <TextView
                             style="@android:style/TextAppearance"
@@ -320,13 +320,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
-                        android:gravity="center_vertical" >
+                        android:gravity="center_vertical">
 
                         <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="3"
-                            android:orientation="vertical" >
+                            android:orientation="vertical">
 
                             <TextView
                                 style="@android:style/TextAppearance"
@@ -357,13 +357,13 @@
                         android:layout_height="wrap_content"
                         android:layout_margin="4dp"
                         android:layout_weight="3"
-                        android:gravity="center_vertical" >
+                        android:gravity="center_vertical">
 
                         <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="3"
-                            android:orientation="vertical" >
+                            android:orientation="vertical">
 
                             <TextView
                                 style="@android:style/TextAppearance"
@@ -395,15 +395,15 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:gravity="center"
-                    android:orientation="horizontal" >
+                    android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/button_measurement"
                         style="?android:attr/buttonBarButtonStyle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
                         android:layout_marginStart="4dp"
+                        android:layout_marginEnd="8dp"
                         android:onClick="measurement"
                         android:text="@string/button_measurement_start"
                         android:textColor="@color/colorPrimary" />
@@ -413,8 +413,8 @@
                         style="?android:attr/buttonStyle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="4dp"
                         android:layout_marginStart="8dp"
+                        android:layout_marginEnd="4dp"
                         android:onClick="marking"
                         android:text="@string/button_free_marking" />
                 </LinearLayout>
@@ -425,13 +425,13 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:gravity="center"
-                    android:orientation="horizontal" >
+                    android:orientation="horizontal">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="2"
-                        android:orientation="vertical" >
+                        android:orientation="vertical">
 
                         <ProgressBar
                             android:id="@+id/progress_success_rate"
@@ -467,59 +467,120 @@
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/category_measurement"
                 android:layout_centerHorizontal="true"
-                android:layout_marginBottom="@dimen/activity_vertical_margin"
                 android:layout_marginLeft="@dimen/activity_horizontal_margin"
-                android:layout_marginRight="@dimen/activity_horizontal_margin"
                 android:layout_marginTop="@dimen/activity_vertical_margin"
+                android:layout_marginRight="@dimen/activity_horizontal_margin"
+                android:layout_marginBottom="@dimen/activity_vertical_margin"
                 android:orientation="vertical"
-                android:padding="8dp" >
+                android:padding="8dp">
 
                 <Button
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/eog_graph_disable"
                     android:id="@+id/button_eog_graph"
-                    android:onClick="EogGraphEnabled" />
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:onClick="EogGraphEnabled"
+                    android:text="@string/eog_graph_disable" />
 
                 <LinearLayout
-                    android:id="@+id/graph_VvVh"
-                    android:layout_width="wrap_content"
-                    android:layout_height="200dp"
-                    android:orientation="horizontal">
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/white"
+                    android:orientation="vertical">
 
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="@string/eog_graph_title" />
+
+                    <com.github.mikephil.charting.charts.LineChart
+                        android:id="@+id/graph_VvVh"
+                        android:layout_width="match_parent"
+                        android:layout_height="200dp"
+                        android:orientation="horizontal">
+
+                    </com.github.mikephil.charting.charts.LineChart>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:text="@string/graph_x_label"
+                        android:textSize="8sp" />
                 </LinearLayout>
 
                 <Button
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/acc_graph_disable"
                     android:id="@+id/button_acc_graph"
-                    android:onClick="AccGraphEnabled" />
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:onClick="AccGraphEnabled"
+                    android:text="@string/acc_graph_disable" />
 
                 <LinearLayout
-                    android:id="@+id/graph_acc"
-                    android:layout_width="wrap_content"
-                    android:layout_height="200dp"
-                    android:orientation="horizontal">
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/white"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="@string/acc_graph_title" />
+
+                    <com.github.mikephil.charting.charts.LineChart
+                        android:id="@+id/graph_acc"
+                        android:layout_width="match_parent"
+                        android:layout_height="200dp"
+                        android:orientation="horizontal">
+
+                    </com.github.mikephil.charting.charts.LineChart>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:text="@string/graph_x_label"
+                        android:textSize="8sp" />
+
                 </LinearLayout>
 
                 <Button
+                    android:id="@+id/button_gyro_graph"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/gyro_graph_disable"
-                    android:id="@+id/button_gyro_graph"
-                    android:onClick="GyroGraphEnabled" />
+                    android:onClick="GyroGraphEnabled"
+                    android:text="@string/gyro_graph_disable" />
 
                 <LinearLayout
-                    android:id="@+id/graph_gyro"
-                    android:layout_width="wrap_content"
-                    android:layout_height="200dp"
-                    android:orientation="horizontal">
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/white"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="@string/gyro_graph_title" />
+
+                    <com.github.mikephil.charting.charts.LineChart
+                        android:id="@+id/graph_gyro"
+                        android:layout_width="match_parent"
+                        android:layout_height="200dp"
+                        android:orientation="horizontal">
+
+                    </com.github.mikephil.charting.charts.LineChart>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:text="@string/graph_x_label"
+                        android:textSize="8sp" />
+
                 </LinearLayout>
-
             </LinearLayout>
-
         </RelativeLayout>
     </ScrollView>
-
 </RelativeLayout>

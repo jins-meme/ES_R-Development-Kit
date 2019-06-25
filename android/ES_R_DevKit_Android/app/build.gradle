@@ -1,15 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 23
-    buildToolsVersion "23.0.2"
-
+    compileSdkVersion 28
     defaultConfig {
         applicationId "com.jins_jp.meme.academic"
         minSdkVersion 18
-	    targetSdkVersion 22
+	    targetSdkVersion 28
         versionCode 1
-        versionName "2.0.2"
+        versionName "2.1.0"
     }
     buildTypes {
         release {
@@ -19,12 +17,16 @@ android {
     }
 }
 
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    testCompile 'junit:junit:4.12'
-    compile 'com.android.support:appcompat-v7:23.1.1'
-    compile 'com.android.support:design:23.1.1'
-    compile files('libs/libs_meme_dataencryption.jar')
-    compile files('libs/libs_meme_usbserial.jar')
-    compile 'org.achartengine:achartengine:1.2.0'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation 'junit:junit:4.12'
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    implementation 'com.android.support:design:28.0.0'
+    implementation files('libs/libs_meme_dataencryption.jar')
+    implementation files('libs/libs_meme_usbserial.jar')
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 }
