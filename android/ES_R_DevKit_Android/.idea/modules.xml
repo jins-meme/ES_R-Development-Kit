@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/JiNS_MEME-academic.iml" filepath="$PROJECT_DIR$/JiNS_MEME-academic.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ES_R_DevKit_Android.iml" filepath="$PROJECT_DIR$/ES_R_DevKit_Android.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
   </component>

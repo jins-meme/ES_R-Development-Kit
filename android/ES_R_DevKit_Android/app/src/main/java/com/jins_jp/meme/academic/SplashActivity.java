@@ -1,6 +1,7 @@
 
 package com.jins_jp.meme.academic;
 
+import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
@@ -9,8 +10,12 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -21,6 +26,7 @@ import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.RelativeLayout;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,8 +44,11 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
     private RelativeLayout mViewMain;
     private Switch switchModeView;
 
+    private final static int REQUEST_PERMISSIONS = 100;
+
     boolean isUse = true;
     boolean isBle = false;
+
 
     @SuppressLint("NewApi")
     @Override
@@ -56,7 +65,7 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
         //mViewMain.setOnClickListener(new OnClickListener() {
         //    @Override
         //    public void onClick(View v) {
-                // start activity
+        // start activity
         //        Class<?> cls = isUse ? MainUsbActivity.class : MainBleActivity.class;
         //        Intent intent = new Intent(getApplicationContext(), cls);
         //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -115,6 +124,10 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
         mViewMain.setClickable(true);
         // start flash
         setViewFlash(true);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            checkPermission();
+        }
     }
 
     @Override
@@ -221,11 +234,9 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
 
         if (v.getId() == R.id.button_usb) {
             cls = MainUsbActivity.class;
-        }
-        else if (v.getId() == R.id.button_ble) {
+        } else if (v.getId() == R.id.button_ble) {
             cls = MainBleActivity.class;
-        }
-        else {
+        } else {
             cls = MainUsbActivity.class;
         }
         Intent intent = new Intent(getApplicationContext(), cls);
@@ -233,5 +244,23 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
         startActivity(intent);
         intent = null;
         finish();
+    }
+
+    private void checkPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_PERMISSIONS);
+        }
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_PERMISSIONS) {
+            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "権限を許可しないと実行できません", Toast.LENGTH_LONG).show();
+            }
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
     }
 }
