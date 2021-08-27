@@ -19,6 +19,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.jins.meme.academic.util.DataEncryption;
 import com.jins.meme.academic.util.LogCat;

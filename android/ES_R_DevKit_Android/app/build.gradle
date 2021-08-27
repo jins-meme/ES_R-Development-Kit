@@ -1,13 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 30
     defaultConfig {
         applicationId "com.jins_jp.meme.academic"
-        minSdkVersion 18
-	    targetSdkVersion 28
+        minSdkVersion 23
+	    targetSdkVersion 30
         versionCode 1
-        versionName "2.1.0"
+        versionName "2.1.1"
     }
     buildTypes {
         release {
