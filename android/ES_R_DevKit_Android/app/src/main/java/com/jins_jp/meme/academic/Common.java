@@ -255,9 +255,9 @@ public class Common extends Object {
             @Override
             public void run() {
                 Toast toast = Toast.makeText(context, msg, Toast.LENGTH_SHORT);
-                View v = toast.getView();
-                v.setBackgroundColor(context.getResources()
-                        .getColor(R.color.colorPrimary));
+//                View v = toast.getView();
+//                v.setBackgroundColor(context.getResources()
+//                        .getColor(R.color.colorPrimary));
                 toast.show();
                 toast = null;
 
