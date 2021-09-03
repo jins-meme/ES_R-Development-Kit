@@ -442,10 +442,13 @@
                 libLog(@"0x89");
                 break;
             case 0x8F:
+                libLog(@"0x8F");
                 break;
             case 0x98:
+                libLog(@"0x98");
                 break;
             case 0x99:
+                libLog(@"0x99");
                 fullData.Cnt = (uint16_t)(((buff[3] << 8) & 0x0F00) | buff[2]);
                 fullData.BattLv = (uint16_t)(buff[3] >> 4);
                 fullData.AccX = (int16_t)((buff[5] << 8) | buff[4]);
@@ -461,8 +464,10 @@
                 [_delegate memeAcademicFullDataReceivedDelegate:(AcademicFullData*)fullData];
                 break;
             case 0x9A:
+                libLog(@"0x9A");
                 break;
             default:
+                libLog(@"default");
                 break;
         }
     }
@@ -673,10 +678,13 @@
         Connected_Flag = true;
         
         if (characteristic.isNotifying == YES) {
+            libLog(@"characteristic.isNotifying == YES");
             if (self.outputCharacteristic == nil) {
+                libLog(@"characteristic.isNotifying == YES");
                 Service_Flag = true;
             }
             else {
+                libLog(@"characteristic.isNotifying == NO");
                 [self MEME_ADN_GET_DEV_INFO];
             }
         }

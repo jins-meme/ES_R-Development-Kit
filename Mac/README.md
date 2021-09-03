@@ -28,3 +28,8 @@ When, successfully build, sample UI shows up.
 ### STEP3 Enjoy making your original application
 
 ## Japanese(準備中です）
+
+### 確認環境
+|App Version|MacOS Version|Xcode Version|
+|:--:|:--:|:--:|
+|1.1|MacOS 11.5.2|Xcode 12.5.1|

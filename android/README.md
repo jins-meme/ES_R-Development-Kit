@@ -13,14 +13,15 @@ In case, you would like to connect JINS MEME ES_R with Android without the offic
 
 So far, we have velified that direct BLE connection is successful in the following combination. 
 
-| Device Model | OS| Direct connection |
-|:--:|:--:|:--:|
-|Nexus5|7.x|-
-|Nexus5|6.x|-|
-|Nexus5|4.4|✔|
-|Nexus9|6.0.1|-|
-|Nexus9|5.1.1|✔|
-|HUAWEI mate pro 10|8.0.0|✔|
+| App Version | Device Model | OS| Direct connection |
+|:--:|:--:|:--:|:--:|
+|2.1.0|Nexus5|7.x|-|
+|2.1.0|Nexus5|6.x|-|
+|2.1.0|Nexus5|4.4|✔|
+|2.1.0|Nexus9|6.0.1|-|
+|2.1.0|Nexus9|5.1.1|✔|
+|2.1.0|HUAWEI mate pro 10|8.0.0|✔|
+|2.1.1|Xperia Lite 8|10.0.0|✔|
 
 #### "✔" successfully connected. "-" not working.
 
