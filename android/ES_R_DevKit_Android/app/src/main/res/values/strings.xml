@@ -73,15 +73,15 @@
     <string name="action_information_ble"></string>
     <string name="action_information_usb"></string>
     <string name="graph">Graph</string>
-    <string name="eog_graph_title">EOG</string>
-    <string name="eog_graph_enable">EOG Graph Enable</string>
-    <string name="eog_graph_disable">EOG Graph Disable</string>
-    <string name="acc_graph_title">Accel</string>
-    <string name="acc_graph_enable">ACC Graph Enable</string>
-    <string name="acc_graph_disable">ACC Graph Disable</string>
-    <string name="gyro_graph_title">Gyro</string>
-    <string name="gyro_graph_enable">GYRO Graph Enable</string>
-    <string name="gyro_graph_disable">GYRO Graph Disable</string>
-    <string name="graph_x_label">Time</string>
+    <string name="eog_graph_title">EOG data sample</string>
+    <string name="eog_graph_enable">EOG Graph Enabled</string>
+    <string name="eog_graph_disable">EOG Graph Disabled</string>
+    <string name="acc_graph_title">Accel data sample</string>
+    <string name="acc_graph_enable">ACC Graph Enabled</string>
+    <string name="acc_graph_disable">ACC Graph Disabled</string>
+    <string name="gyro_graph_title">Gyro data sample</string>
+    <string name="gyro_graph_enable">GYRO Graph Enabled</string>
+    <string name="gyro_graph_disable">GYRO Graph Disabled</string>
+    <string name="graph_x_label"></string>
 
 </resources>

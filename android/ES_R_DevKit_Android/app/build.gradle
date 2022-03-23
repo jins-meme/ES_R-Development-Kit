@@ -6,8 +6,8 @@ android {
         applicationId "com.jins_jp.meme.academic"
         minSdkVersion 21
 	    targetSdkVersion 30
-        versionCode 5
-        versionName "2.1.1"
+        versionCode 8
+        versionName "2.1.2"
     }
     buildTypes {
         release {
