@@ -97,7 +97,7 @@ abstract class MainActivity extends AppCompatActivity {
     protected final static byte AUP_REPORT_ACADEMIA2 = (byte) (0x99 & 0xFF);
     protected final static byte AUP_REPORT_ACADEMIA3 = (byte) (0x9A & 0xFF);
 
-    protected final static int GrasphSkipCount = 5;
+    protected final static int GrasphSkipCount = 2;
     private boolean EogGraphEnableFlag = false;
     private boolean AccGraphEnableFlag = false;
     private boolean GyroGraphEnableFlag = false;

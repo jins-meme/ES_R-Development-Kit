@@ -21,7 +21,7 @@ public class GraphEOG {
     Handler handler;
 
     private LineChart graphicalView;
-    private final int graph_width = 50;
+    private final int graph_width = 200;
 
     public GraphEOG(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -60,7 +60,7 @@ public class GraphEOG {
         XAxis xl = gView.getXAxis();
         xl.setTextColor(Color.BLACK);
         xl.setLabelCount(11, true);
-        xl.setAxisMaximum(50f);
+        xl.setAxisMaximum(200f);
         xl.setAxisMinimum(0f);
         xl.setPosition(XAxis.XAxisPosition.BOTTOM);
 
@@ -77,11 +77,13 @@ public class GraphEOG {
 
     public void setGraphEOG(int cnt, short Vv, short Vh) {
         if ((cnt % graph_width) == 0) {
-            graphicalView.getLineData().getDataSetByIndex(0).clear();
             graphicalView.getLineData().getDataSetByIndex(1).clear();
+            graphicalView.getLineData().getDataSetByIndex(0).clear();
         }
-        graphicalView.getLineData().getDataSetByIndex(0).addEntry(new Entry(cnt % graph_width, Vv));
-        graphicalView.getLineData().getDataSetByIndex(1).addEntry(new Entry(cnt % graph_width, Vh));
+        graphicalView.getLineData().getDataSetByIndex(1).addEntry(new Entry(cnt % graph_width, Vv));
+        graphicalView.getLineData().getDataSetByIndex(0).addEntry(new Entry(cnt % graph_width, Vh));
+
+        graphicalView.getLineData().setHighlightEnabled(false);
 
         graphicalView.notifyDataSetChanged();
         graphicalView.invalidate();

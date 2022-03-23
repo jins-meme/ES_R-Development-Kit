@@ -22,7 +22,7 @@ public class GraphGyro {
 
     private LineChart graphicalView;
 
-    private final int graph_width = 50;
+    private final int graph_width = 200;
 
     public GraphGyro(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -74,7 +74,7 @@ public class GraphGyro {
         XAxis xl = gView.getXAxis();
         xl.setTextColor(Color.BLACK);
         xl.setLabelCount(11, true);
-        xl.setAxisMaximum(50f);
+        xl.setAxisMaximum(200f);
         xl.setAxisMinimum(0f);
         xl.setPosition(XAxis.XAxisPosition.BOTTOM);
 
@@ -83,8 +83,8 @@ public class GraphGyro {
         leftAxis.setTextColor(Color.BLACK);
         leftAxis.setLabelCount(9, true);
         leftAxis.setDrawGridLines(true);
-        leftAxis.setAxisMaximum(65535f);
-        leftAxis.setAxisMinimum(-65536f);
+        leftAxis.setAxisMaximum(35000f);
+        leftAxis.setAxisMinimum(-35000f);
 
         graphicalView = gView;
 
@@ -99,6 +99,8 @@ public class GraphGyro {
         graphicalView.getLineData().getDataSetByIndex(0).addEntry(new Entry(cnt % graph_width, x));
         graphicalView.getLineData().getDataSetByIndex(1).addEntry(new Entry(cnt % graph_width, y));
         graphicalView.getLineData().getDataSetByIndex(2).addEntry(new Entry(cnt % graph_width, z));
+
+        graphicalView.getLineData().setHighlightEnabled(false);
 
         graphicalView.notifyDataSetChanged();
         graphicalView.invalidate();
