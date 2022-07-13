@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -49,7 +50,6 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
 
     boolean isUse = true;
     boolean isBle = false;
-
 
     @SuppressLint("NewApi")
     @Override
@@ -109,6 +109,7 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
 
         findViewById(R.id.button_usb).setOnClickListener(this);
         findViewById(R.id.button_ble).setOnClickListener(this);
+
     }
 
     @Override
@@ -246,6 +247,7 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
     }
 
     private void checkPermission() {
+//
         // 権限チェック＆要求
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Android 11以降
@@ -254,10 +256,18 @@ public class SplashActivity extends AppCompatActivity implements OnClickListener
                 // ACCESS_FINE_LOCATION と ACCESS_BACKGROUND_LOCATIONを同時にリクエストできない
                 ActivityCompat.requestPermissions(this, new String[]{
                         Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
                 }, REQUEST_PERMISSIONS);
             } else {
                 Log.d("logd", "権限あり");
+
+                // ダウンロードディレクトリ以下にするのでMANAGE_EXTERNAL_STORAGEは無しにする
+//                if (!Environment.isExternalStorageManager()) {
+//                    Intent intent = new Intent("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION");
+//                    startActivity(intent);
+//                }
+
                 // 利用規約表示
 //                ActivityCompat.requestPermissions(this, new String[]{
 //                        Manifest.permission.ACCESS_BACKGROUND_LOCATION

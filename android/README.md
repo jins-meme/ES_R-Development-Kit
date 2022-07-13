@@ -20,9 +20,11 @@ So far, we have velified that direct BLE connection is successful in the followi
 |2.1.0|Nexus5|4.4|✔|
 |2.1.0|Nexus9|6.0.1|-|
 |2.1.0|Nexus9|5.1.1|✔|
-|2.1.0|HUAWEI mate pro 10|8.0|✔|
-|2.1.1|Xperia Lite 8|10.0|✔|
-|2.1.2|Xperia Lite 8|10.0|✔|
+|2.1.0|HUAWEI mate pro 10|8.0.0|✔|
+|2.1.1|Xperia Lite 8|10.0.0|✔|
+|2.1.2|Xperia Lite 8|10.0.0|✔|
 |2.1.2|Pixel6|12|✔|
+|2.1.3|Nexus5|11.0.0|✔|
+|2.1.3|Xperia Lite 8|10.0.0|✔|
 
 #### "✔" successfully connected. "-" not working.

@@ -13,6 +13,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -23,17 +24,23 @@ import android.widget.Toast;
 
 import com.jins.meme.academic.util.LogCat;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.math.BigDecimal;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -48,6 +55,8 @@ public class Common extends Object {
     public final int mode_usb = 1;
     public final int mode_ble = 2;
     int mode_setting = mode_usb;
+
+    public  ArrayList<String> msgs = new ArrayList<>();
 
     public Common(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -77,6 +86,7 @@ public class Common extends Object {
     public void makeDirectory(String local) {
         String stateStorage = Environment.getExternalStorageState();
         if (!Environment.MEDIA_MOUNTED.equals(stateStorage)) {
+            Log.d("logd","ダイアログ表示");
             // show dialog
             AlertDialog.Builder builder = new AlertDialog.Builder(activity);
             builder.setMessage(context.getString(R.string.msg_unmount_storage));
@@ -91,15 +101,31 @@ public class Common extends Object {
             builder.show();
             builder = null;
         } else {
+            Log.d("logd","ファイル作成 開始");
             // make directory
-            String path = Environment.getExternalStorageDirectory()
-                    .getAbsolutePath() + local;
+            // ルートディレクトリだとMANAGE_EXTERNAL_STORAGE権限が必要なのでダウンロードディレクト以下にする
+//            String path = Environment.getExternalStorageDirectory()
+//                    .getAbsolutePath() + local;
+            String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() + local;
+            Log.d("logd","path : " + path);
             PreferenceManager
                     .getDefaultSharedPreferences(context)
                     .edit().putString(context.getString(R.string.key_pref_path), path)
                     .commit();
-            if (!new File(path).exists())
-                new File(path).mkdirs();
+//            if (!new File(path).exists())
+//                new File(path).mkdirs();
+            if (!new File(path).exists()) {
+                if (new File(path).mkdirs()) {
+                    Log.d("logd","ファイル作成 成功");
+                }
+                else {
+                    Log.d("logd","ファイル作成 失敗");
+                }
+            }
+            else {
+                Log.d("logd","ファイル作成 成功済み");
+            }
+
         }
         stateStorage = null;
     }
@@ -292,6 +318,8 @@ public class Common extends Object {
     }
 
     public String createFileNew(String address) {
+        Log.d("logd","createFileNew");
+
         // get file path
         SharedPreferences prefs = PreferenceManager
                 .getDefaultSharedPreferences(context);
@@ -300,7 +328,8 @@ public class Common extends Object {
         SimpleDateFormat simpleDateFormat =
                 new SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault());
         simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-        String name = address + "_"
+        String address2 = address.replace(":", "");
+        String name = address2 + "_"
                 + simpleDateFormat.format(new Date(System.currentTimeMillis()))
                 + ".csv";
         // get header item
@@ -371,6 +400,9 @@ public class Common extends Object {
                         );
                 break;
         }
+
+        msgs.clear();
+
         // write file
         writeFile(path, name, stringBuffer.toString());
         LogCat.d(TAG, "created new file");
@@ -379,6 +411,13 @@ public class Common extends Object {
     }
 
     public void writeFile(String path, String name, String msg) {
+//        Log.d("logd","writeFile");
+
+        msgs.add(msg);
+        if (msgs.size() < 100) {
+            return;
+        }
+
         File file = null;
         FileOutputStream fos = null;
         BufferedWriter bw = null;
@@ -400,7 +439,15 @@ public class Common extends Object {
                 throw new RuntimeException("file lock");
             }
             // write file per one line
-            bw.write(msg + "\r\n");
+//            bw.write(msg + "\r\n");
+//            msgs.forEach(
+//                    msg -> bw.write(msg + "\r\n");
+//            );
+            for (String m: msgs){
+                bw.write(m + "\r\n");
+            }
+            msgs.clear();
+
             bw.flush();
             // unlock temp file
             fl.release();
