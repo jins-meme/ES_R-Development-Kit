@@ -1,6 +1,7 @@
 
 package com.jins_jp.meme.academic;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -8,13 +9,17 @@ import android.content.DialogInterface;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.OnScanCompletedListener;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -59,7 +64,7 @@ abstract class MainActivity extends AppCompatActivity {
     protected boolean isMeasure = false;
     protected boolean isMarking = false;
     protected boolean isInitial = false;
-    protected final int TIMEOUT = 6;
+    protected final int TIMEOUT = 8;
 
     protected Timer timerError;
     protected int mQuality = 1;
@@ -101,6 +106,8 @@ abstract class MainActivity extends AppCompatActivity {
     private boolean EogGraphEnableFlag = false;
     private boolean AccGraphEnableFlag = false;
     private boolean GyroGraphEnableFlag = false;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -337,6 +344,7 @@ abstract class MainActivity extends AppCompatActivity {
 
     private void start() {
         LogCat.i(TAG, "start measurement");
+
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {

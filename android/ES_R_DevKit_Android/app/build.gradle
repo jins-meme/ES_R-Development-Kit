@@ -6,8 +6,8 @@ android {
         applicationId "com.jins_jp.meme.academic"
         minSdkVersion 21
 	    targetSdkVersion 30
-        versionCode 8
-        versionName "2.1.2"
+        versionCode 13
+        versionName "2.1.3"
     }
     buildTypes {
         release {
@@ -29,4 +29,7 @@ dependencies {
     implementation files('libs/libs_meme_dataencryption.jar')
     implementation files('libs/libs_meme_usbserial.jar')
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    // commons-csv
+    implementation 'org.apache.commons:commons-csv:1.5'
 }
