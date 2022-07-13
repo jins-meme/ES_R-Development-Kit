@@ -1,0 +1,115 @@
+JINS MEME AGREEMENT AND TERMS OF USE / SDK
+
+https://developers.jins.com/en/sdks/terms_and_conditions/
+https://developers.jins.com/ja/sdks/terms_and_conditions/
+
+CAREFULLY READ THIS AGREEMENT AND TERMS OF USE FOR JINS MEME / SDK (“Terms of Use”) BEFORE ACCESSING THE SOFTWARE DEVELOPMENT KIT (“SDK” as defined in Article 2 ). IF YOU, AS THE END USER AND DEVELOPER (defined in Article 2), DO NOT AGREE TO THESE TERMS OF USE, DO NOT ACCESS THE SDK. USING, DOWNLOADING OR OTHERWISE ACCESSING THE SDK OR ANY PART OF THE SDK INDICATES THAT YOU ACCEPT THESE TERMS OF USE AND YOU AGREE TO BE BOUND BY THIS AGREEMENT AND TERMS OF USE AND YOU EXECUTE LICENSE AGREEMENT WITH JINS INC.(“JINS”) ACCORDING TO THE TERMS OF USE SET FORTH BELOW.
+
+Article 1. (Purpose)
+The purpose of these Terms of Use for JINS MEME / SDK (these “Terms of Use”) is to set forth the conditions under which JINS Inc. (“JINS”) will license the SDK (defined in Article 2) to the Developer (defined in Article 2).
+The Developer should carefully read these Terms of Use, and shall use the SDK solely for the purpose of developing the App (defined in Article 2) (the “Purpose of Use”), in accordance with the conditions set forth in these Terms of Use. In addition, in developing the App by using the items separately provided by JINS, such as the SDK, JINS MEME and prototypes thereof, the Developer shall comply with the terms of Use, etc., that JINS sets forth in respect thereto.
+
+Article 2. (Definitions)
+In these Terms of Use, the following terms shall have the following meanings, respectively:
+“JINS MEME” means the glasses-type wearable device which JINS will sell.
+“SDK” means the software development kit, which includes programs for the development of applications for JINS MEME that JINS will provide online to the Developer.
+“App” means the application software for JINS MEME.
+“Developer” means any entity or individual that develops the application software for JINS MEME.
+“Developed App” means the application software for JINS MEME that the Developer develops.
+
+Article 3. (Use)
+The Developer shall use the SDK after reading, fully understanding and agreeing to these Terms of Use. If the Developer is composed of several individuals or groups, etc., a representative shall be designated to agree to these Terms of Use on behalf of the others.
+Even if the Developer is composed of several individuals or groups, etc., all of the individuals or groups must also consent to these Terms of Use and comply therewith.
+The Developer (or its representative) shall accurately register necessary information when opening of an account is required to use the SDK.
+Any person who operates a business that competes with that of JINS, any person intending to use the SDK in violation of these Terms of Use, any person not intending or having the capacity to develop the App, and any other persons whom JINS considers inappropriate may not apply to use the SDK or submit an Application for Use.
+
+Article 4. (Provision of the SDK)
+JINS shall license a non-exclusive right to the Developer to use the SDK in accordance with these Terms of Use
+The Developer must keep in strict confidence the ID and password issued in connection with the use of the SDK and must not cause any third party to use the same.
+There may be instances where JINS will conduct a version upgrade of the SDK at JINS’s determination. In such instance, JINS may discontinue support for the older versions of the SDK.
+The Developer will be able to obtain the most up to date SDK from JINS’s website for the Developer.
+Article 5. (Intellectual Property Rights relating to the SDK)
+Except as explicitly set forth in these Terms of Use, JINS does not assign, license, or otherwise dispose of any of the copyright, patent, trademark and other intellectual property rights relating to the SDK to the Developer.
+
+Article 6. (No Warranty)
+The Developer uses upon understanding and agreeing that JINS provides no warranty as to the SDK’s completeness, accuracy, utility and non-infringement upon the rights or interests of any third party, and shall not state any claims, etc., regarding any of the matters set forth in the foregoing.
+If the Developer discovers that there is any defect in the SDK or any possibility of infringement upon the rights or interests of any third party, the Developer shall immediately inform JINS thereof.
+THE SDK IS PROVIDED “AS IS” AND “AS AVAILABLE”, AND JINS MAKES NO WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY WITH RESPECT TO THE SDK AND JINS EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES AND CONDITIONS OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE OR NON-INFRINGEMENT. DEVELOPER’S USE OF THE SDK IS AT ITS OWN DISCRETION AND RISK, AND DEVELOPER WILL BE SOLELY RESPONSIBLE FOR ANY DAMAGE THAT RESULTS FROM THE USE OF THE SDK, INCLUDING BUT NOT LIMITED TO ANY DAMAGE TO DEVELOPER’S COMPUTER SYSTEM, HARDWARE, SOFTWARE OR LOSS OF DATA.
+
+Article 7. (Matters to be Complied with in Development)
+The Developer warrants that the Developed App was developed independently by the Developer and that the use of the Developed App does not infringe on the rights and interests of third parties and does not constitute a breach of contract with a third party.
+The Developer represents and warrants that the Developed App is not in violation of any laws and regulations or the public order and morals, does not slander or defame any third parties, and does not interfere with the proper management of JIN’s business, nor that it contains anything that is likely to do so.
+The Developer represents and warrants that the Developed App does not contain any harmful codes such as viruses intended to obstruct other hardware, software or network functions and other computer programs or data and that such harmful codes will not be incorporated in the future.
+The developer may not produce, sell or distribute the App that obtains personal information (including live data detected by the JINS MEME) from individuals who have not expressly consented to such obtaining of personal information.
+The Developer shall securely maintain and appropriately manage the personal information obtained by the Developed App and live data and other information detected by the JINS MEME by complying with the relevant laws and regulations and guidelines, etc., including implementing and disclosing a privacy policy applicable to such App.
+If there is any claim brought by any third party in relation to the Developed App or due to the Developer’s violation of these Terms of Use, the Developer shall resolve such claim at its own expense and responsibility. If JINS suffers any damage as a result thereof, the Developer shall immediately compensate such damages to JINS, and shall not cause any inconvenience to JINS. To the fullest extent of the law, Developer shall defend, indemnify and hold harmless JINS, its affiliates and vendors and their respective directors, partners, shareholders, officers, agents and employees (each one an “Indemnified Party”), from and against all loss, damage, liability and expense (including court costs and reasonable attorneys’ fees) (“Losses”) resulting from injury or death of persons, and from loss to or damage of property, for which any Indemnified Party becomes liable caused by or arising out of the fault or negligent acts or omissions, whether active or passive, of Developer, except such loss, damage or expense as may be caused by the willful misconduct or gross negligence of JINS or the Indemnified Party. Developer shall defend, indemnify and hold harmless any Indemnified Party from and against any Losses arising from third party claims, suits or proceedings based on a claim that the Developed App infringes or violates a patent, copyright, trademark or other right of the third party.
+
+Article 8. (Matters to be Complied with concerning the Expression on the Developed App)
+The Developer shall comply with all design and trademark usage guidelines established by JINS (The “Design Guidelines”).
+All displays of the name “JINS MEME” in the Developed App, the Developer shall comply with the Design Guidelines. The use of any other indication (for example, indications of only “MEME” or “J!NS MEME”) is prohibited.
+The Developer may not make any representations, designations or other indications, such as “official,” that would cause a misunderstanding about the origin of or authorization for the App, or misrepresent that the Developed App is an app issued by JINS or is an app that received JINS’s authorization.
+The Developer may not make any excessively violent expressions, openly sexual expressions, expressions tied to discrimination due to race, nationality, belief, sex, social status or lineage, expressions that induce or encourage suicide, acts of self-harm and drug abuse, or other expressions that contain social content and cause offense to others in the Developed App.
+
+Article 9. (Rights relating to the Developed App)
+The copyright of the Developed App shall be owned by the Developer.
+The Developer may sell or distribute the Developed App through the App Store,　Google Play or other sales channel, consistent with the Terms of Use and subject to JINS’s right to terminate the Terms of Use and Developer’s right to distribute the Developed App.
+
+Article 10. (Measures to be Taken upon Violation of these Terms of Use)
+If JINS reasonably determines that the Developer or the Developed App violated these Terms of Use, JINS may instruct the Developer to take any or all of the following measures, and the Developer must comply therewith:
+Discontinue the sale or distribution of the Developed App;
+Revise Developed App so that the contents no longer violate these Terms of Use;
+Discontinue the use of the SDK and destroy all copies; and
+Destroy or delete any information concerning the SDK that is in the Developer’s possession and any deliverables obtained by using the SDK (including, without limitation, the Developed App), and promptly deliver a document certifying such destruction or deletion to JINS.
+
+Article 11. (Discontinuation of Use and Discontinuation of Delivery)
+If any defect is discovered in the SDK, or if any possibility of infringement in the rights or interests of any third parties is discovered, or if JINS judges it necessary, JINS may demand the Developer to discontinue its use of the SDK. In such case, the Developer shall promptly discontinue its use of the SDK. JINS is not liable in any way for damages arising to the Developer by the discontinuance of use of the SDK according to this clause.
+If any defect or failure is discovered in the website delivering the SDK, if maintenance or inspection will be conducted for the said website, if it becomes difficult to deliver the SDK due to any force majeure event, including earthquake, lightning, fire, flood, natural disaster, war and terrorism, or if JINS judges it necessary, JINS may discontinue all or part of the delivery of the SDK without the need to provide prior notice to the Developer. JINS shall in no way be liable for any damage caused to the Developer due to any discontinuation of the delivery of the SDK in accordance with this paragraph.
+
+Article 12. (Limitation of Liability)
+JINS shall in no way be liable for any damage caused to the Developer due to the use of the SDK, regardless of the cause thereof, except for damage caused by the wilful intention or gross negligence of JINS.
+Even if JINS becomes liable to provide any compensation for damage, the scope of the damage for which JINS shall be liable shall be limited to the normal and direct damage actually caused to the Developer due to the use of the SDK by the Developer. Irrespective of whether or not there is any foreseeability by JINS and the Developer, as stated further below, JINS shall not be liable for any indirect damage such as damage caused by special circumstances, lost profits and other damage incurred by the Developer under claims for compensation for damage by a third party.
+JINS shall in no way be liable for any damage caused to the Developer by way of using the SDK in violation of these Terms of Use and the instructions provided by JINS.
+JINS, ITS DIRECTORS, OFFICERS, EMPLOYEES, AFFILIATES, AGENTS, CONTRACTORS, OR LICENSORS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, PUNITIVE, SPECIAL, OR CONSEQUENTIAL DAMAGES ARISING FROM USE OF THE SDK OR FOR ANY OTHER CLAIM RELATED IN ANY WAY TO USE OF THE SDK, WHETHER BASED IN CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY OR ANY OTHER THEORY, EVEN IF JINS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND EVEN IF ANY LIMITED REMEDY IS DEEMED TO HAVE FAILED OF ITS ESSENTIAL PURPOSE. JINS’S ENTIRE LIABILITY SHALL BE LIMITED TO US$100.
+
+Article 13. (Prohibited Acts)
+The Developer may not engage in any of the following acts:
+Use the SDK for a purpose other than the Purpose of Use;
+Duplication, alteration, reverse engineering, reverse compiling or reverse assembly of the SDK, or other acts similar thereto;
+Assigning, leasing or providing as collateral to a third party or having a third party accept the SDK and the rights and obligations under this Agreement, whether with or without compensation;
+Relicensing to a third party the rights to use the SDK set forth in Article 4(1) of these Terms of Use;
+Developing an App for JINS MEME by using the SDK in violation of applicable laws, ordinances or regulations, or the guidelines of administrative offices; or developing the App with intent to damage the life, body or property of any person;
+Using the SDK in a manner that infringes upon the legal interests of other persons or violates the public order or morals;
+Engaging in any act which infringes or may infringe upon the honor, reputation, rights, or property, etc., of JINS or any third party, or any act in violation of the public order or morals by using the SDK; and
+Engaging in other acts JINS recognizes as being inappropriate.
+
+Article 14. (Elimination of Anti-Social Forces)
+The Developer represents that it does not, and affirms that it will not hereafter, fall under any of the following: an organized crime group, a member of an organized crime group, a quasi-member of an organized crime group, a company affiliated with an organized crime group, a corporate extortionist (“sokaiya”), a racketeer advocating a social/political movement (“shakaiundo/ seijikatsudo-hyobogoro”) or a special intelligence organized crime group (“tokushuchinoboryokushudan”) or any other anti-social force equivalent to any of the foregoing (hereinafter collectively called “Anti-Social Forces”) and that it does not directly or indirectly engage in any negotiations with any Anti-Social Forces.
+The Developer affirms that it shall not engage in or cause any third party to engage in any of the following acts:
+A violent act of demand;
+An unjust act of making a demand going beyond legal responsibility;
+An act of using intimidating words or actions or violence, in connection with transactions;
+An act of undermining the honor or credibility of, or interfering with the business of, another person by spreading rumors or using fraudulent means or force; or
+Any act equivalent to any of the foregoing.
+
+Article 15. (Termination)
+If the Developer is violating or has violated these Terms of Use, or if JINS reasonably judges that the Developer is violating or has violated these Terms of Use, JINS may terminate the Agreement, without advance notice and in its sole discretion. In such case, JINS may instruct the Developer to take the measures set forth in Article 10., and the Developer must comply therewith. Even if the Developer suffers any damage due to termination in accordance with this paragraph, JINS shall not, in any way, be liable therefor.
+
+Article 16. (Personal Information)
+For the handling of personal information provided by the Developer, the privacy policy concerning the use of the JINS MEME will be applied.
+
+Article 17. (Amendment to these Terms of Use)
+JINS may amend these Terms of Use in its sole discretion pursuant to this Article 17.
+JINS shall inform the Developer in advance of the contents of the amendment to these Terms of Use by way of sending an email. After the date designated by such notice, the amendment shall be enforceable and Developer shall follow the post-amendment contents of these Terms of Use.
+If the Developer does not agree with the amended Terms of Use in accordance with the preceding paragraph, the Developer may terminate the Agreement at the date designated in the notice by sending a written notice to JIN. In such case, JINS may instruct the Developer to take the measures set forth in Article 10.
+
+Article 18. (Severability)
+Even if a part of these Terms of Use is held invalid by the laws or ordinances or by a decision of a court, etc., the remaining part of these Terms of Use shall continue to remain in effect.
+
+Article 19. (Survival)
+Even if the Agreement terminates, regardless of the reason therefor, Articles 5, 9, 11 to 13, 15, 16 and 18 to 21 of these Terms of Use shall validly survive the termination hereof.
+
+Article 20. (Governing Law)
+ANY DISPUTES RELATING TO THESE TERMS OF USE, THE AGREEMENT, AND THE APP SHALL BE GOVERNED BY THE LAWS OF JAPAN.
+
+Article 21. (Jurisdiction)
+ANY DISPUTES RELATING TO THESE TERMS OF USE, THE AGREEMENT, AND THE APP SHALL BE EXCLUSIVELY SUBMITTED TO THE TOKYO DISTRICT COURT IN THE FIRST INSTANCE.
