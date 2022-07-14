@@ -361,9 +361,9 @@ public class Common extends Object {
         stringBuffer.append(String.format(
                 "// Gyroscope sensor's range  : %s", item_ang));
         stringBuffer.append("\r\n");
-        stringBuffer.append(String.format(
-                "// Use Device  : %s", item_use));
-        stringBuffer.append("\r\n");
+//        stringBuffer.append(String.format(
+//                "// Use Device  : %s", item_use));
+//        stringBuffer.append("\r\n");
         switch (item_mode) {
             case "Standard":
                 stringBuffer
