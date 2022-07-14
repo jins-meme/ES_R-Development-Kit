@@ -26,5 +26,6 @@ So far, we have velified that direct BLE connection is successful in the followi
 |2.1.2|Pixel6|12|✔|
 |2.1.3|Nexus5|11.0.0|✔|
 |2.1.3|Xperia Lite 8|10.0.0|✔|
+|2.1.4|Xperia Lite 8|10.0.0|✔|
 
 #### "✔" successfully connected. "-" not working.
