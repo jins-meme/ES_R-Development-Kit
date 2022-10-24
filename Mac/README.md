@@ -29,8 +29,26 @@ When, successfully build, sample UI shows up.
 
 ## Japanese(準備中です）
 
-・ES_R_DevKit_Mac
+###ES_R_DevKit_Mac
 最新版
 
-・ES_R_DevKit_Mac_Simple
+####ビルド方法について
+・Hardened Runtimeがない場合
+develop版としてビルド可能です。
+
+・Hardened Runtimeがある場合
+配布アプリ版としてビルド可能です。
+
+#####配布アプリのビルド方法
+
+1.Hardened Runtimeを追加する。
+TARGETS > Signing & Capabilities > Hardened Runtime
+2.アーカイブを作成する
+Product > Archive
+3.公証を得る
+Archive > Distribute App > Deceloper ID > Upload
+4.エクスポート（公証を得た後）
+Archive > Distribute App > Deceloper ID > Export
+
+###ES_R_DevKit_Mac_Simple
 2022/9/1までの古いバージョン
