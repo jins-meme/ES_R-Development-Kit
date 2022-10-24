@@ -16,6 +16,19 @@
 		24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9C1E822F5500CF4199 /* Main.storyboard */; };
 		24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA61E822F9100CF4199 /* MEMELib_Academic.m */; };
 		24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA91E82311100CF4199 /* AcademicFullData.m */; };
+		8FBB5F9A0F8A42F018EAA642 /* Pods_MEME_Academic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */; };
+		C74A7B7D28D0455900A90C11 /* ChartView.m in Sources */ = {isa = PBXBuildFile; fileRef = C74A7B7C28D0455900A90C11 /* ChartView.m */; };
+		C7B6E13C28D1E5FE0086B299 /* UserSetting.m in Sources */ = {isa = PBXBuildFile; fileRef = C7B6E13B28D1E5FE0086B299 /* UserSetting.m */; };
+		C7C5B22C28CFF13B00D3741C /* TCPSocket.m in Sources */ = {isa = PBXBuildFile; fileRef = C7C5B22B28CFF13B00D3741C /* TCPSocket.m */; };
+		C7C5CC5628C1C6C300A78BEC /* SettingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C7C5CC5428C1C6C300A78BEC /* SettingViewController.m */; };
+		C7C5CC5928C1C76B00A78BEC /* Setting.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */; };
+		C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */; };
+		C7D463DC28C6FE4A006B6FA5 /* CsvManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C7D463DB28C6FE4A006B6FA5 /* CsvManager.m */; };
+		C7E2143128CEE88300BBAAB4 /* AcademicStandardData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7E2143028CEE88300BBAAB4 /* AcademicStandardData.m */; };
+		C7E2143428CEEDEC00BBAAB4 /* AcademicData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7E2143328CEEDEC00BBAAB4 /* AcademicData.m */; };
+		C7E2143728CEF13B00BBAAB4 /* AcademicQuaternionData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7E2143628CEF13B00BBAAB4 /* AcademicQuaternionData.m */; };
+		C7EF596F28C596A400EDA7C9 /* Common.m in Sources */ = {isa = PBXBuildFile; fileRef = C7EF596E28C596A400EDA7C9 /* Common.m */; };
+		C7F3FFEF28D159270065C5EA /* ChartData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7F3FFEE28D159270065C5EA /* ChartData.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +49,33 @@
 		24843FA61E822F9100CF4199 /* MEMELib_Academic.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEMELib_Academic.m; sourceTree = "<group>"; };
 		24843FA81E82311100CF4199 /* AcademicFullData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcademicFullData.h; sourceTree = "<group>"; };
 		24843FA91E82311100CF4199 /* AcademicFullData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcademicFullData.m; sourceTree = "<group>"; };
+		3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_MEME_Academic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MEME_Academic.debug.xcconfig"; path = "Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic.debug.xcconfig"; sourceTree = "<group>"; };
+		C74A7B7B28D0455900A90C11 /* ChartView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartView.h; sourceTree = "<group>"; };
+		C74A7B7C28D0455900A90C11 /* ChartView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartView.m; sourceTree = "<group>"; };
+		C7B6E13A28D1E5FE0086B299 /* UserSetting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserSetting.h; sourceTree = "<group>"; };
+		C7B6E13B28D1E5FE0086B299 /* UserSetting.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UserSetting.m; sourceTree = "<group>"; };
+		C7C5B22A28CFF13B00D3741C /* TCPSocket.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TCPSocket.h; sourceTree = "<group>"; };
+		C7C5B22B28CFF13B00D3741C /* TCPSocket.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TCPSocket.m; sourceTree = "<group>"; };
+		C7C5CC5328C1C6C300A78BEC /* SettingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SettingViewController.h; sourceTree = "<group>"; };
+		C7C5CC5428C1C6C300A78BEC /* SettingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SettingViewController.m; sourceTree = "<group>"; };
+		C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Setting.storyboard; sourceTree = "<group>"; };
+		C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colors.xcassets; sourceTree = "<group>"; };
+		C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MEME_Academic.entitlements; sourceTree = "<group>"; };
+		C7D463DA28C6FE4A006B6FA5 /* CsvManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CsvManager.h; sourceTree = "<group>"; };
+		C7D463DB28C6FE4A006B6FA5 /* CsvManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CsvManager.m; sourceTree = "<group>"; };
+		C7E2142F28CEE88300BBAAB4 /* AcademicStandardData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AcademicStandardData.h; sourceTree = "<group>"; };
+		C7E2143028CEE88300BBAAB4 /* AcademicStandardData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AcademicStandardData.m; sourceTree = "<group>"; };
+		C7E2143228CEEDEC00BBAAB4 /* AcademicData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AcademicData.h; sourceTree = "<group>"; };
+		C7E2143328CEEDEC00BBAAB4 /* AcademicData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AcademicData.m; sourceTree = "<group>"; };
+		C7E2143528CEF13B00BBAAB4 /* AcademicQuaternionData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AcademicQuaternionData.h; sourceTree = "<group>"; };
+		C7E2143628CEF13B00BBAAB4 /* AcademicQuaternionData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AcademicQuaternionData.m; sourceTree = "<group>"; };
+		C7EF596C28C593EC00EDA7C9 /* Const.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Const.h; sourceTree = "<group>"; };
+		C7EF596D28C596A400EDA7C9 /* Common.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Common.h; sourceTree = "<group>"; };
+		C7EF596E28C596A400EDA7C9 /* Common.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Common.m; sourceTree = "<group>"; };
+		C7F3FFED28D159270065C5EA /* ChartData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartData.h; sourceTree = "<group>"; };
+		C7F3FFEE28D159270065C5EA /* ChartData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartData.m; sourceTree = "<group>"; };
+		EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MEME_Academic.release.xcconfig"; path = "Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,16 +84,27 @@
 			buildActionMask = 2147483647;
 			files = (
 				2423E4401E8513C4009EE89D /* libDecEnc.a in Frameworks */,
+				8FBB5F9A0F8A42F018EAA642 /* Pods_MEME_Academic.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		167C3CD4E0F2BC0636FB44AC /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */,
+				EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		2423E43E1E8513C4009EE89D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				2423E43F1E8513C4009EE89D /* libDecEnc.a */,
+				3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -64,6 +115,7 @@
 				24843F901E822F5500CF4199 /* MEME_Academic */,
 				24843F8F1E822F5500CF4199 /* Products */,
 				2423E43E1E8513C4009EE89D /* Frameworks */,
+				167C3CD4E0F2BC0636FB44AC /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -78,10 +130,12 @@
 		24843F901E822F5500CF4199 /* MEME_Academic */ = {
 			isa = PBXGroup;
 			children = (
+				C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */,
 				2423E4411E851414009EE89D /* DecEnc.h */,
 				24843F911E822F5500CF4199 /* AppDelegate.h */,
 				24843F921E822F5500CF4199 /* AppDelegate.m */,
 				24843F9A1E822F5500CF4199 /* Assets.xcassets */,
+				C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */,
 				24843F9F1E822F5500CF4199 /* Info.plist */,
 				24843F9C1E822F5500CF4199 /* Main.storyboard */,
 				24843FA51E822F9100CF4199 /* MEMELib_Academic.h */,
@@ -89,10 +143,32 @@
 				24843F941E822F5500CF4199 /* Supporting Files */,
 				24843F971E822F5500CF4199 /* ViewController.h */,
 				24843F981E822F5500CF4199 /* ViewController.m */,
+				C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */,
+				C7C5CC5328C1C6C300A78BEC /* SettingViewController.h */,
+				C7C5CC5428C1C6C300A78BEC /* SettingViewController.m */,
+				C7E2143228CEEDEC00BBAAB4 /* AcademicData.h */,
+				C7E2143328CEEDEC00BBAAB4 /* AcademicData.m */,
 				24843FA81E82311100CF4199 /* AcademicFullData.h */,
 				24843FA91E82311100CF4199 /* AcademicFullData.m */,
+				C7E2142F28CEE88300BBAAB4 /* AcademicStandardData.h */,
+				C7E2143028CEE88300BBAAB4 /* AcademicStandardData.m */,
+				C7E2143528CEF13B00BBAAB4 /* AcademicQuaternionData.h */,
+				C7E2143628CEF13B00BBAAB4 /* AcademicQuaternionData.m */,
 				2423E4421E851909009EE89D /* Version.h */,
 				2423E4431E851909009EE89D /* Version.m */,
+				C7EF596C28C593EC00EDA7C9 /* Const.h */,
+				C7B6E13A28D1E5FE0086B299 /* UserSetting.h */,
+				C7B6E13B28D1E5FE0086B299 /* UserSetting.m */,
+				C7EF596D28C596A400EDA7C9 /* Common.h */,
+				C7EF596E28C596A400EDA7C9 /* Common.m */,
+				C7D463DA28C6FE4A006B6FA5 /* CsvManager.h */,
+				C7D463DB28C6FE4A006B6FA5 /* CsvManager.m */,
+				C7C5B22A28CFF13B00D3741C /* TCPSocket.h */,
+				C7C5B22B28CFF13B00D3741C /* TCPSocket.m */,
+				C74A7B7B28D0455900A90C11 /* ChartView.h */,
+				C74A7B7C28D0455900A90C11 /* ChartView.m */,
+				C7F3FFED28D159270065C5EA /* ChartData.h */,
+				C7F3FFEE28D159270065C5EA /* ChartData.m */,
 			);
 			path = MEME_Academic;
 			sourceTree = "<group>";
@@ -112,9 +188,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 24843FA21E822F5500CF4199 /* Build configuration list for PBXNativeTarget "MEME_Academic" */;
 			buildPhases = (
+				20544A52ADA1E888ACDF291C /* [CP] Check Pods Manifest.lock */,
 				24843F8A1E822F5500CF4199 /* Sources */,
 				24843F8B1E822F5500CF4199 /* Frameworks */,
 				24843F8C1E822F5500CF4199 /* Resources */,
+				61D04FE3EB25A182BD278EB5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -136,7 +214,7 @@
 				TargetAttributes = {
 					24843F8D1E822F5500CF4199 = {
 						CreatedOnToolsVersion = 8.2.1;
-						DevelopmentTeam = WSMC73YLL2;
+						DevelopmentTeam = M2F9RAQ2X3;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -166,21 +244,76 @@
 			buildActionMask = 2147483647;
 			files = (
 				24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */,
+				C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */,
 				24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */,
+				C7C5CC5928C1C76B00A78BEC /* Setting.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		20544A52ADA1E888ACDF291C /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-MEME_Academic-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		61D04FE3EB25A182BD278EB5 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic-frameworks.sh",
+				"${BUILT_PRODUCTS_DIR}/CocoaAsyncSocket/CocoaAsyncSocket.framework",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CocoaAsyncSocket.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		24843F8A1E822F5500CF4199 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7E2143428CEEDEC00BBAAB4 /* AcademicData.m in Sources */,
 				24843F991E822F5500CF4199 /* ViewController.m in Sources */,
 				24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */,
+				C7F3FFEF28D159270065C5EA /* ChartData.m in Sources */,
 				24843F961E822F5500CF4199 /* main.m in Sources */,
+				C7B6E13C28D1E5FE0086B299 /* UserSetting.m in Sources */,
+				C7D463DC28C6FE4A006B6FA5 /* CsvManager.m in Sources */,
+				C7C5CC5628C1C6C300A78BEC /* SettingViewController.m in Sources */,
+				C7E2143728CEF13B00BBAAB4 /* AcademicQuaternionData.m in Sources */,
+				C7C5B22C28CFF13B00D3741C /* TCPSocket.m in Sources */,
+				C7EF596F28C596A400EDA7C9 /* Common.m in Sources */,
 				24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */,
+				C7E2143128CEE88300BBAAB4 /* AcademicStandardData.m in Sources */,
+				C74A7B7D28D0455900A90C11 /* ChartView.m in Sources */,
 				24843F931E822F5500CF4199 /* AppDelegate.m in Sources */,
 				2423E4441E851909009EE89D /* Version.m in Sources */,
 			);
@@ -240,7 +373,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -281,7 +414,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 			};
@@ -289,37 +422,57 @@
 		};
 		24843FA31E822F5500CF4199 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WSMC73YLL2;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = M2F9RAQ2X3;
+				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MARKETING_VERSION = 1.1;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 			};
 			name = Debug;
 		};
 		24843FA41E822F5500CF4199 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WSMC73YLL2;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = M2F9RAQ2X3;
+				ENABLE_HARDENED_RUNTIME = NO;
+				"EXCLUDED_ARCHS[sdk=*]" = arm64;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MARKETING_VERSION = 1.1;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "220930_com_jins-jp_MEME-Academic_adhoc3";
 			};
 			name = Release;
 		};
