@@ -29,29 +29,29 @@ When, successfully build, sample UI shows up.
 
 ## Japanese(準備中です）
 
-###ES_R_DevKit_Mac
+### ES_R_DevKit_Mac
 最新版
 
-* ビルド方法について
-** Hardened Runtimeがない場合
+#### ビルド方法について
+* Hardened Runtimeがない場合
 develop版としてビルド可能です。
 （Hardened Runtimeがある状態でXcodeからMacにビルドするとエラーになります。
 '/System/Library/Frameworks/CocoaAsyncSocket.framework/Versions/A/CocoaAsyncSocket' (no such file)
 というエラーが出ている場合はSigning & CapabilitiesのHardened Runtimeを削除してください）
 
-** Hardened Runtimeがある場合
+* Hardened Runtimeがある場合
 配布アプリ版としてビルド可能です。
 
-* 配布アプリのビルド方法
+#### 配布アプリのビルド方法
 
-** 1.Hardened Runtimeを追加する。
+* 1.Hardened Runtimeを追加する。
 TARGETS > Signing & Capabilities > Hardened Runtime
-** 2.アーカイブを作成する
+* 2.アーカイブを作成する
 Product > Archive
-** 3.公証を得る
+* 3.公証を得る
 Archive > Distribute App > Deceloper ID > Upload
-** 4.エクスポート（公証を得た後）
+* 4.エクスポート（公証を得た後）
 Archive > Distribute App > Deceloper ID > Export
 
-###ES_R_DevKit_Mac_Simple
+### ES_R_DevKit_Mac_Simple
 2022/9/1までの古いバージョン
