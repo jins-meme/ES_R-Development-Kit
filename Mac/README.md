@@ -35,6 +35,9 @@ When, successfully build, sample UI shows up.
 ####ビルド方法について
 ・Hardened Runtimeがない場合
 develop版としてビルド可能です。
+（Hardened Runtimeがある状態でXcodeからMacにビルドするとエラーになります。
+'/System/Library/Frameworks/CocoaAsyncSocket.framework/Versions/A/CocoaAsyncSocket' (no such file)
+というエラーが出ている場合はSigning & CapabilitiesのHardened Runtimeを削除してください）
 
 ・Hardened Runtimeがある場合
 配布アプリ版としてビルド可能です。
