@@ -28,3 +28,9 @@ When, successfully build, sample UI shows up.
 ### STEP3 Enjoy making your original application
 
 ## Japanese(準備中です）
+
+・ES_R_DevKit_Mac
+最新版
+
+・ES_R_DevKit_Mac_Simple
+2022/9/1までの古いバージョン

@@ -6,12 +6,9 @@
 //  Copyright © 2017年 jins-jp. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
+#import "AcademicData.h"
 
-@interface AcademicFullData : NSObject
-
-@property uint32_t Cnt;
-@property uint16_t BattLv;
+@interface AcademicFullData : AcademicData
 
 @property int16_t AccX;
 @property int16_t AccY;

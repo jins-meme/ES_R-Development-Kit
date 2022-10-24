@@ -7,7 +7,9 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "AcademicStandardData.h"
 #import "AcademicFullData.h"
+#import "AcademicQuaternionData.h"
 #import "Version.h"
 #import "DecEnc.h"
 @import CoreBluetooth;
@@ -19,9 +21,16 @@ static const uint32_t MEMELIB_TIMEOUT = 2;
 static NSString* SERVICES_UUID = @"D6F25BD1-5B54-4360-96D8-7AA62E04C7EF";
 static NSString* CHARACTERISTICS_READ_UUID = @"D6F25BD4-5B54-4360-96D8-7AA62E04C7EF";
 static NSString* CHARACTERISTICS_WRITE_UUID = @"D6F25BD2-5B54-4360-96D8-7AA62E04C7EF";
+static NSString* DEVICE_INFORMATION_UUID = @"180A";
+static NSString* SYSTEM_ID_UUID = @"2A23";
 
+
+static const uint32_t MEMEMode_Standard = 1;
 static const uint32_t MEMEMode_Full = 2;
+static const uint32_t MEMEMode_Quaternion = 3;
+
 static const uint32_t MEMEQuality_High = 1;
+static const uint32_t MEMEQuality_Low = 2;
 
 static const uint32_t MEMEAccelRange_2G = 0;
 static const uint32_t MEMEAccelRange_4G = 1;
@@ -52,7 +61,9 @@ static const NSInteger PACKET_LENGTH = 20;
 - (void)memePeripheralFoundDelegate:(uint32_t)result DeviceName:(NSString*)DeviceName uuid:(NSString*)uuid;
 - (void)memePeripheralConnectedDelegate:(uint32_t)result;
 - (void)memePeripheralDisconnectedDelegate:(uint32_t)result;
+- (void)memeAcademicStandardDataReceivedDelegate:(AcademicStandardData*)data;
 - (void)memeAcademicFullDataReceivedDelegate:(AcademicFullData*)data;
+- (void)memeAcademicQuaternionDataReceivedDelegate:(AcademicQuaternionData*)data;
 
 @end
 
@@ -67,6 +78,7 @@ static const NSInteger PACKET_LENGTH = 20;
 @property (nonatomic, strong) NSMutableArray *recvData;
 @property (nonatomic, strong) Version* MEMEVersion;
 @property (nonatomic, strong) Version* SDKVersion;
+@property (nonatomic, strong) NSString *macAddress;
 
 @property (nonatomic, assign) id<memelibDelegate> delegate;
 
@@ -82,5 +94,10 @@ static const NSInteger PACKET_LENGTH = 20;
 - (uint32_t)setGyroRange:(uint32_t)gyroRange;
 - (uint32_t)startDataReport;
 - (uint32_t)stopDataReport;
+
+- (uint32_t)getSelectMode;
+- (uint32_t)getTransMode;
+- (uint32_t)getAccelRange;
+- (uint32_t)getGyroRange;
 
 @end

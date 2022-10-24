@@ -418,7 +418,9 @@
     memcpy(buff, [data bytes], len);
     [DecEnc Decode:buff];
     
+    AcademicStandardData *standardData = [[AcademicStandardData alloc] init];
     AcademicFullData* fullData = [[AcademicFullData alloc] init];
+    AcademicQuaternionData *quaternionData = [[AcademicQuaternionData alloc] init];
     
     if (buff[0] == PACKET_LENGTH) {
         switch (buff[1]) {
@@ -446,6 +448,20 @@
                 break;
             case 0x98:
                 libLog(@"0x98");
+                standardData.Cnt = (uint16_t)(((buff[3] << 8) & 0x0F00) | buff[2]);
+                standardData.BattLv = (uint16_t)(buff[3] >> 4);
+                standardData.AccX = (int16_t)((buff[5] << 8) | buff[4]);
+                standardData.AccY = (int16_t)((buff[7] << 8) | buff[6]);
+                standardData.AccZ = (int16_t)((buff[9] << 8) | buff[8]);
+                standardData.EogL1 = (int16_t)((buff[11] << 8) | buff[10]);
+                standardData.EogR1 = (int16_t)((buff[13] << 8) | buff[12]);
+                standardData.EogL2 = (int16_t)((buff[15] << 8) | buff[14]);
+                standardData.EogR2 = (int16_t)((buff[17] << 8) | buff[16]);
+                standardData.EogH1 = (int16_t)(standardData.EogL1 - standardData.EogR1);
+                standardData.EogH2 = (int16_t)(standardData.EogL2 - standardData.EogR2);
+                standardData.EogV1 = (int16_t)(0 - ((standardData.EogL1 + standardData.EogR1) / 2));
+                standardData.EogV2 = (int16_t)(0 - ((standardData.EogL2 + standardData.EogR2) / 2));
+                [_delegate memeAcademicStandardDataReceivedDelegate:(AcademicStandardData*)standardData];
                 break;
             case 0x99:
                 libLog(@"0x99");
@@ -459,12 +475,27 @@
                 fullData.GyroZ = (int16_t)((buff[15] << 8) | buff[14]);
                 fullData.EogL = (int16_t)((buff[17] << 8) | buff[16]);
                 fullData.EogR = (int16_t)((buff[19] << 8) | buff[18]);
-                fullData.EogH = (int16_t)(fullData.EogL -fullData.EogR);
+                fullData.EogH = (int16_t)(fullData.EogL - fullData.EogR);
                 fullData.EogV = (int16_t)(0 - ((fullData.EogL + fullData.EogR) / 2));
                 [_delegate memeAcademicFullDataReceivedDelegate:(AcademicFullData*)fullData];
                 break;
             case 0x9A:
                 libLog(@"0x9A");
+                quaternionData.Cnt = (uint16_t)(((buff[3] << 8) & 0x0F00) | buff[2]);
+                quaternionData.BattLv = (uint16_t)(buff[3] >> 4);
+//                quaternionData.QuaternionW = (int16_t)((buff[5] << 8) | buff[4]);
+//                quaternionData.QuaternionX = (int16_t)((buff[7] << 8) | buff[6]);
+//                quaternionData.QuaternionY = (int16_t)((buff[9] << 8) | buff[8]);
+//                quaternionData.QuaternionZ = (int16_t)((buff[11] << 8) | buff[10]);
+//                quaternionData.QuaternionW = (int16_t)((((buff[7] << 8) | buff[6]) | buff[5]) | buff[4]);
+//                quaternionData.QuaternionX = (int16_t)((((buff[11] << 8) | buff[10]) | buff[9]) | buff[8]);
+//                quaternionData.QuaternionY = (int16_t)((((buff[15] << 8) | buff[14]) | buff[13]) | buff[12]);
+//                quaternionData.QuaternionZ = (int16_t)((((buff[19] << 8) | buff[18]) | buff[17]) | buff[16]);
+                quaternionData.QuaternionW = (int64_t)((buff[7] << 24) | (buff[6] << 16) | (buff[5] << 8) | buff[4]);
+                quaternionData.QuaternionX = (int64_t)((buff[11] << 24) | (buff[10] << 16) | (buff[9] << 8) | buff[8]);
+                quaternionData.QuaternionY = (int64_t)((buff[15] << 24) | (buff[14] << 16) | (buff[13] << 8) | buff[12]);
+                quaternionData.QuaternionZ = (int64_t)((buff[19] << 24) | (buff[18] << 16) | (buff[17] << 8) | buff[16]);
+                [_delegate memeAcademicQuaternionDataReceivedDelegate:quaternionData];
                 break;
             default:
                 libLog(@"default");
@@ -539,7 +570,7 @@
     Service_Flag = false;
     
     // サービス探索開始
-    //NSArray *services = [NSArray arrayWithObjects:[CBUUID UUIDWithString: @"180D"], nil];
+//    NSArray *services = [NSArray arrayWithObjects:[CBUUID UUIDWithString: @"180D"], nil];
     [peripheral discoverServices:nil];
 }
 
@@ -596,14 +627,19 @@
     }
     for (int i=0; i < peripheral.services.count; i++) {
         CBService *myService = [peripheral.services objectAtIndex:i];
+        
         if ([myService.UUID isEqual:[CBUUID UUIDWithString:SERVICES_UUID]]) {
             self.inputCharacteristic = nil;
             self.outputCharacteristic = nil;
-    
+
             NSArray *services = [NSArray arrayWithObjects:[CBUUID UUIDWithString:CHARACTERISTICS_READ_UUID], [CBUUID UUIDWithString:CHARACTERISTICS_WRITE_UUID], nil];
             [peripheral discoverCharacteristics:services forService:myService];
-            break;
         }
+        else if ([myService.UUID isEqual:[CBUUID UUIDWithString:DEVICE_INFORMATION_UUID]]) {
+            NSArray *services = [NSArray arrayWithObjects:[CBUUID UUIDWithString:SYSTEM_ID_UUID], nil];
+            [peripheral discoverCharacteristics:services forService:myService];
+        }
+        
     }
 }
 
@@ -630,17 +666,33 @@
             if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:CHARACTERISTICS_READ_UUID]]) {
                 self.inputCharacteristic = characteristic;
                 libLog(@"Read を発見！");
-                
+
                 [peripheral setNotifyValue:YES forCharacteristic:characteristic];
             }
             if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:CHARACTERISTICS_WRITE_UUID]]) {
                 self.outputCharacteristic = characteristic;
                 libLog(@"Write を発見！");
-                
+
                 if (Service_Flag == true)
                 {
                     [self MEME_ADN_GET_DEV_INFO];
                 }
+            }
+        }
+    }
+    else if ([service.UUID isEqual:[CBUUID UUIDWithString:DEVICE_INFORMATION_UUID]]) {
+        for (CBCharacteristic *characteristic in service.characteristics) {
+            libLog(@"characteristic.UUID %@", characteristic.UUID);
+            libLog(@"characteristic.properties %lu", (unsigned long)characteristic.properties);
+            libLog(@"characteristic.description %@", characteristic.description);
+            libLog(@"characteristic.value %@", characteristic.value);
+            
+            if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:SYSTEM_ID_UUID]]) {
+                libLog(@"SYSTEM_ID を発見！");
+                
+//                [peripheral setNotifyValue:YES forCharacteristic:characteristic];
+                [peripheral readValueForCharacteristic:characteristic];
+                
             }
         }
     }
@@ -703,8 +755,35 @@
         return;
     }
     
-    [self.recvData addObject:characteristic.value];
-    [self DataAnalysis];
+    if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:SYSTEM_ID_UUID]]) {
+        NSLog(@"characteristic.value:%@",characteristic.value);
+        NSData *data = characteristic.value;
+        
+        // 上位と下位6bitの間に FFFE を挟んで格納されている
+        // 上位6bit
+        NSData *d1 = [data subdataWithRange:NSMakeRange(0, 3)];
+        NSLog(@"d1:%@",d1);
+        // 下位6bit
+        NSData *d2 = [data subdataWithRange:NSMakeRange(5, 3)];
+        NSLog(@"d2:%@",d2);
+        // 上位と下位を結合
+        NSMutableData *md = [NSMutableData data];
+        [md appendData:d1];
+        [md appendData:d2];
+        NSLog(@"md:%@",md);
+        // NSDataのbyteを文字列に変換
+        NSMutableString *result = [[NSMutableString alloc] init];
+        const unsigned char *bytes = [md bytes];
+        for (int i=0; i<[md length]; i++) {
+            [result appendFormat:@"%X", bytes[i]];
+        }
+        NSLog(@"result:%@",result);
+        self.macAddress = result;
+    }
+    else {
+        [self.recvData addObject:characteristic.value];
+        [self DataAnalysis];
+    }
 }
 
 // =============================================================================
