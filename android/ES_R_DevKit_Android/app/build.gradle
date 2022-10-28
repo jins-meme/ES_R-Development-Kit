@@ -6,14 +6,20 @@ android {
         applicationId "com.jins_jp.meme.academic"
         minSdkVersion 21
 	    targetSdkVersion 30
-        versionCode 15
-        versionName "2.1.4"
+        versionCode 20
+        versionName "2.1.5"
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+    lintOptions {
+        checkReleaseBuilds false
+        // Or, if you prefer, you can continue to check for errors in release builds,
+        // but continue the build even when errors are found:
+        abortOnError false
     }
 }
 

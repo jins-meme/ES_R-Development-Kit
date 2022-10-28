@@ -56,7 +56,9 @@ public class Common extends Object {
     public final int mode_ble = 2;
     int mode_setting = mode_usb;
 
+    public String headerString = null;
     public  ArrayList<String> msgs = new ArrayList<>();
+    public long csvCount = 0;
 
     public Common(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -130,7 +132,7 @@ public class Common extends Object {
         stateStorage = null;
     }
 
-    public void setViewConnect(final boolean isConnect) {
+    public void setViewConnect(final boolean isConnect, final String mMemeVersion) {
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -153,9 +155,10 @@ public class Common extends Object {
                 button.setText(isConnect ?
                         R.string.button_disconnect : R.string.button_connect);
                 textView = (TextView) activity.findViewById(R.id.connect_state_ble);
+//                textView.setText(isConnect ?
+//                        R.string.text_state_connected : R.string.text_state_disconnect);
                 textView.setText(isConnect ?
-                        R.string.text_state_connected : R.string.text_state_disconnect);
-
+                        (mMemeVersion == null ? "Connected" : "Connected" + "(ver." + mMemeVersion + ")") : "Disconnect");
                 imageView = (ImageView) activity.findViewById(R.id.image_battery);
                 imageView.setImageResource(R.drawable.ic_battery_unknown_grey600_18dp);
 
@@ -166,6 +169,29 @@ public class Common extends Object {
                 textView.setText("");
 
                 vibrate();
+            }
+        });
+    }
+
+    public void setViewStatus(final boolean isConnect, final String mMemeVersion) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                TextView textView = null;
+                textView = (TextView) activity.findViewById(R.id.connect_state_ble);
+                textView.setText(isConnect ?
+                        (mMemeVersion == null ? "Connected" : "Connected" + "(ver." + mMemeVersion + ")") : "Disconnect");
+            }
+        });
+    }
+
+    public void setViewNotice(final long count) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                TextView textView = null;
+                textView = (TextView) activity.findViewById(R.id.text_notice);
+                textView.setText("Recording("+count+")...");
             }
         });
     }
@@ -225,12 +251,27 @@ public class Common extends Object {
                 textView = (TextView) activity.findViewById(R.id.text_success_rate);
                 NumberFormat numberFormat = NumberFormat
                         .getPercentInstance();
-                numberFormat.setMinimumFractionDigits(3);
+                numberFormat.setMaximumFractionDigits(2);
+                numberFormat.setMinimumFractionDigits(2);
                 textView.setText("SUCCESS RATE: "
                         + numberFormat.format(ratio));
                 ProgressBar progressBar = (ProgressBar) activity
                         .findViewById(R.id.progress_success_rate);
                 progressBar.setProgress((int) Math.round(ratio * 10000));
+            }
+        });
+    }
+
+    public void setViewComm(final long ratio) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                TextView textView = (TextView) activity.findViewById(R.id.text_cominucation_rate);
+                NumberFormat numberFormat = NumberFormat.getPercentInstance();
+                numberFormat.setMaximumFractionDigits(2);
+                numberFormat.setMinimumFractionDigits(2);
+                textView.setText("COMM RATE: " + numberFormat.format(ratio/100.0));
+//                textView.setText("COMM RATE: " + ratio);
             }
         });
     }
@@ -402,9 +443,12 @@ public class Common extends Object {
         }
 
         msgs.clear();
+        csvCount = 0;
+        setViewNotice(csvCount);
 
         // write file
-        writeFile(path, name, stringBuffer.toString());
+//        writeFile(path, name, stringBuffer.toString());
+        headerString = stringBuffer.toString();
         LogCat.d(TAG, "created new file");
 
         return name;
@@ -413,17 +457,24 @@ public class Common extends Object {
     public void writeFile(String path, String name, String msg) {
 //        Log.d("logd","writeFile");
 
-        msgs.add(msg);
-        if (msgs.size() < 100) {
-            return;
-        }
-
         File file = null;
         FileOutputStream fos = null;
         BufferedWriter bw = null;
 
         if (path == null || name == null || msg == null) {
             return;
+        }
+
+        msgs.add(msg);
+        if (msgs.size() < 100) {
+            return;
+        }
+        csvCount = csvCount + msgs.size();
+        setViewNotice(csvCount);
+
+        if (headerString != null) {
+            msgs.add(0,headerString);
+            headerString = null;
         }
 
         file = new File(path + name);

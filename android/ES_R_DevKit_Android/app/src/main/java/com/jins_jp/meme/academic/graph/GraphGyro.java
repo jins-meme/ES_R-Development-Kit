@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
+import android.util.Log;
 
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.XAxis;
@@ -12,6 +13,8 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.jins_jp.meme.academic.MainBleActivity;
 import com.jins_jp.meme.academic.R;
 
 public class GraphGyro {
@@ -23,6 +26,8 @@ public class GraphGyro {
     private LineChart graphicalView;
 
     private final int graph_width = 200;
+    public static int GrasphSkipCountCull = 25;
+    private int elapsedTime = 0;
 
     public GraphGyro(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -30,12 +35,10 @@ public class GraphGyro {
         this.handler = handler;
     }
 
-
-
     public void makeChart(){
         // 棒グラフ
         LineChart gView = activity.findViewById(R.id.graph_gyro);
-        gView.setBackgroundColor(Color.WHITE);
+//        gView.setBackgroundColor(Color.WHITE);
         gView.getDescription().setEnabled(false);
 
         LineData data = new LineData();
@@ -73,10 +76,17 @@ public class GraphGyro {
         // X軸
         XAxis xl = gView.getXAxis();
         xl.setTextColor(Color.BLACK);
-        xl.setLabelCount(11, true);
+        xl.setLabelCount(9, true);
         xl.setAxisMaximum(200f);
         xl.setAxisMinimum(0f);
         xl.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xl.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                Integer time = (int) (value/GrasphSkipCountCull+elapsedTime);
+                return time.toString();
+            }
+        });
 
         // Y軸
         YAxis leftAxis = gView.getAxisLeft();
@@ -90,12 +100,21 @@ public class GraphGyro {
 
     }
 
-    public void setGraphGyro(int cnt, short x, short y, short z) {
+    public void setGraphGyro(long cnt, short x, short y, short z) {
         if ((cnt % graph_width) == 0) {
-            graphicalView.getLineData().getDataSetByIndex(0).clear();
-            graphicalView.getLineData().getDataSetByIndex(1).clear();
-            graphicalView.getLineData().getDataSetByIndex(2).clear();
+            clearGraphGyro();
+            elapsedTime = elapsedTime + graph_width/GrasphSkipCountCull;
         }
+
+        XAxis xl = graphicalView.getXAxis();
+        xl.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                Integer time = (int) (value/25+elapsedTime);
+                return time.toString();
+            }
+        });
+
         graphicalView.getLineData().getDataSetByIndex(0).addEntry(new Entry(cnt % graph_width, x));
         graphicalView.getLineData().getDataSetByIndex(1).addEntry(new Entry(cnt % graph_width, y));
         graphicalView.getLineData().getDataSetByIndex(2).addEntry(new Entry(cnt % graph_width, z));
@@ -104,5 +123,16 @@ public class GraphGyro {
 
         graphicalView.notifyDataSetChanged();
         graphicalView.invalidate();
+    }
+
+    public void clearGraphGyro() {
+        graphicalView.getLineData().getDataSetByIndex(0).clear();
+        graphicalView.getLineData().getDataSetByIndex(1).clear();
+        graphicalView.getLineData().getDataSetByIndex(2).clear();
+    }
+
+    public void resetGraphGyro() {
+        elapsedTime = 0;
+        clearGraphGyro();
     }
 }
