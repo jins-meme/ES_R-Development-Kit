@@ -6,7 +6,7 @@ This repository provides you the Development Kit including sample codes for JINS
 We've prepared ES_R development Kit for three environment, and please go to the link for more details.
 * [ES_R Development Kit for Windows](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/windows) May.9.2019 updated
 * [ES_R Development Kit for Android](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/android) Oct.28.2022 update
-* [ES_R Development Kit for Mac](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/Mac) Oct.23.2022 update
+* [ES_R Development Kit for Mac](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/Mac) Oct.28.2022 update
 
 ## Japanese
 本ES_R-Development-Kitでは、JINS MEME ES_R（Academic Pack）用の開発用サンプルコードを提供しています。
@@ -14,4 +14,4 @@ We've prepared ES_R development Kit for three environment, and please go to the 
 現在，以下の環境でご利用が可能です。
 * [ES_R Development Kit for Windows](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/windows) May.9.2019 updated
 * [ES_R Development Kit for Android](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/android) Oct.28.2022 update
-* [ES_R Development Kit for Mac](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/Mac) Oct.23.2022 update
+* [ES_R Development Kit for Mac](https://github.com/jins-meme/ES_R-Development-Kit/tree/master/Mac) Oct.28.2022 update
