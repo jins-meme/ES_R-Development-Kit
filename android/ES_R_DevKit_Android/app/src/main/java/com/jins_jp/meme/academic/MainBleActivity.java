@@ -24,6 +24,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RatingBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -34,6 +35,7 @@ import com.jins.meme.academic.util.LogCat;
 import com.jins_jp.meme.academic.ble.BluetoothLeService;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
@@ -60,9 +62,10 @@ public class MainBleActivity extends MainActivity {
         graphGyro.makeChart();
 
         // set the tool-bar to this activity
-        Toolbar mToolbar = (Toolbar) findViewById(R.id.header);
-        mToolbar.setTitle(R.string.app_title);
-        setSupportActionBar(mToolbar);
+//        Toolbar mToolbar = (Toolbar) findViewById(R.id.header);
+//        mToolbar.setTitle(R.string.app_title);
+//        setSupportActionBar(mToolbar);
+
         // set view
         setViewDefault();
 
@@ -106,18 +109,18 @@ public class MainBleActivity extends MainActivity {
             mBluetoothLeService.disconnect();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.main, menu);
-        if (isConnect) {
-            menu.findItem(R.id.action_information_ble)
-                    .setVisible(true)
-                    .setTitle(getString(R.string.text_label_version_ble, mMemeVersion));
-        } else {
-            menu.findItem(R.id.action_information_ble).setVisible(false);
-        }
-        return true;
-    }
+//    @Override
+//    public boolean onCreateOptionsMenu(Menu menu) {
+//        getMenuInflater().inflate(R.menu.main, menu);
+//        if (isConnect) {
+//            menu.findItem(R.id.action_information_ble)
+//                    .setVisible(true)
+//                    .setTitle(getString(R.string.text_label_version_ble, mMemeVersion));
+//        } else {
+//            menu.findItem(R.id.action_information_ble).setVisible(false);
+//        }
+//        return true;
+//    }
 
 
     private ScanCallback mLeScanCallback = new ScanCallback() {
@@ -283,7 +286,7 @@ public class MainBleActivity extends MainActivity {
                     LogCat.d(TAG, "ACTION_GATT_SERVICES_DISCOVERED");
 
                     isConnect = true;
-                    common.setViewConnect(isConnect);
+                    common.setViewConnect(isConnect,mMemeVersion);
                     try {
                         // notification enable
                         handler.postDelayed(new Runnable() {
@@ -309,6 +312,7 @@ public class MainBleActivity extends MainActivity {
 
                 } else if (BluetoothLeService.ACTION_GATT_DESCRIPTOR_WRITE.equals(action)) {
                     LogCat.d(TAG, "ACTION_GATT_DESCRIPTOR_WRITE");
+
                     // start service
                     startService(new Intent(getApplicationContext(), BluetoothLeService.class));
                     common.showToast("Conncted to the MEME");
@@ -569,16 +573,18 @@ public class MainBleActivity extends MainActivity {
                                     .doubleValue() * 100);
 
                             long ratio = (ratio_last + mRatioPrev) / 2;
-                            RatingBar rateBar = (RatingBar) findViewById(R.id.rate_cominucation_state);
-                            if (ratio == 0) {
-                                rateBar.setRating(0);
-                            } else if (0 < ratio && ratio <= 70) {
-                                rateBar.setRating(1);
-                            } else if (70 < ratio && ratio <= 90) {
-                                rateBar.setRating(2);
-                            } else if (90 < ratio) {
-                                rateBar.setRating(3);
-                            }
+//                            RatingBar rateBar = (RatingBar) findViewById(R.id.rate_cominucation_state);
+//                            if (ratio == 0) {
+//                                rateBar.setRating(0);
+//                            } else if (0 < ratio && ratio <= 70) {
+//                                rateBar.setRating(1);
+//                            } else if (70 < ratio && ratio <= 90) {
+//                                rateBar.setRating(2);
+//                            } else if (90 < ratio) {
+//                                rateBar.setRating(3);
+//                            }
+                            common.setViewComm(ratio);
+
                             mNumTotalPrev += count;
                             mRatioPrev = ratio_last;
 

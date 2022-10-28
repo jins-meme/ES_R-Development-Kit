@@ -62,9 +62,10 @@ public class MainUsbActivity extends MainActivity {
         graphGyro.makeChart();
 
         // set the tool-bar to this activity
-        Toolbar mToolbar = (Toolbar) findViewById(R.id.header);
-        mToolbar.setTitle(R.string.app_title);
-        setSupportActionBar(mToolbar);
+//        Toolbar mToolbar = (Toolbar) findViewById(R.id.header);
+//        mToolbar.setTitle(R.string.app_title);
+//        setSupportActionBar(mToolbar);
+
         // set view
         setViewDefault();
 
@@ -228,7 +229,7 @@ public class MainUsbActivity extends MainActivity {
                             startService(new Intent(getApplicationContext(), UsbHostService.class));
                             isOpening = true;
                             setViewOpen();
-                            common.setViewConnect(isConnect);
+                            common.setViewConnect(isConnect,mMemeVersion);
                         }
                     }, 2000L);
 
@@ -460,7 +461,7 @@ public class MainUsbActivity extends MainActivity {
                             LogCat.d(TAG, "success to connect");
                             // change a flag
                             isConnect = true;
-                            common.setViewConnect(isConnect);
+                            common.setViewConnect(isConnect,mMemeVersion);
                             // get device information
                             handler.postDelayed(new Runnable() {
                                 @Override
@@ -544,7 +545,7 @@ public class MainUsbActivity extends MainActivity {
                             LogCat.d(TAG, "success to disconnect");
                             // change a flag
                             isConnect = false;
-                            common.setViewConnect(isConnect);
+                            common.setViewConnect(isConnect,mMemeVersion);
                             // cancel the timer
                             timer.cancel();
                             timer.purge();
@@ -932,16 +933,18 @@ public class MainUsbActivity extends MainActivity {
                                     .doubleValue() * 100);
 
                             long ratio = (ratio_last + mRatioPrev) / 2;
-                            RatingBar rateBar = (RatingBar) findViewById(R.id.rate_cominucation_state);
-                            if (ratio == 0) {
-                                rateBar.setRating(0);
-                            } else if (0 < ratio && ratio <= 70) {
-                                rateBar.setRating(1);
-                            } else if (70 < ratio && ratio <= 90) {
-                                rateBar.setRating(2);
-                            } else if (90 < ratio) {
-                                rateBar.setRating(3);
-                            }
+//                            RatingBar rateBar = (RatingBar) findViewById(R.id.rate_cominucation_state);
+//                            if (ratio == 0) {
+//                                rateBar.setRating(0);
+//                            } else if (0 < ratio && ratio <= 70) {
+//                                rateBar.setRating(1);
+//                            } else if (70 < ratio && ratio <= 90) {
+//                                rateBar.setRating(2);
+//                            } else if (90 < ratio) {
+//                                rateBar.setRating(3);
+//                            }
+                            common.setViewComm(ratio);
+
                             mNumTotalPrev += count;
                             mRatioPrev = ratio_last;
 

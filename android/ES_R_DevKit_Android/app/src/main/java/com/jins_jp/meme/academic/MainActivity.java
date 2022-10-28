@@ -27,6 +27,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.Spinner;
 
 import com.jins.meme.academic.util.DataEncryption;
 import com.jins.meme.academic.util.HexDump;
@@ -70,7 +71,7 @@ abstract class MainActivity extends AppCompatActivity {
     protected int mQuality = 1;
     protected long mPrevTime = 0;
     protected long mPrevCount = -1;
-    protected long mTotalCount = 0;
+    public long mTotalCount = 0;
     protected long mErrorCount = 0;
 
     protected long mRatioPrev = 100;
@@ -102,7 +103,8 @@ abstract class MainActivity extends AppCompatActivity {
     protected final static byte AUP_REPORT_ACADEMIA2 = (byte) (0x99 & 0xFF);
     protected final static byte AUP_REPORT_ACADEMIA3 = (byte) (0x9A & 0xFF);
 
-    protected final static int GrasphSkipCount = 2;
+    public static long GrasphSkipCount = 2;
+    public static long GrasphSkipCountCull = 25;
     private boolean EogGraphEnableFlag = false;
     private boolean AccGraphEnableFlag = false;
     private boolean GyroGraphEnableFlag = false;
@@ -183,18 +185,18 @@ abstract class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.main, menu);
-        if (isConnect) {
-            menu.findItem(R.id.action_information_ble)
-                    .setVisible(true)
-                    .setTitle(getString(R.string.text_label_version_ble, mMemeVersion));
-        } else {
-            menu.findItem(R.id.action_information_ble).setVisible(false);
-        }
-        return true;
-    }
+//    @Override
+//    public boolean onCreateOptionsMenu(Menu menu) {
+//        getMenuInflater().inflate(R.menu.main, menu);
+//        if (isConnect) {
+//            menu.findItem(R.id.action_information_ble)
+//                    .setVisible(true)
+//                    .setTitle(getString(R.string.text_label_version_ble, mMemeVersion));
+//        } else {
+//            menu.findItem(R.id.action_information_ble).setVisible(false);
+//        }
+//        return true;
+//    }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -340,10 +342,30 @@ abstract class MainActivity extends AppCompatActivity {
         builder.setCancelable(false);
         builder.show();
         builder = null;
+
+        Spinner spinner = (Spinner) findViewById(R.id.spinner_select_quality);
+        if (spinner.getSelectedItemPosition() == 0) {
+            Log.d("test","100hz");
+            // 4になる
+            GrasphSkipCount = 100 / GrasphSkipCountCull;
+        }
+        else {
+            Log.d("test","50hz");
+            // 2になる
+            GrasphSkipCount = 50 / GrasphSkipCountCull;
+        }
+
+        EogGraphEnabled(v);
+        AccGraphEnabled(v);
+        GyroGraphEnabled(v);
     }
 
     private void start() {
         LogCat.i(TAG, "start measurement");
+
+        graphAcc.resetGraphAcc();
+        graphEOG.resetGraphEOG();
+        graphGyro.resetGraphGyro();
 
         handler.postDelayed(new Runnable() {
             @Override
@@ -625,6 +647,8 @@ abstract class MainActivity extends AppCompatActivity {
                 LogCat.d(TAG, "the BLE device version is " + deviceVersion);
 
                 mMemeVersion = deviceVersion;
+                common.setViewStatus(isConnect,mMemeVersion);
+
                 invalidateOptionsMenu();
                 // cancel the timer
                 timer.cancel();
@@ -935,12 +959,14 @@ abstract class MainActivity extends AppCompatActivity {
                     values[9] = (short) (0 - (values[3] + values[4]) / 2);
                     values[10] = (short) (0 - (values[5] + values[6]) / 2);
 
-                    if ((count % GrasphSkipCount) == 0) {
+                    totalCountUp(count);
+
+                    if ((mTotalCount % GrasphSkipCount) == 0) {
                         if (EogGraphEnableFlag == true) {
-                            graphEOG.setGraphEOG((count/GrasphSkipCount), (short) values[7], (short) values[9]);
+                            graphEOG.setGraphEOG((mTotalCount/GrasphSkipCount), (short) values[7], (short) values[9]);
                         }
                         if (AccGraphEnableFlag == true) {
-                            graphAcc.setGraphAcc((count / GrasphSkipCount), (short) values[0], (short) values[1], (short) values[2]);
+                            graphAcc.setGraphAcc((mTotalCount / GrasphSkipCount), (short) values[0], (short) values[1], (short) values[2]);
                         }
                     }
 
@@ -968,20 +994,23 @@ abstract class MainActivity extends AppCompatActivity {
                     values[8] = (short) (values[6] - values[7]);
                     values[9] = (short) (0 - (values[6] + values[7]) / 2);
 
-                    if ((count % GrasphSkipCount) == 0) {
+                    totalCountUp(count);
+
+                    if ((mTotalCount % GrasphSkipCount) == 0) {
 
                         if (EogGraphEnableFlag == true) {
-                            graphEOG.setGraphEOG((count / GrasphSkipCount), (short) values[8], (short) values[9]);
+                            graphEOG.setGraphEOG((mTotalCount / GrasphSkipCount), (short) values[8], (short) values[9]);
                         }
 
                         if (AccGraphEnableFlag == true) {
-                            graphAcc.setGraphAcc((count / GrasphSkipCount), (short) values[0], (short) values[1], (short) values[2]);
+                            graphAcc.setGraphAcc((mTotalCount / GrasphSkipCount), (short) values[0], (short) values[1], (short) values[2]);
                         }
 
                         if (GyroGraphEnableFlag == true) {
-                            graphGyro.setGraphGyro((count / GrasphSkipCount), (short) values[3], (short) values[4], (short) values[5]);
+                            graphGyro.setGraphGyro((mTotalCount / GrasphSkipCount), (short) values[3], (short) values[4], (short) values[5]);
                         }
                     }
+
                     break;
 
                 case AUP_REPORT_ACADEMIA3:
@@ -1019,30 +1048,8 @@ abstract class MainActivity extends AppCompatActivity {
             return;
 
         // create the recording data
-        long deff = 0;
-        if (mPrevCount < 0) {
-            deff = 0;
-            mPrevTime = System.currentTimeMillis();
-        } else {
-            if (mPrevCount < (long) count) {
-                deff = (long) count - mPrevCount;
-            } else if (mPrevCount > (long) count) {
-                deff = 0x1000 - mPrevCount + (long) count;
-            }
-        }
-        mPrevCount = count;
-        mPrevTime += deff * 10 * mQuality;
-
-        if (deff == 0) {
-            mTotalCount += deff + 1;
-            mErrorCount += deff;
-        } else {
-            mTotalCount += deff;
-            if (deff - 1 > 0) {
-                mErrorCount += deff - 1;
-                LogCat.e(TAG, "increment error count !");
-            }
-        }
+        // グラフで使用するcountをパケットのカウントからトータルのカウントに変更するため位置を変更する
+//        totalCountUp(count);
 
         StringBuffer stringBuffer = new StringBuffer();
 
@@ -1079,6 +1086,33 @@ abstract class MainActivity extends AppCompatActivity {
                         + " date:" + simpleDateFormat.format(new Date(mPrevTime)));
 
         data = null;
+    }
+
+    public void totalCountUp(short count) {
+        long deff = 0;
+        if (mPrevCount < 0) {
+            deff = 0;
+            mPrevTime = System.currentTimeMillis();
+        } else {
+            if (mPrevCount < (long) count) {
+                deff = (long) count - mPrevCount;
+            } else if (mPrevCount > (long) count) {
+                deff = 0x1000 - mPrevCount + (long) count;
+            }
+        }
+        mPrevCount = count;
+        mPrevTime += deff * 10 * mQuality;
+
+        if (deff == 0) {
+            mTotalCount += deff + 1;
+            mErrorCount += deff;
+        } else {
+            mTotalCount += deff;
+            if (deff - 1 > 0) {
+                mErrorCount += deff - 1;
+                LogCat.e(TAG, "increment error count !");
+            }
+        }
     }
 
     public void EogGraphEnabled(View v) {

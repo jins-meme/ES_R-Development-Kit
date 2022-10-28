@@ -12,6 +12,8 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.jins_jp.meme.academic.MainBleActivity;
 import com.jins_jp.meme.academic.R;
 
 public class GraphEOG {
@@ -21,7 +23,10 @@ public class GraphEOG {
     Handler handler;
 
     private LineChart graphicalView;
+
     private final int graph_width = 200;
+    public static int GrasphSkipCountCull = 25;
+    private int elapsedTime = 0;
 
     public GraphEOG(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -32,7 +37,7 @@ public class GraphEOG {
     public void makeChart() {
         // 棒グラフ
         LineChart gView = activity.findViewById(R.id.graph_VvVh);
-        gView.setBackgroundColor(Color.WHITE);
+//        gView.setBackgroundColor(Color.WHITE);
         gView.getDescription().setEnabled(false);
 
         LineData data = new LineData();
@@ -59,10 +64,17 @@ public class GraphEOG {
         // X軸
         XAxis xl = gView.getXAxis();
         xl.setTextColor(Color.BLACK);
-        xl.setLabelCount(11, true);
+        xl.setLabelCount(9, true);
         xl.setAxisMaximum(200f);
         xl.setAxisMinimum(0f);
         xl.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xl.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                Integer time = (int) (value/GrasphSkipCountCull+elapsedTime);
+                return time.toString();
+            }
+        });
 
         // Y軸
         YAxis leftAxis = gView.getAxisLeft();
@@ -75,11 +87,21 @@ public class GraphEOG {
         graphicalView = gView;
     }
 
-    public void setGraphEOG(int cnt, short Vv, short Vh) {
+    public void setGraphEOG(long cnt, short Vv, short Vh) {
         if ((cnt % graph_width) == 0) {
-            graphicalView.getLineData().getDataSetByIndex(1).clear();
-            graphicalView.getLineData().getDataSetByIndex(0).clear();
+            clearGraphEOG();
+            elapsedTime = elapsedTime + graph_width/GrasphSkipCountCull;
         }
+
+        XAxis xl = graphicalView.getXAxis();
+        xl.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                Integer time = (int) (value/GrasphSkipCountCull+elapsedTime);
+                return time.toString();
+            }
+        });
+
         graphicalView.getLineData().getDataSetByIndex(1).addEntry(new Entry(cnt % graph_width, Vv));
         graphicalView.getLineData().getDataSetByIndex(0).addEntry(new Entry(cnt % graph_width, Vh));
 
@@ -87,5 +109,15 @@ public class GraphEOG {
 
         graphicalView.notifyDataSetChanged();
         graphicalView.invalidate();
+    }
+
+    public void clearGraphEOG() {
+        graphicalView.getLineData().getDataSetByIndex(1).clear();
+        graphicalView.getLineData().getDataSetByIndex(0).clear();
+    }
+
+    public void resetGraphEOG() {
+        elapsedTime = 0;
+        clearGraphEOG();
     }
 }
