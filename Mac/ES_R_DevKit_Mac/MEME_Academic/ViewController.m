@@ -23,7 +23,7 @@
     boolean_t connected_flag;
     boolean_t measurement_flag;
     
-    NSMutableArray *datas;
+    NSMutableArray *csvDatas;
     CsvManager *csvManager;
     long mPrevCount;
     long mPrevTime;
@@ -138,17 +138,17 @@
     
     [self appVersion];
     chartView1 = [self setChartView:self.scrollview_Chart1
-                          xMaxValue:800
+                          xMaxValue:200
                           xMinValue:0
                           yMaxValue:1200
                           yMinValue:-1200];
     chartView2 = [self setChartView:self.scrollview_Chart2
-                          xMaxValue:800
+                          xMaxValue:200
                           xMinValue:0
                           yMaxValue:36000
                           yMinValue:-36000];
     chartView3 = [self setChartView:self.scrollview_Chart3
-                          xMaxValue:800
+                          xMaxValue:200
                           xMinValue:0
                           yMaxValue:36000
                           yMinValue:-36000];
@@ -170,7 +170,7 @@
 }
 
 - (void)reset {
-    datas = [[NSMutableArray alloc] init];
+    csvDatas = [[NSMutableArray alloc] init];
     csvManager = [[CsvManager alloc] init];
     mPrevCount = -1;
     mPrevTime = 0;
@@ -343,19 +343,18 @@
 // =============================================================================
 - (void)memeAcademicStandardDataReceivedDelegate:(AcademicStandardData *)data {
     //NSLog(@"memeAcademicStandardDataReceivedDelegate");
-    [datas addObject:[self dataToDictionary:data]];
+    [csvDatas addObject:[self dataToDictionary:data]];
     isFreeMarking = NO;
     [self saveCsv];
     if ([socket isConnected]) {
-        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[datas lastObject]]];
+        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[csvDatas lastObject]]];
         [self writeSocket];
     }
     [self batteryLevelAndSuccessRate:data.BattLv];
     
-    [chartDatas addObject:data];
-    
-    int interval = ([memelib getTransMode] == MEMEQuality_High) ? 5 : 2;
-    if ([chartDatas count] % interval == 0) {
+    int interval = ([memelib getTransMode] == MEMEQuality_High) ? 4 : 2;
+    if (mTotalCount % interval == 0) {
+        [chartDatas addObject:data];
         if (self.combobox_Chart1.indexOfSelectedItem == 0) {
             chartView1.yMaxValue = 1200;
             chartView1.yMinValue = -1200;
@@ -423,18 +422,17 @@
 // =============================================================================
 - (void)memeAcademicFullDataReceivedDelegate:(AcademicFullData *)data {
     //NSLog(@"memeAcademicFullDataReceivedDelegate");
-    [datas addObject:[self dataToDictionary:data]];
+    [csvDatas addObject:[self dataToDictionary:data]];
     [self saveCsv];
     if ([socket isConnected]) {
-        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[datas lastObject]]];
+        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[csvDatas lastObject]]];
         [self writeSocket];
     }
     [self batteryLevelAndSuccessRate:data.BattLv];
     
-    [chartDatas addObject:data];
-    
-    int interval = ([memelib getTransMode] == MEMEQuality_High) ? 5 : 2;
-    if ([chartDatas count] % interval == 0) {
+    int interval = ([memelib getTransMode] == MEMEQuality_High) ? 4 : 2;
+    if (mTotalCount % interval == 0) {
+        [chartDatas addObject:data];
         if (self.combobox_Chart1.indexOfSelectedItem == 0) {
             chartView1.yMaxValue = 1200;
             chartView1.yMinValue = -1200;
@@ -529,10 +527,10 @@
 // =============================================================================
 - (void)memeAcademicQuaternionDataReceivedDelegate:(AcademicQuaternionData *)data {
     //NSLog(@"memeAcademicQuaternionDataReceivedDelegate");
-    [datas addObject:[self dataToDictionary:data]];
+    [csvDatas addObject:[self dataToDictionary:data]];
     [self saveCsv];
     if ([socket isConnected]) {
-        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[datas lastObject]]];
+        [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[csvDatas lastObject]]];
         [self writeSocket];
     }
     [self batteryLevelAndSuccessRate:data.BattLv];
@@ -556,7 +554,7 @@
 - (void)saveCsv {
     
     // 100Hzばら100件たまったら、50Hzなら50件たまったら保存開始
-    if ([datas count] >= 100/mQuality) {
+    if ([csvDatas count] >= 100/mQuality) {
 
         // 保存中か確認
         if (!csvManager.isSave) {
@@ -571,7 +569,7 @@
             NSString *macAddressString = memelib.macAddress;
             NSString *fileName = [NSString stringWithFormat:@"%@_%@.csv",macAddressString,dateString];
             NSString *stringBuffer = [self headerString];
-            [self dataToStoring:datas stringBuffer:stringBuffer];
+            [self dataToStoring:csvDatas stringBuffer:stringBuffer];
             NSData *data = [stringBuffer dataUsingEncoding:NSUTF8StringEncoding];
             
             // 作成
@@ -581,13 +579,13 @@
             NSLog(@"追記");
             // 保存中なので追記
             NSMutableString *stringBuffer = [[NSMutableString alloc] init];
-            [self dataToStoring:datas stringBuffer:stringBuffer];
+            [self dataToStoring:csvDatas stringBuffer:stringBuffer];
             NSData *data = [stringBuffer dataUsingEncoding:NSUTF8StringEncoding];
             // 追記
             [csvManager appendData:data];
         }
 
-        [datas removeAllObjects];
+        [csvDatas removeAllObjects];
     }
 }
 
@@ -789,29 +787,29 @@
         [self.combobox_Chart3 setEnabled:NO];
         [self.button_Chart_Apply setEnabled:NO];
         
-        //
-        if (self.combobox_TransSpeed.indexOfSelectedItem == 0) {
-            chartView1.xMaxValue = 800;
-            chartView1.xLongScale = 100;
-            chartView1.xShortScale = 20;
-            chartView2.xMaxValue = 800;
-            chartView2.xLongScale = 100;
-            chartView2.xShortScale = 20;
-            chartView3.xMaxValue = 800;
-            chartView3.xLongScale = 100;
-            chartView3.xShortScale = 20;
-        }
-        else {
-            chartView1.xMaxValue = 400;
-            chartView1.xLongScale = 50;
-            chartView1.xShortScale = 10;
-            chartView2.xMaxValue = 400;
-            chartView2.xLongScale = 50;
-            chartView2.xShortScale = 10;
-            chartView3.xMaxValue = 400;
-            chartView3.xLongScale = 50;
-            chartView3.xShortScale = 10;
-        }
+//        //
+//        if (self.combobox_TransSpeed.indexOfSelectedItem == 0) {
+//            chartView1.xMaxValue = 200;
+//            chartView1.xLongScale = 25;
+//            chartView1.xShortScale = 5;
+//            chartView2.xMaxValue = 200;
+//            chartView2.xLongScale = 25;
+//            chartView2.xShortScale = 5;
+//            chartView3.xMaxValue = 200;
+//            chartView3.xLongScale = 25;
+//            chartView3.xShortScale = 5;
+//        }
+//        else {
+//            chartView1.xMaxValue = 200;
+//            chartView1.xLongScale = 25;
+//            chartView1.xShortScale = 5;
+//            chartView2.xMaxValue = 200;
+//            chartView2.xLongScale = 25;
+//            chartView2.xShortScale = 5;
+//            chartView3.xMaxValue = 200;
+//            chartView3.xLongScale = 25;
+//            chartView3.xShortScale = 5;
+//        }
 
         [memelib setSelectMode:(uint32_t)self.combobox_SelectMode.indexOfSelectedItem+1];
         [memelib setTransMode:(uint32_t)self.combobox_TransSpeed.indexOfSelectedItem+1];
@@ -988,6 +986,8 @@
                                                                        scrollView.frame.size.height)];
     chartView.xMaxValue = xMaxValue;
     chartView.xMinValue = xMinValue;
+    chartView.xLongScale = 25;
+    chartView.xShortScale = 5;
     chartView.yMaxValue = yMaxValue;
     chartView.yMinValue = yMinValue;
     [scrollView addSubview:chartView];
