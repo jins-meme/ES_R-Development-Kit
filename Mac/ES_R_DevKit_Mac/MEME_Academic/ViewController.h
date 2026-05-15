@@ -33,18 +33,18 @@
 @property (weak) IBOutlet NSButton *button_FreeMarking;
 - (IBAction)button_FreeMarking_Tapped:(id)sender;
 
-//@property (weak) IBOutlet NSTextField *label_DataCnt;
-//@property (weak) IBOutlet NSTextField *label_DataAccX;
-//@property (weak) IBOutlet NSTextField *label_DataAccY;
-//@property (weak) IBOutlet NSTextField *label_DataAccZ;
-//@property (weak) IBOutlet NSTextField *label_DataGyroX;
-//@property (weak) IBOutlet NSTextField *label_DataGyroY;
-//@property (weak) IBOutlet NSTextField *label_DataGyroZ;
-//@property (weak) IBOutlet NSTextField *label_DataEogL;
-//@property (weak) IBOutlet NSTextField *label_DataEogR;
-//@property (weak) IBOutlet NSTextField *label_DataEogH;
-//@property (weak) IBOutlet NSTextField *label_DataEogV;
-//@property (weak) IBOutlet NSTextField *label_DataBattLv;
+@property (weak) IBOutlet NSTextField *label_DataCnt;
+@property (weak) IBOutlet NSTextField *label_DataAccX;
+@property (weak) IBOutlet NSTextField *label_DataAccY;
+@property (weak) IBOutlet NSTextField *label_DataAccZ;
+@property (weak) IBOutlet NSTextField *label_DataGyroX;
+@property (weak) IBOutlet NSTextField *label_DataGyroY;
+@property (weak) IBOutlet NSTextField *label_DataGyroZ;
+@property (weak) IBOutlet NSTextField *label_DataEogL;
+@property (weak) IBOutlet NSTextField *label_DataEogR;
+@property (weak) IBOutlet NSTextField *label_DataEogH;
+@property (weak) IBOutlet NSTextField *label_DataEogV;
+@property (weak) IBOutlet NSTextField *label_DataBattLv;
 
 
 @property (weak) IBOutlet NSButton *button_Settings;

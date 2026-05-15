@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2423E4401E8513C4009EE89D /* libDecEnc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2423E43F1E8513C4009EE89D /* libDecEnc.a */; };
 		2423E4441E851909009EE89D /* Version.m in Sources */ = {isa = PBXBuildFile; fileRef = 2423E4431E851909009EE89D /* Version.m */; };
 		24843F931E822F5500CF4199 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843F921E822F5500CF4199 /* AppDelegate.m */; };
 		24843F961E822F5500CF4199 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843F951E822F5500CF4199 /* main.m */; };
@@ -29,10 +28,10 @@
 		C7E2143728CEF13B00BBAAB4 /* AcademicQuaternionData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7E2143628CEF13B00BBAAB4 /* AcademicQuaternionData.m */; };
 		C7EF596F28C596A400EDA7C9 /* Common.m in Sources */ = {isa = PBXBuildFile; fileRef = C7EF596E28C596A400EDA7C9 /* Common.m */; };
 		C7F3FFEF28D159270065C5EA /* ChartData.m in Sources */ = {isa = PBXBuildFile; fileRef = C7F3FFEE28D159270065C5EA /* ChartData.m */; };
+		CE8E2FBF2FB6DF5A00A04D4C /* DecEnc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE8E2FBE2FB6DF4F00A04D4C /* DecEnc.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2423E43F1E8513C4009EE89D /* libDecEnc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libDecEnc.a; path = MEME_Academic/libDecEnc.a; sourceTree = "<group>"; };
 		2423E4411E851414009EE89D /* DecEnc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DecEnc.h; sourceTree = "<group>"; };
 		2423E4421E851909009EE89D /* Version.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Version.h; sourceTree = "<group>"; };
 		2423E4431E851909009EE89D /* Version.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Version.m; sourceTree = "<group>"; };
@@ -75,6 +74,7 @@
 		C7EF596E28C596A400EDA7C9 /* Common.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Common.m; sourceTree = "<group>"; };
 		C7F3FFED28D159270065C5EA /* ChartData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartData.h; sourceTree = "<group>"; };
 		C7F3FFEE28D159270065C5EA /* ChartData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartData.m; sourceTree = "<group>"; };
+		CE8E2FBE2FB6DF4F00A04D4C /* DecEnc.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DecEnc.m; sourceTree = "<group>"; };
 		EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MEME_Academic.release.xcconfig"; path = "Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -83,7 +83,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2423E4401E8513C4009EE89D /* libDecEnc.a in Frameworks */,
 				8FBB5F9A0F8A42F018EAA642 /* Pods_MEME_Academic.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -103,7 +102,6 @@
 		2423E43E1E8513C4009EE89D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				2423E43F1E8513C4009EE89D /* libDecEnc.a */,
 				3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */,
 			);
 			name = Frameworks;
@@ -130,6 +128,7 @@
 		24843F901E822F5500CF4199 /* MEME_Academic */ = {
 			isa = PBXGroup;
 			children = (
+				CE8E2FBE2FB6DF4F00A04D4C /* DecEnc.m */,
 				C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */,
 				2423E4411E851414009EE89D /* DecEnc.h */,
 				24843F911E822F5500CF4199 /* AppDelegate.h */,
@@ -310,6 +309,7 @@
 				C7C5CC5628C1C6C300A78BEC /* SettingViewController.m in Sources */,
 				C7E2143728CEF13B00BBAAB4 /* AcademicQuaternionData.m in Sources */,
 				C7C5B22C28CFF13B00D3741C /* TCPSocket.m in Sources */,
+				CE8E2FBF2FB6DF5A00A04D4C /* DecEnc.m in Sources */,
 				C7EF596F28C596A400EDA7C9 /* Common.m in Sources */,
 				24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */,
 				C7E2143128CEE88300BBAAB4 /* AcademicStandardData.m in Sources */,
