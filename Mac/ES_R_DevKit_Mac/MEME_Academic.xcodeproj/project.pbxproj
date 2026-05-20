@@ -15,7 +15,6 @@
 		24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9C1E822F5500CF4199 /* Main.storyboard */; };
 		24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA61E822F9100CF4199 /* MEMELib_Academic.m */; };
 		24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA91E82311100CF4199 /* AcademicFullData.m */; };
-		8FBB5F9A0F8A42F018EAA642 /* Pods_MEME_Academic.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */; };
 		C74A7B7D28D0455900A90C11 /* ChartView.m in Sources */ = {isa = PBXBuildFile; fileRef = C74A7B7C28D0455900A90C11 /* ChartView.m */; };
 		C7B6E13C28D1E5FE0086B299 /* UserSetting.m in Sources */ = {isa = PBXBuildFile; fileRef = C7B6E13B28D1E5FE0086B299 /* UserSetting.m */; };
 		C7C5B22C28CFF13B00D3741C /* TCPSocket.m in Sources */ = {isa = PBXBuildFile; fileRef = C7C5B22B28CFF13B00D3741C /* TCPSocket.m */; };
@@ -49,7 +48,6 @@
 		24843FA81E82311100CF4199 /* AcademicFullData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcademicFullData.h; sourceTree = "<group>"; };
 		24843FA91E82311100CF4199 /* AcademicFullData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcademicFullData.m; sourceTree = "<group>"; };
 		3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_MEME_Academic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MEME_Academic.debug.xcconfig"; path = "Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic.debug.xcconfig"; sourceTree = "<group>"; };
 		C74A7B7B28D0455900A90C11 /* ChartView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartView.h; sourceTree = "<group>"; };
 		C74A7B7C28D0455900A90C11 /* ChartView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartView.m; sourceTree = "<group>"; };
 		C7B6E13A28D1E5FE0086B299 /* UserSetting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserSetting.h; sourceTree = "<group>"; };
@@ -75,7 +73,6 @@
 		C7F3FFED28D159270065C5EA /* ChartData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartData.h; sourceTree = "<group>"; };
 		C7F3FFEE28D159270065C5EA /* ChartData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartData.m; sourceTree = "<group>"; };
 		CE8E2FBE2FB6DF4F00A04D4C /* DecEnc.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DecEnc.m; sourceTree = "<group>"; };
-		EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MEME_Academic.release.xcconfig"; path = "Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,22 +80,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8FBB5F9A0F8A42F018EAA642 /* Pods_MEME_Academic.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		167C3CD4E0F2BC0636FB44AC /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */,
-				EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		2423E43E1E8513C4009EE89D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -113,7 +100,6 @@
 				24843F901E822F5500CF4199 /* MEME_Academic */,
 				24843F8F1E822F5500CF4199 /* Products */,
 				2423E43E1E8513C4009EE89D /* Frameworks */,
-				167C3CD4E0F2BC0636FB44AC /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -187,11 +173,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 24843FA21E822F5500CF4199 /* Build configuration list for PBXNativeTarget "MEME_Academic" */;
 			buildPhases = (
-				20544A52ADA1E888ACDF291C /* [CP] Check Pods Manifest.lock */,
 				24843F8A1E822F5500CF4199 /* Sources */,
 				24843F8B1E822F5500CF4199 /* Frameworks */,
 				24843F8C1E822F5500CF4199 /* Resources */,
-				61D04FE3EB25A182BD278EB5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -250,49 +234,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		20544A52ADA1E888ACDF291C /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-MEME_Academic-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		61D04FE3EB25A182BD278EB5 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/CocoaAsyncSocket/CocoaAsyncSocket.framework",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CocoaAsyncSocket.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MEME_Academic/Pods-MEME_Academic-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		24843F8A1E822F5500CF4199 /* Sources */ = {
@@ -373,7 +314,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -414,7 +355,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 			};
@@ -422,7 +363,6 @@
 		};
 		24843FA31E822F5500CF4199 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4E15BEEB0484414F9C270D3D /* Pods-MEME_Academic.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
@@ -430,7 +370,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
@@ -439,8 +379,8 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.2.1;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -449,14 +389,13 @@
 		};
 		24843FA41E822F5500CF4199 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EB16E1670D9AC56ABC176792 /* Pods-MEME_Academic.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -467,8 +406,8 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.2.1;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
