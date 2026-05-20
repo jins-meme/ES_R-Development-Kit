@@ -3,9 +3,7 @@
 
 target 'MEME_Academic' do
 
-	platform :osx, '10.13'
+	platform :osx, '10.14'
 	use_frameworks!
-
-	pod 'CocoaAsyncSocket' 
 
 end

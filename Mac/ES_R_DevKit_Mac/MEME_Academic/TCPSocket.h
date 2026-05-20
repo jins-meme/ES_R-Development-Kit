@@ -8,22 +8,17 @@
 
 #import <Foundation/Foundation.h>
 
-@import CocoaAsyncSocket;
-#import "GCDAsyncSocket.h" // for TCP
-//#import "GCDAsyncUdpSocket.h" // for UDP
-
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol tcpSocketDelegate<NSObject>
 
 - (void)didAccept;
-- (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err ;
+- (void)socketDidDisconnectWithError:(nullable NSError *)err;
 
 @end
 
-@interface TCPSocket : NSObject <GCDAsyncSocketDelegate>
+@interface TCPSocket : NSObject
 
-@property (nonatomic,strong) GCDAsyncSocket *socket;
 @property (nonatomic,strong) NSString *headerString;
 
 @property (nonatomic, assign) id<tcpSocketDelegate> delegate;

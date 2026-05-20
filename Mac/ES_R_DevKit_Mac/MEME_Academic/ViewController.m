@@ -952,12 +952,10 @@
 #pragma mark - didDisconnect:withError:
 // =============================================================================
 
-- (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err  {
+- (void)socketDidDisconnectWithError:(NSError *)err  {
     NSLog(@"didDisconnect");
-    if (socket.socket == sock) {
-        self.label_SocketStatus.stringValue = @"Status : ";
-        [self socketStart];
-    }
+    self.label_SocketStatus.stringValue = @"Status : ";
+    [self socketStart];
 }
 
 // =============================================================================
