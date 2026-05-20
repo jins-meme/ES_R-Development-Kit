@@ -7,6 +7,9 @@
 //
 
 #import <Cocoa/Cocoa.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
 @class SettingViewController;
 
 @protocol SettingViewControllerDelegate<NSObject>
@@ -15,11 +18,9 @@
 
 @end
 
-NS_ASSUME_NONNULL_BEGIN
-
 @interface SettingViewController : NSViewController
 
-@property (nonatomic, assign) id<SettingViewControllerDelegate> delegate;
+@property (nonatomic, weak, nullable) id<SettingViewControllerDelegate> delegate;
 
 @end
 

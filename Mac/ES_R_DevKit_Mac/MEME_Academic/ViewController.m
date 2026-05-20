@@ -568,7 +568,7 @@
             NSString *dateString = [dateFormatter stringFromDate:[NSDate date]];
             NSString *macAddressString = memelib.macAddress;
             NSString *fileName = [NSString stringWithFormat:@"%@_%@.csv",macAddressString,dateString];
-            NSString *stringBuffer = [self headerString];
+            NSMutableString *stringBuffer = [[self headerString] mutableCopy];
             [self dataToStoring:csvDatas stringBuffer:stringBuffer];
             NSData *data = [stringBuffer dataUsingEncoding:NSUTF8StringEncoding];
             
@@ -643,16 +643,16 @@
         NSString *isFreeMarkingString = [isFreeMarking boolValue] ? @"x" : @"";
         
         if ([memelib getSelectMode] == MEMEMode_Standard) {
-            AcademicStandardData *standardData = data;
+            AcademicStandardData *standardData = (AcademicStandardData *)data;
             [stringBuffer appendString:[NSString stringWithFormat:@"%@,%@,%@,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",isFreeMarkingString,packetCount,dateString,standardData.AccX,standardData.AccY,standardData.AccZ,standardData.EogL1,standardData.EogR1,standardData.EogL2,standardData.EogR2,standardData.EogH1,standardData.EogH2,standardData.EogV1,standardData.EogV2]];
         }
         else if ([memelib getSelectMode] == MEMEMode_Full) {
-            AcademicFullData *fullData = data;
+            AcademicFullData *fullData = (AcademicFullData *)data;
             [stringBuffer appendString:[NSString stringWithFormat:@"%@,%@,%@,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",isFreeMarkingString,packetCount,dateString,fullData.AccX,fullData.AccY,fullData.AccZ,fullData.GyroX,fullData.GyroY,fullData.GyroZ,fullData.EogL,fullData.EogR,fullData.EogH,fullData.EogV]];
         }
         else {
-            AcademicQuaternionData *quaternionData = data;
-            [stringBuffer appendString:[NSString stringWithFormat:@"%@,%@,%@,%d,%d,%d,%d\n",isFreeMarkingString,packetCount,dateString,quaternionData.QuaternionW,quaternionData.QuaternionX,quaternionData.QuaternionY,quaternionData.QuaternionZ]];
+            AcademicQuaternionData *quaternionData = (AcademicQuaternionData *)data;
+            [stringBuffer appendString:[NSString stringWithFormat:@"%@,%@,%@,%lld,%lld,%lld,%lld\n",isFreeMarkingString,packetCount,dateString,quaternionData.QuaternionW,quaternionData.QuaternionX,quaternionData.QuaternionY,quaternionData.QuaternionZ]];
         }
     }
 }
@@ -709,7 +709,7 @@
     NSLog(@"showSetting");
     NSStoryboard *storyboard = [NSStoryboard storyboardWithName:@"Setting" bundle:nil];
     NSWindowController *windowController = [storyboard instantiateInitialController];
-    SettingViewController *settingViewController = windowController.contentViewController;
+    SettingViewController *settingViewController = (SettingViewController *)windowController.contentViewController;
     settingViewController.delegate = self;
     [windowController showWindow:self];
 }
@@ -726,7 +726,7 @@
 }
 
 - (void)peripheralManagerDidUpdateState:(CBPeripheralManager *)peripheral {
-    if (peripheral.state == CBPeripheralManagerStatePoweredOn) {
+    if (peripheral.state == CBManagerStatePoweredOn) {
         NSLog(@"bluetooth ON");
         [self.button_StartScan setEnabled:NO];
         [self.combobox_MEME removeAllItems];

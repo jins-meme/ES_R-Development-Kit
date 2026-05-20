@@ -12,10 +12,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface Common : NSObject
 
-+ (void)setUserDefaults:(id)value forKey:(NSString *)key;
-+ (void)setUserDefaults:(id)value forKey:(NSString *)key appGroups:(NSString *)appGroups;
-+ (id)getUserDefaultsForKey:(NSString *)key;
-+ (id)getUserDefaultsForKey:(NSString *)key appGroups:(NSString *)appGroups;
++ (void)setUserDefaults:(nullable id)value forKey:(NSString *)key;
++ (void)setUserDefaults:(nullable id)value forKey:(NSString *)key appGroups:(nullable NSString *)appGroups;
++ (nullable id)getUserDefaultsForKey:(NSString *)key;
++ (nullable id)getUserDefaultsForKey:(NSString *)key appGroups:(nullable NSString *)appGroups;
 + (NSString *)getIPAddress;
 
 @end

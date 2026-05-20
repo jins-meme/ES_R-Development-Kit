@@ -26,9 +26,14 @@
         userDefaults = [[NSUserDefaults alloc] initWithSuiteName:appGroups];
     }
    
-    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:value];
-    
     if(value != nil){
+        NSError *error = nil;
+        NSData *data = [NSKeyedArchiver archivedDataWithRootObject:value requiringSecureCoding:NO error:&error];
+        if (data == nil) {
+            NSLog(@"UserDefaults archive error: %@", error);
+            return;
+        }
+
         //保存
         [userDefaults setObject:data forKey:key];
     }
@@ -56,7 +61,22 @@
     NSData *data = [userDefaults objectForKey:key];
     
     if(nil != data){
-        return [NSKeyedUnarchiver unarchiveObjectWithData:data];
+        NSSet *classes = [NSSet setWithObjects:
+                          NSString.class,
+                          NSNumber.class,
+                          NSData.class,
+                          NSDate.class,
+                          NSArray.class,
+                          NSDictionary.class,
+                          NSMutableArray.class,
+                          NSMutableDictionary.class,
+                          nil];
+        NSError *error = nil;
+        id object = [NSKeyedUnarchiver unarchivedObjectOfClasses:classes fromData:data error:&error];
+        if (object == nil) {
+            NSLog(@"UserDefaults unarchive error: %@", error);
+        }
+        return object;
     }
     return nil;
 }

@@ -81,8 +81,9 @@
                   completionHandler:^(NSModalResponse result) {
         
         switch (result) {
-            case NSFileHandlingPanelOKButton:
-                _browseTextField.stringValue = [panel URLs][0];
+            case NSModalResponseOK:
+                _browseTextField.stringValue = panel.URL.path;
+                break;
             default:
                 break;
         }
@@ -100,13 +101,27 @@
 
 - (void)showOpenFolder {
     NSString *urlString = _browseTextField.stringValue;
-    NSURL *url = [NSURL URLWithString:urlString];
+    NSURL *url = [NSURL fileURLWithPath:urlString];
     if ([[NSWorkspace sharedWorkspace] openURL:url]) {
         NSLog(@"ファイルが開ける");
     }
     else {
         NSLog(@"ファイルが開けない");
     }
+}
+
+// =============================================================================
+#pragma mark - button_Extemal_Output_Socket_Tapped
+// =============================================================================
+- (IBAction)button_Extemal_Output_Socket_Tapped:(id)sender {
+    NSLog(@"button_Extemal_Output_Socket_Tapped");
+}
+
+// =============================================================================
+#pragma mark - textField_Local_Port_Tapped
+// =============================================================================
+- (IBAction)textField_Local_Port_Tapped:(id)sender {
+    NSLog(@"textField_Local_Port_Tapped");
 }
 
 // =============================================================================

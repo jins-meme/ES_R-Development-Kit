@@ -54,7 +54,9 @@ static const NSInteger STATUS_REC_STOP_REQ_EXEC = 0x9;
 
 static const NSInteger CHECK_TIMEOUT_TIME = 20;
 static const NSInteger TIME_SYNC_COUNT = 2;
-static const NSInteger PACKET_LENGTH = 20;
+enum {
+    PACKET_LENGTH = 20
+};
 
 @protocol memelibDelegate<NSObject>
 

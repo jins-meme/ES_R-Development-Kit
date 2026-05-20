@@ -12,9 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface CsvManager : NSObject
 
-@property (nonatomic) NSString *saveDirectoryPath;
-@property (nonatomic) NSString *saveFilePath;
-@property (nonatomic) NSString *saveFileName;
+@property (nonatomic, nullable) NSString *saveDirectoryPath;
+@property (nonatomic, nullable) NSString *saveFilePath;
+@property (nonatomic, nullable) NSString *saveFileName;
 @property (nonatomic) Boolean isSave;
 
 - (void)reset;

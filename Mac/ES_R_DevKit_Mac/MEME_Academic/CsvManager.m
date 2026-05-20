@@ -24,15 +24,21 @@
     NSLog(@"saveDirectoryPath:%@",self.saveFileName);
     self.saveFilePath = [directoryPath stringByAppendingPathComponent:fileName];
     NSLog(@"saveFilePath:%@",self.saveFilePath);
-    self.isSave = [firstData writeToURL:[NSURL URLWithString:self.saveFilePath]  atomically:YES];
+    self.isSave = [firstData writeToURL:[NSURL fileURLWithPath:self.saveFilePath] atomically:YES];
     return self.isSave;
 }
 
 - (void)appendData:(NSData *)appendData {
     
-    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingToURL:[NSURL URLWithString:self.saveFilePath] error:nil];
-//    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.saveFilePath];
-    
+    if (self.saveFilePath == nil) {
+        return;
+    }
+
+    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingToURL:[NSURL fileURLWithPath:self.saveFilePath] error:nil];
+    if (fileHandle == nil) {
+        return;
+    }
+
     // 書き込み位置をファイルの末尾に設定
     [fileHandle seekToEndOfFile];
     
