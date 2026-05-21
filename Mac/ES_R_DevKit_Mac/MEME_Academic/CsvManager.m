@@ -24,6 +24,18 @@
     NSLog(@"saveDirectoryPath:%@",self.saveFileName);
     self.saveFilePath = [directoryPath stringByAppendingPathComponent:fileName];
     NSLog(@"saveFilePath:%@",self.saveFilePath);
+
+    NSURL *directoryURL = [NSURL fileURLWithPath:directoryPath isDirectory:YES];
+    NSError *error = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtURL:directoryURL
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:&error]) {
+        NSLog(@"ディレクトリ作成失敗:%@", error);
+        self.isSave = NO;
+        return self.isSave;
+    }
+
     self.isSave = [firstData writeToURL:[NSURL fileURLWithPath:self.saveFilePath] atomically:YES];
     return self.isSave;
 }

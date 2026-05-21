@@ -47,7 +47,7 @@
    
    CGFloat chanvasH = self.frame.size.height - marginTop - marginBottom;
    CGFloat chanvasW = self.frame.size.width - marginLeft - marginRight;
-    
+
 //    NSBezierPath *border1 = [NSBezierPath bezierPath];
 //    [[NSColor blueColor] set];
 //    [border1 setLineWidth:1.0f];

@@ -538,7 +538,7 @@
         if (!alreadyFound)  {
             NSString *uuid = [peripheral.identifier UUIDString];
             NSString *name = peripheral.name;
-            NSString *localName = [advertisementData objectForKey:CBAdvertisementDataLocalNameKey];
+            NSString *localName __unused = [advertisementData objectForKey:CBAdvertisementDataLocalNameKey];
             if (name == nil) { return; }
             [self.peripherals addObject: peripheral];
             [self.peripheralsLocalName addObject: name];

@@ -332,10 +332,13 @@
     }
 //    NSLog(@"mTotalCount:%ld",mTotalCount);
     
+    BOOL shouldMark = isFreeMarking;
+    isFreeMarking = NO;
+
     return @{@"data":data,
              @"packetCount":[NSNumber numberWithLong:mTotalCount],
              @"date":[NSDate date],
-             @"isFreeMarking":[NSNumber numberWithBool:isFreeMarking]};
+             @"isFreeMarking":[NSNumber numberWithBool:shouldMark]};
 }
 
 // =============================================================================
@@ -344,7 +347,6 @@
 - (void)memeAcademicStandardDataReceivedDelegate:(AcademicStandardData *)data {
     //NSLog(@"memeAcademicStandardDataReceivedDelegate");
     [csvDatas addObject:[self dataToDictionary:data]];
-    isFreeMarking = NO;
     [self saveCsv];
     if ([socket isConnected]) {
         [socketDatas addObject:[[NSDictionary alloc] initWithDictionary:[csvDatas lastObject]]];
@@ -552,9 +554,20 @@
 // =============================================================================
 
 - (void)saveCsv {
-    
+    [self saveCsvIfNeeded:NO];
+}
+
+- (void)flushCsv {
+    [self saveCsvIfNeeded:YES];
+}
+
+- (void)saveCsvIfNeeded:(BOOL)force {
+    if ([csvDatas count] == 0) {
+        return;
+    }
+
     // 100Hzばら100件たまったら、50Hzなら50件たまったら保存開始
-    if ([csvDatas count] >= 100/mQuality) {
+    if (force || [csvDatas count] >= 100/mQuality) {
 
         // 保存中か確認
         if (!csvManager.isSave) {
@@ -858,16 +871,18 @@
             
             measurement_flag = false;
             
+            [self flushCsv];
+
+            // 保存先の変更
+            if ([UserSetting getShowSaveFileDialog]) {
+                [self fileMove];
+            }
+            else {
+                [csvManager reset];
+            }
+
             [self reset];
         });
-        
-        // 保存先の変更
-        if ([UserSetting getShowSaveFileDialog]) {
-            [self fileMove];
-        }
-        else {
-            [csvManager reset];
-        }
     }
 }
 
@@ -884,26 +899,33 @@
 #pragma mark - fileMove
 // =============================================================================
 - (void)fileMove {
+    NSString *sourceFilePath = csvManager.saveFilePath;
+    NSString *saveFileName = csvManager.saveFileName ?: @"";
+    if (sourceFilePath.length == 0) {
+        [csvManager reset];
+        return;
+    }
+
     NSSavePanel *savePanel = [[NSSavePanel alloc] init];
     savePanel.canCreateDirectories = true;
     savePanel.showsTagField = false;
     savePanel.extensionHidden = false;
     savePanel.allowedFileTypes = @[@"csv"];
-    savePanel.nameFieldStringValue = csvManager.saveFileName;
+    savePanel.nameFieldStringValue = saveFileName;
     savePanel.level = NSModalPanelWindowLevel;
     [savePanel beginSheetModalForWindow:NSApp.mainWindow completionHandler:^(NSModalResponse result) {
         if (result == NSModalResponseOK) {
             NSLog(@"OK");
             NSURL *url = [savePanel URL];
             NSError *error = nil;
-            [[NSFileManager defaultManager] copyItemAtURL:[NSURL URLWithString:csvManager.saveFilePath]
+            [[NSFileManager defaultManager] copyItemAtURL:[NSURL fileURLWithPath:sourceFilePath]
                                                     toURL:url
                                                     error:&error];
             if (error) {
                 NSLog(@"コピー失敗:%@",error);
             }
             else {
-                [[NSFileManager defaultManager] removeItemAtURL:[NSURL URLWithString:csvManager.saveFilePath]
+                [[NSFileManager defaultManager] removeItemAtURL:[NSURL fileURLWithPath:sourceFilePath]
                                                           error:&error];
                 if (error) {
                     NSLog(@"削除失敗:%@",error);
@@ -916,7 +938,6 @@
         else {
             NSLog(@"NO");
         }
-        [csvManager reset];
     }];
 }
 
