@@ -1,7 +1,7 @@
 JINS MEME AGREEMENT AND TERMS OF USE / SDK
 
-https://developers.jins.com/en/sdks/terms_and_conditions/
-https://developers.jins.com/ja/sdks/terms_and_conditions/
+https://jins-meme.github.io/jinsmeme-platform/doc/term_sdk.html
+https://jins-meme.github.io/jinsmeme-platform/en/doc/term_sdk.html
 
 CAREFULLY READ THIS AGREEMENT AND TERMS OF USE FOR JINS MEME / SDK (“Terms of Use”) BEFORE ACCESSING THE SOFTWARE DEVELOPMENT KIT (“SDK” as defined in Article 2 ). IF YOU, AS THE END USER AND DEVELOPER (defined in Article 2), DO NOT AGREE TO THESE TERMS OF USE, DO NOT ACCESS THE SDK. USING, DOWNLOADING OR OTHERWISE ACCESSING THE SDK OR ANY PART OF THE SDK INDICATES THAT YOU ACCEPT THESE TERMS OF USE AND YOU AGREE TO BE BOUND BY THIS AGREEMENT AND TERMS OF USE AND YOU EXECUTE LICENSE AGREEMENT WITH JINS INC.(“JINS”) ACCORDING TO THE TERMS OF USE SET FORTH BELOW.
 
