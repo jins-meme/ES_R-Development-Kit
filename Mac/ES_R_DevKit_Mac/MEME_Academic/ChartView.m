@@ -39,6 +39,8 @@
 
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
+    [[NSColor whiteColor] setFill];
+    NSRectFill(self.bounds);
    
    CGFloat marginTop = 20;
    CGFloat marginBottom = 0;
@@ -111,6 +113,7 @@
                 textField.frame = CGRectMake(x - 60/2, 0, 60, 20);
                 [textField setEditable:NO];
                 [textField setBordered:NO];
+                textField.drawsBackground = NO;
                 textField.backgroundColor = [NSColor clearColor];
                 textField.stringValue = [NSString stringWithFormat:@"%d",self.xTextFieldValue+(self.xShortScale*i / self.xLongScale)];
                 textField.alignment = NSTextAlignmentCenter;

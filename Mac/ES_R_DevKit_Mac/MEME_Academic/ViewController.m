@@ -157,11 +157,54 @@
     [self batteryLevel:0];
     [self successRate];
     [self communication];
+    [self removeChartSelectionBorders];
     _label_MemeVersion.stringValue = @"MEME Version：";
     
     [self socketStart];
     
 
+}
+
+- (void)removeChartSelectionBorders {
+    NSArray *boxes = @[
+        self.box_Chart1_Electrooculography,
+        self.box_Chart1_Gyroscope,
+        self.box_Chart1_Accelerometer,
+        self.box_Chart2_Electrooculography,
+        self.box_Chart2_Gyroscope,
+        self.box_Chart2_Accelerometer,
+        self.box_Chart3_Electrooculography,
+        self.box_Chart3_Gyroscope,
+        self.box_Chart3_Accelerometer
+    ];
+    
+    for (NSBox *box in boxes) {
+        [self removeBorderFromChartSelectionBox:box];
+        [self removeBorderFromChartSelectionAncestors:box];
+    }
+}
+
+- (void)removeBorderFromChartSelectionBox:(NSBox *)box {
+    box.borderType = NSNoBorder;
+    box.borderColor = [NSColor clearColor];
+    
+    for (NSView *subview in box.contentView.subviews) {
+        if ([subview isKindOfClass:[NSBox class]]) {
+            [self removeBorderFromChartSelectionBox:(NSBox *)subview];
+        }
+    }
+}
+
+- (void)removeBorderFromChartSelectionAncestors:(NSView *)view {
+    NSView *superview = view.superview;
+    while (superview != nil) {
+        if ([superview isKindOfClass:[NSBox class]]) {
+            NSBox *box = (NSBox *)superview;
+            box.borderType = NSNoBorder;
+            box.borderColor = [NSColor clearColor];
+        }
+        superview = superview.superview;
+    }
 }
 
 - (void)viewWillAppear {
