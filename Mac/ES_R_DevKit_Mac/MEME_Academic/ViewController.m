@@ -160,6 +160,23 @@
     [self removeChartSelectionBorders];
     _label_MemeVersion.stringValue = @"MEME Version：";
     
+    // ボタンの角丸設定
+    NSArray *buttons = @[
+        self.button_Settings,
+        self.button_StartScan,
+        self.button_Connect,
+        self.button_StartMeasurement,
+        self.button_FreeMarking,
+        self.button_Chart_Apply
+    ];
+    
+    for (NSButton *button in buttons) {
+        button.wantsLayer = YES;
+        button.layer.cornerRadius = 14.0;
+        button.layer.masksToBounds = YES;
+        button.layer.backgroundColor = [NSColor colorWithWhite:0.85 alpha:1.0].CGColor;
+    }
+    
     [self socketStart];
     
 
