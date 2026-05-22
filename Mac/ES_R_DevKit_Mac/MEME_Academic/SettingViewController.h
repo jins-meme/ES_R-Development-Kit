@@ -21,6 +21,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SettingViewController : NSViewController
 
 @property (nonatomic, weak, nullable) id<SettingViewControllerDelegate> delegate;
+@property (weak) IBOutlet NSButton *button_Browse;
+@property (weak) IBOutlet NSButton *button_OpenFolder;
+@property (weak) IBOutlet NSButton *button_Apply;
+@property (weak) IBOutlet NSButton *button_Cancel;
 
 @end
 

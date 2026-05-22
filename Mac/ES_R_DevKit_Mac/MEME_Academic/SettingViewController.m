@@ -34,6 +34,8 @@
     // Do view setup here.
     
     [self setSettingParameter];
+    // ボタンのスタイルを設定（ライト／ダークモード対応）
+    [self styleButtonsForAppearance];
 }
 
 - (void)viewWillAppear {
@@ -142,6 +144,52 @@
 - (IBAction)button_Cancel_Tapped:(id)sender {
     NSLog(@"button_Cancel_Tapped");
     [self.view.window close];
+}
+
+- (void)styleButtonsForAppearance {
+    NSString *appearanceName = [self.view.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+    BOOL isDark = [appearanceName isEqualToString:NSAppearanceNameDarkAqua];
+    CGFloat bgWhite = isDark ? 0.60 : 0.85;
+    NSColor *titleColor = isDark ? [NSColor labelColor] : [NSColor colorWithWhite:0.15 alpha:1.0];
+    // Browse/Open/Apply/Cancel should keep the same (dark) title color even in dark mode
+    NSColor *constantButtonTitleColor = [NSColor colorWithWhite:0.15 alpha:1.0];
+    [self applyStyleToButtonsInView:self.view bgWhite:bgWhite titleColor:titleColor];
+}
+
+- (void)applyStyleToButtonsInView:(NSView *)parent bgWhite:(CGFloat)bg titleColor:(NSColor *)titleColor {
+    for (NSView *sub in parent.subviews) {
+        if ([sub isKindOfClass:[NSButton class]]) {
+            NSButton *button = (NSButton *)sub;
+            // 除外: Show save file dialog と External output socket のボタンは変更しない
+            if (button == _showSaveFileDialogButton || button == _extermalOutputSocketButton) {
+                // skip styling for these specific controls
+            } else {
+                button.wantsLayer = YES;
+                button.layer.cornerRadius = 14.0;
+                button.layer.masksToBounds = YES;
+                button.layer.backgroundColor = [NSColor colorWithWhite:bg alpha:1.0].CGColor;
+                // 枠無しにする
+                button.bordered = NO;
+                if ([button respondsToSelector:@selector(cell)]) {
+                    id cell = button.cell;
+                    if ([cell respondsToSelector:@selector(setBordered:)]) {
+                        [cell setBordered:NO];
+                    }
+                }
+                // Decide title color: keep constant for Browse/Open/Apply/Cancel, otherwise use appearance-based color
+                NSColor *useTitleColor = titleColor;
+                if (button == _button_Browse || button == _button_OpenFolder || button == _button_Apply || button == _button_Cancel) {
+                    useTitleColor = [NSColor colorWithWhite:0.15 alpha:1.0];
+                }
+
+                NSMutableAttributedString *attr = [[NSMutableAttributedString alloc] initWithAttributedString:button.attributedTitle];
+                NSRange range = NSMakeRange(0, attr.length);
+                [attr addAttribute:NSForegroundColorAttributeName value:useTitleColor range:range];
+                [button setAttributedTitle:attr];
+            }
+        }
+        [self applyStyleToButtonsInView:sub bgWhite:bg titleColor:titleColor];
+    }
 }
 
 @end

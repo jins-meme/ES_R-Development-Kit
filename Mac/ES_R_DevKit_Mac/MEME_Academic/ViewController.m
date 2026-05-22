@@ -160,7 +160,7 @@
     [self removeChartSelectionBorders];
     _label_MemeVersion.stringValue = @"MEME Version：";
     
-    // ボタンの角丸設定
+    // ボタンの角丸とカラー設定（ライト／ダークモード対応）
     NSArray *buttons = @[
         self.button_Settings,
         self.button_StartScan,
@@ -169,12 +169,22 @@
         self.button_FreeMarking,
         self.button_Chart_Apply
     ];
-    
+
+    NSString *appearanceName = [self.view.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+    BOOL isDark = [appearanceName isEqualToString:NSAppearanceNameDarkAqua];
+    CGFloat bgWhite = isDark ? 0.60 : 0.85;
+    NSColor *titleColor = isDark ? [NSColor labelColor] : [NSColor colorWithWhite:0.15 alpha:1.0];
+
     for (NSButton *button in buttons) {
         button.wantsLayer = YES;
         button.layer.cornerRadius = 14.0;
         button.layer.masksToBounds = YES;
-        button.layer.backgroundColor = [NSColor colorWithWhite:0.85 alpha:1.0].CGColor;
+        button.layer.backgroundColor = [NSColor colorWithWhite:bgWhite alpha:1.0].CGColor;
+
+        NSMutableAttributedString *attr = [[NSMutableAttributedString alloc] initWithAttributedString:button.attributedTitle];
+        NSRange range = NSMakeRange(0, attr.length);
+        [attr addAttribute:NSForegroundColorAttributeName value:titleColor range:range];
+        [button setAttributedTitle:attr];
     }
     
     [self socketStart];
