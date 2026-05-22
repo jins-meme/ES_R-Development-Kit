@@ -48,7 +48,7 @@
     [self.combobox_AccelRange insertItemWithObjectValue:@"±2G" atIndex:[self.combobox_AccelRange numberOfItems]];
     [self.combobox_AccelRange insertItemWithObjectValue:@"±4G" atIndex:[self.combobox_AccelRange numberOfItems]];
     [self.combobox_AccelRange insertItemWithObjectValue:@"±8G" atIndex:[self.combobox_AccelRange numberOfItems]];
-    [self.combobox_AccelRange insertItemWithObjectValue:@"±16" atIndex:[self.combobox_AccelRange numberOfItems]];
+    [self.combobox_AccelRange insertItemWithObjectValue:@"±16G" atIndex:[self.combobox_AccelRange numberOfItems]];
     [self.combobox_AccelRange selectItemAtIndex:(0)];
 
     [self.combobox_GyroRange insertItemWithObjectValue:@"±250dps" atIndex:[self.combobox_GyroRange numberOfItems]];
