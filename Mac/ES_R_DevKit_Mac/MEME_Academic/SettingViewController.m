@@ -152,7 +152,7 @@
     CGFloat bgWhite = isDark ? 0.60 : 0.85;
     NSColor *titleColor = isDark ? [NSColor labelColor] : [NSColor colorWithWhite:0.15 alpha:1.0];
     // Browse/Open/Apply/Cancel should keep the same (dark) title color even in dark mode
-    NSColor *constantButtonTitleColor = [NSColor colorWithWhite:0.15 alpha:1.0];
+    // NSColor *constantButtonTitleColor = [NSColor colorWithWhite:0.15 alpha:1.0];
     [self applyStyleToButtonsInView:self.view bgWhite:bgWhite titleColor:titleColor];
 }
 

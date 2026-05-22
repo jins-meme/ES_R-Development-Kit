@@ -212,7 +212,7 @@
 }
 
 - (void)removeBorderFromChartSelectionBox:(NSBox *)box {
-    box.borderType = NSNoBorder;
+    // box.borderType = NSNoBorder;
     box.borderColor = [NSColor clearColor];
     
     for (NSView *subview in box.contentView.subviews) {
@@ -227,7 +227,7 @@
     while (superview != nil) {
         if ([superview isKindOfClass:[NSBox class]]) {
             NSBox *box = (NSBox *)superview;
-            box.borderType = NSNoBorder;
+            // box.borderType = NSNoBorder;
             box.borderColor = [NSColor clearColor];
         }
         superview = superview.superview;
