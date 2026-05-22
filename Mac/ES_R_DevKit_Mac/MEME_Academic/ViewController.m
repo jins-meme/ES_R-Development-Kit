@@ -13,6 +13,10 @@
 #import "CsvManager.h"
 #import "ChartView.h"
 
+#if __has_include(<UniformTypeIdentifiers/UniformTypeIdentifiers.h>)
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#endif
+
 @interface ViewController ()<NSComboBoxDelegate, NSComboBoxDataSource, CBPeripheralManagerDelegate>
 
 @end
@@ -980,7 +984,16 @@
     savePanel.canCreateDirectories = true;
     savePanel.showsTagField = false;
     savePanel.extensionHidden = false;
-    savePanel.allowedFileTypes = @[@"csv"];
+    if (@available(macOS 11.0, *)) {
+        id csvType = (id)[UTType typeWithFilenameExtension:@"csv"];
+        if (csvType) {
+            savePanel.allowedContentTypes = @[csvType];
+        } else {
+            savePanel.allowedFileTypes = @[@"csv"];
+        }
+    } else {
+        savePanel.allowedFileTypes = @[@"csv"];
+    }
     savePanel.nameFieldStringValue = saveFileName;
     savePanel.level = NSModalPanelWindowLevel;
     [savePanel beginSheetModalForWindow:NSApp.mainWindow completionHandler:^(NSModalResponse result) {

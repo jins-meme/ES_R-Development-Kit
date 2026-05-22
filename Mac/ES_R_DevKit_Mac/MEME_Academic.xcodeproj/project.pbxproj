@@ -379,7 +379,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -405,7 +405,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
