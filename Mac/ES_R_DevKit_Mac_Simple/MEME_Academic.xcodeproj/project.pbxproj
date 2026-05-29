@@ -3,11 +3,10 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2423E4401E8513C4009EE89D /* libDecEnc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2423E43F1E8513C4009EE89D /* libDecEnc.a */; };
 		2423E4441E851909009EE89D /* Version.m in Sources */ = {isa = PBXBuildFile; fileRef = 2423E4431E851909009EE89D /* Version.m */; };
 		24843F931E822F5500CF4199 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843F921E822F5500CF4199 /* AppDelegate.m */; };
 		24843F961E822F5500CF4199 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843F951E822F5500CF4199 /* main.m */; };
@@ -16,10 +15,10 @@
 		24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9C1E822F5500CF4199 /* Main.storyboard */; };
 		24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA61E822F9100CF4199 /* MEMELib_Academic.m */; };
 		24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */ = {isa = PBXBuildFile; fileRef = 24843FA91E82311100CF4199 /* AcademicFullData.m */; };
+		CE361FE42FC96C6E00227B6B /* DecEnc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE361FE32FC96C6700227B6B /* DecEnc.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2423E43F1E8513C4009EE89D /* libDecEnc.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libDecEnc.a; path = MEME_Academic/libDecEnc.a; sourceTree = "<group>"; };
 		2423E4411E851414009EE89D /* DecEnc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DecEnc.h; sourceTree = "<group>"; };
 		2423E4421E851909009EE89D /* Version.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Version.h; sourceTree = "<group>"; };
 		2423E4431E851909009EE89D /* Version.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Version.m; sourceTree = "<group>"; };
@@ -36,6 +35,7 @@
 		24843FA61E822F9100CF4199 /* MEMELib_Academic.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEMELib_Academic.m; sourceTree = "<group>"; };
 		24843FA81E82311100CF4199 /* AcademicFullData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcademicFullData.h; sourceTree = "<group>"; };
 		24843FA91E82311100CF4199 /* AcademicFullData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcademicFullData.m; sourceTree = "<group>"; };
+		CE361FE32FC96C6700227B6B /* DecEnc.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DecEnc.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,7 +43,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2423E4401E8513C4009EE89D /* libDecEnc.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +52,6 @@
 		2423E43E1E8513C4009EE89D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				2423E43F1E8513C4009EE89D /* libDecEnc.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -78,6 +76,7 @@
 		24843F901E822F5500CF4199 /* MEME_Academic */ = {
 			isa = PBXGroup;
 			children = (
+				CE361FE32FC96C6700227B6B /* DecEnc.m */,
 				2423E4411E851414009EE89D /* DecEnc.h */,
 				24843F911E822F5500CF4199 /* AppDelegate.h */,
 				24843F921E822F5500CF4199 /* AppDelegate.m */,
@@ -131,7 +130,8 @@
 		24843F861E822F5500CF4199 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0820;
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2650;
 				ORGANIZATIONNAME = "jins-jp";
 				TargetAttributes = {
 					24843F8D1E822F5500CF4199 = {
@@ -143,10 +143,9 @@
 			};
 			buildConfigurationList = 24843F891E822F5500CF4199 /* Build configuration list for PBXProject "MEME_Academic" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				English,
 				en,
 				Base,
 			);
@@ -179,6 +178,7 @@
 			files = (
 				24843F991E822F5500CF4199 /* ViewController.m in Sources */,
 				24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */,
+				CE361FE42FC96C6E00227B6B /* DecEnc.m in Sources */,
 				24843F961E822F5500CF4199 /* main.m in Sources */,
 				24843FA71E822F9100CF4199 /* MEMELib_Academic.m in Sources */,
 				24843F931E822F5500CF4199 /* AppDelegate.m in Sources */,
@@ -209,23 +209,35 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = WSMC73YLL2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -244,6 +256,7 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Debug;
 		};
@@ -256,23 +269,35 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = WSMC73YLL2;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -284,6 +309,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Release;
 		};
@@ -292,13 +318,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WSMC73YLL2;
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -310,13 +340,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WSMC73YLL2;
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -1,9 +1,6 @@
 //
 //  DecEnc.h
-//  DecEnc
-//
-//  Created by D-CLUE on 2016/06/27.
-//  Copyright © 2016年 jins-jp.com. All rights reserved.
+//  Copyright © 2026年 jins.com. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>

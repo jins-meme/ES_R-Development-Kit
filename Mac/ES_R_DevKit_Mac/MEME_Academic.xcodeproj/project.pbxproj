@@ -47,7 +47,6 @@
 		24843FA61E822F9100CF4199 /* MEMELib_Academic.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEMELib_Academic.m; sourceTree = "<group>"; };
 		24843FA81E82311100CF4199 /* AcademicFullData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcademicFullData.h; sourceTree = "<group>"; };
 		24843FA91E82311100CF4199 /* AcademicFullData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcademicFullData.m; sourceTree = "<group>"; };
-		3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_MEME_Academic.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C74A7B7B28D0455900A90C11 /* ChartView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartView.h; sourceTree = "<group>"; };
 		C74A7B7C28D0455900A90C11 /* ChartView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ChartView.m; sourceTree = "<group>"; };
 		C7B6E13A28D1E5FE0086B299 /* UserSetting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserSetting.h; sourceTree = "<group>"; };
@@ -89,7 +88,6 @@
 		2423E43E1E8513C4009EE89D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				3A7709618C2765C78BD7B29B /* Pods_MEME_Academic.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

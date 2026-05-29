@@ -1,8 +1,5 @@
 //
 //  DecEnc.m
-//  DecEnc
-//
-//  Created by GitHub Copilot on 2026/05/15.
 //
 
 #import "DecEnc.h"
