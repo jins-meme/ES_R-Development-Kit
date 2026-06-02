@@ -74,7 +74,8 @@ class Common: NSObject {
                 if getnameinfo(sa, socklen_t(cur.ifa_addr.pointee.sa_len),
                                &hostname, socklen_t(hostname.count),
                                nil, 0, NI_NUMERICHOST) == 0 {
-                    let address = String(cString: hostname)
+                    let bytes = hostname.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }
+                    let address = String(decoding: bytes, as: UTF8.self)
                     NSLog("address:%@", address)
                     if !address.isEmpty && address != "127.0.0.1" {
                         addresses.append(address)

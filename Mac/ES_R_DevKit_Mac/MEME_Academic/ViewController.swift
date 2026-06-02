@@ -653,14 +653,8 @@ class ViewController: NSViewController {
         savePanel.canCreateDirectories = true
         savePanel.showsTagField = false
         savePanel.isExtensionHidden = false
-        if #available(macOS 11.0, *) {
-            if let csvType = UTType(filenameExtension: "csv") {
-                savePanel.allowedContentTypes = [csvType]
-            } else {
-                savePanel.allowedFileTypes = ["csv"]
-            }
-        } else {
-            savePanel.allowedFileTypes = ["csv"]
+        if let csvType = UTType(filenameExtension: "csv") {
+            savePanel.allowedContentTypes = [csvType]
         }
         savePanel.nameFieldStringValue = saveFileName
         savePanel.level = .modalPanel
