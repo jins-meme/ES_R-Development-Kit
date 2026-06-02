@@ -1,0 +1,19 @@
+{
+	"name": "xcode build server",
+	"version": "1.3.0",
+	"bspVersion": "2.2.0",
+	"languages": [
+		"c",
+		"cpp",
+		"objective-c",
+		"objective-cpp",
+		"swift"
+	],
+	"argv": [
+		"/opt/homebrew/bin/xcode-build-server"
+	],
+	"workspace": "/Users/user/Documents/ES_R-Development-Kit/Mac/ES_R_DevKit_Mac/MEME_Academic.xcodeproj/project.xcworkspace",
+	"build_root": "/Users/user/Library/Developer/Xcode/DerivedData/MEME_Academic-bzeffskgasfnjdemnyuazpzuzhez",
+	"scheme": "MEME_Academic",
+	"kind": "xcode"
+}

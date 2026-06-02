@@ -35,7 +35,7 @@
         <!--Setting-->
         <scene sceneID="oSp-LA-Kp6">
             <objects>
-                <viewController title="Setting" id="cUM-ny-S3h" customClass="SettingViewController" sceneMemberID="viewController">
+                <viewController title="Setting" id="cUM-ny-S3h" customClass="SettingViewController" customModule="MEME_Academic" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="fuN-KC-xha">
                         <rect key="frame" x="0.0" y="0.0" width="640" height="270"/>
                         <autoresizingMask key="autoresizingMask"/>
