@@ -156,6 +156,8 @@ class ViewController: NSViewController {
 
     private var peripheralManager: CBPeripheralManager?
 
+    private var buttonTitleColor: NSColor = .labelColor
+
     // MARK: - View Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -226,6 +228,7 @@ class ViewController: NSViewController {
         let isDark = appearanceName == .darkAqua
         let bgWhite: CGFloat = isDark ? 0.60 : 0.85
         let titleColor: NSColor = isDark ? .labelColor : NSColor(white: 0.15, alpha: 1.0)
+        buttonTitleColor = titleColor
 
         for button in buttons {
             button.wantsLayer = true
@@ -233,13 +236,23 @@ class ViewController: NSViewController {
             button.layer?.masksToBounds = true
             button.layer?.backgroundColor = NSColor(white: bgWhite, alpha: 1.0).cgColor
 
-            let attr = NSMutableAttributedString(attributedString: button.attributedTitle)
-            let range = NSRange(location: 0, length: attr.length)
-            attr.addAttribute(.foregroundColor, value: titleColor, range: range)
-            button.attributedTitle = attr
+            setButtonTitle(button, title: button.title)
         }
 
         socketStart()
+    }
+
+    private func setButtonTitle(_ button: NSButton, title: String) {
+        let attr = NSMutableAttributedString(string: title, attributes: [
+            .foregroundColor: buttonTitleColor,
+            .font: button.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize),
+            .paragraphStyle: {
+                let style = NSMutableParagraphStyle()
+                style.alignment = button.alignment
+                return style
+            }()
+        ])
+        button.attributedTitle = attr
     }
 
     private func removeChartSelectionBorders() {
@@ -391,7 +404,7 @@ class ViewController: NSViewController {
 
         if force || csvDatas.count >= 100 / mQuality {
             if !csvManager.isSave {
-                NSLog("作成")
+                // NSLog("Create")
                 let directoryPath = UserSetting.getSaveFilePath()
                 let formatter = DateFormatter()
                 formatter.locale = Locale(identifier: "ja_JP")
@@ -405,7 +418,7 @@ class ViewController: NSViewController {
                     csvManager.create(directoryPath: directoryPath, fileName: fileName, firstData: data)
                 }
             } else {
-                NSLog("追記")
+                // NSLog("Append")
                 var buffer = ""
                 dataToStoring(csvDatas, stringBuffer: &buffer)
                 if let data = buffer.data(using: .utf8) {
@@ -568,7 +581,7 @@ class ViewController: NSViewController {
             startDate = Date()
             startCommunicationTimer()
 
-            button_StartMeasurement.title = "Stop Measurement"
+            setButtonTitle(button_StartMeasurement, title: "Stop Measurement")
 
             button_StartScan.isHidden = true
             button_Connect.isHidden = true
@@ -600,7 +613,7 @@ class ViewController: NSViewController {
             measurementFlag = true
             memelib.startDataReport()
         } else {
-            button_StartMeasurement.title = "Start Measurement"
+            setButtonTitle(button_StartMeasurement, title: "Start Measurement")
 
             memelib.stopDataReport()
             stopCommunicationTimer()
@@ -690,7 +703,7 @@ class ViewController: NSViewController {
             label_SocketStatus.stringValue = "Status : \(status)"
             socket = s
         } else {
-            NSLog("ソケット通信しない")
+            NSLog("Sockset disabled")
         }
     }
 
@@ -975,7 +988,7 @@ extension ViewController: MEMELibDelegate {
     func memePeripheralConnectedDelegate(result: UInt32) {
         NSLog("memePeripheralConnectedDelegate : %d", result)
         connectedFlag = true
-        button_Connect.title = "Disconnect"
+        setButtonTitle(button_Connect, title: "Disconnect")
         label_StateConnect.stringValue = "State : Connected"
 
         button_StartScan.isEnabled = true
@@ -990,7 +1003,7 @@ extension ViewController: MEMELibDelegate {
     func memePeripheralDisconnectedDelegate(result: UInt32) {
         NSLog("memePeripheralDisconnectedDelegate : %d", result)
         connectedFlag = false
-        button_Connect.title = "Connect"
+        setButtonTitle(button_Connect, title: "Connect")
         label_StateConnect.stringValue = "State : Disconnected"
 
         button_StartScan.isHidden = false
