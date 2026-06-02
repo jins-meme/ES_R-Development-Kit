@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 100;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -41,10 +41,8 @@
 /* Begin PBXFrameworksBuildPhase section */
 		24843F8B1E822F5500CF4199 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -117,8 +115,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = MEME_Academic;
 			productName = MEME_Academic;
 			productReference = 24843F8E1E822F5500CF4199 /* MEME_Academic.app */;
@@ -142,7 +138,6 @@
 				};
 			};
 			buildConfigurationList = 24843F891E822F5500CF4199 /* Build configuration list for PBXProject "MEME_Academic" */;
-			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -150,6 +145,7 @@
 				Base,
 			);
 			mainGroup = 24843F851E822F5500CF4199;
+			preferredProjectObjectVersion = 100;
 			productRefGroup = 24843F8F1E822F5500CF4199 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -162,19 +158,16 @@
 /* Begin PBXResourcesBuildPhase section */
 		24843F8C1E822F5500CF4199 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */,
 				24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		24843F8A1E822F5500CF4199 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				24843F991E822F5500CF4199 /* ViewController.m in Sources */,
 				24843FAA1E82311100CF4199 /* AcademicFullData.m in Sources */,
@@ -184,7 +177,6 @@
 				24843F931E822F5500CF4199 /* AppDelegate.m in Sources */,
 				2423E4441E851909009EE89D /* Version.m in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -200,7 +192,7 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		24843FA01E822F5500CF4199 /* Debug */ = {
+		24843FA01E822F5500CF4199 /* Debug configuration for PBXProject "MEME_Academic" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -257,10 +249,11 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
-		24843FA11E822F5500CF4199 /* Release */ = {
+		24843FA11E822F5500CF4199 /* Release configuration for PBXProject "MEME_Academic" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -310,10 +303,11 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
-		24843FA31E822F5500CF4199 /* Debug */ = {
+		24843FA31E822F5500CF4199 /* Debug configuration for PBXNativeTarget "MEME_Academic" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -335,7 +329,7 @@
 			};
 			name = Debug;
 		};
-		24843FA41E822F5500CF4199 /* Release */ = {
+		24843FA41E822F5500CF4199 /* Release configuration for PBXNativeTarget "MEME_Academic" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -363,19 +357,17 @@
 		24843F891E822F5500CF4199 /* Build configuration list for PBXProject "MEME_Academic" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				24843FA01E822F5500CF4199 /* Debug */,
-				24843FA11E822F5500CF4199 /* Release */,
+				24843FA01E822F5500CF4199 /* Debug configuration for PBXProject "MEME_Academic" */,
+				24843FA11E822F5500CF4199 /* Release configuration for PBXProject "MEME_Academic" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		24843FA21E822F5500CF4199 /* Build configuration list for PBXNativeTarget "MEME_Academic" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				24843FA31E822F5500CF4199 /* Debug */,
-				24843FA41E822F5500CF4199 /* Release */,
+				24843FA31E822F5500CF4199 /* Debug configuration for PBXNativeTarget "MEME_Academic" */,
+				24843FA41E822F5500CF4199 /* Release configuration for PBXNativeTarget "MEME_Academic" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
