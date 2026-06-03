@@ -363,26 +363,31 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
 
         if buff[0] == UInt8(PACKET_LENGTH) {
             switch buff[1] {
+            // AUP_REPORT_DEV_INFO
             case 0x81:
                 memeVersion.major = UInt32(buff[6])
                 memeVersion.minor = UInt32(buff[5])
                 memeVersion.revision = UInt32(buff[4])
                 memeAdnGetMode()
-                libLog("0x81")
+                libLog("0x81 AUP_REPORT_DEV_INFO")
+            // AUP_REPORT_MODE
             case 0x83:
                 selectMode = UInt32(buff[4])
                 transMode = UInt32(buff[5])
                 memeAdnGet6AxisParams()
-                libLog("0x83")
+                libLog("0x83 AUP_REPORT_MODE")
+            // AUP_REPORT_6AXIS_PRMS
             case 0x89:
                 accelRange = UInt32(buff[2])
                 gyroRange = UInt32(buff[3])
                 delegate?.memePeripheralConnectedDelegate(result: MEMELIB_OK)
-                libLog("0x89")
+                libLog("0x89 AUP_REPORT_6AXIS_PRMS")
+            // AUP_REPORT_RESP
             case 0x8F:
-                libLog("0x8F")
+                libLog("0x8F AUP_REPORT_RESP")
+            // AUP_REPORT_ACADEMIC1
             case 0x98:
-                libLog("0x98")
+                //libLog("0x98")
                 let standardData = AcademicStandardData()
                 let cntPart1 = (UInt32(buff[3]) << 8) & 0x0F00
                 let cntPart2 = UInt32(buff[2])
@@ -402,8 +407,9 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
                 standardData.eogV1 = Int16(truncatingIfNeeded: 0 - (sum1 / 2))
                 standardData.eogV2 = Int16(truncatingIfNeeded: 0 - (sum2 / 2))
                 delegate?.memeAcademicStandardDataReceivedDelegate(data: standardData)
+            // AUP_REPORT_ACADEMIC2
             case 0x99:
-                libLog("0x99")
+                //libLog("0x99")
                 let fullData = AcademicFullData()
                 let cntPart1 = (UInt32(buff[3]) << 8) & 0x0F00
                 let cntPart2 = UInt32(buff[2])
@@ -421,8 +427,9 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
                 let sumEog = Int32(fullData.eogL) + Int32(fullData.eogR)
                 fullData.eogV = Int16(truncatingIfNeeded: 0 - (sumEog / 2))
                 delegate?.memeAcademicFullDataReceivedDelegate(data: fullData)
+            // AUP_REPORT_ACADEMIC3
             case 0x9A:
-                libLog("0x9A")
+                //libLog("0x9A")
                 let quaternionData = AcademicQuaternionData()
                 let cntPart1 = (UInt32(buff[3]) << 8) & 0x0F00
                 let cntPart2 = UInt32(buff[2])

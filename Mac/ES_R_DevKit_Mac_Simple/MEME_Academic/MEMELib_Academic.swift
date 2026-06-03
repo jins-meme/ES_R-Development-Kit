@@ -368,26 +368,32 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
 
         if buff[0] == UInt8(PACKET_LENGTH) {
             switch buff[1] {
+            // AUP_REPORT_DEV_INFO
             case 0x81:
                 memeVersion.major = UInt32(buff[6])
                 memeVersion.minor = UInt32(buff[5])
                 memeVersion.revision = UInt32(buff[4])
                 memeAdnGetMode()
                 libLog("0x81")
+            // AUP_REPORT_MODE
             case 0x83:
                 selectMode = UInt32(buff[4])
                 transMode = UInt32(buff[5])
                 memeAdnGet6AxisParams()
                 libLog("0x83")
+            // AUP_REPORT_6AXIS_PRMS
             case 0x89:
                 accelRange = UInt32(buff[2])
                 gyroRange = UInt32(buff[3])
                 delegate?.memePeripheralConnectedDelegate(result: MEMELIB_OK)
                 libLog("0x89")
+            // AUP_REPORT_RESP
             case 0x8F:
                 libLog("0x8F")
+            // AUP_REPORT_ACADEMIC1
             case 0x98:
                 libLog("0x98")
+            // AUP_REPORT_ACADEMIC2
             case 0x99:
                 libLog("0x99")
 
@@ -414,6 +420,7 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
                 fullData.eogV = Int16(truncatingIfNeeded: 0 - (sumEog / 2))
 
                 delegate?.memeAcademicFullDataReceivedDelegate(data: fullData)
+            // AUP_REPORT_ACADEMIC3
             case 0x9A:
                 libLog("0x9A")
             default:
