@@ -14,7 +14,6 @@ import Foundation
 enum MEMELibFactory {
 
     /// `-mock` 引数で起動された場合に true。
-    /// ViewController 側で「CoreBluetooth 経由ではなくモックを直接駆動する」分岐に用いる。
     static var isMock: Bool {
         return ProcessInfo.processInfo.arguments.contains("-mock")
     }

@@ -15,6 +15,9 @@
 		CE0364492FCE9A5A0082DF51 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE0364482FCE9A570082DF51 /* AppDelegate.swift */; };
 		CE03644B2FCE9A6B0082DF51 /* MEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE03644A2FCE9A680082DF51 /* MEMELib_Academic.swift */; };
 		CE03644D2FCE9BA50082DF51 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE03644C2FCE9BA00082DF51 /* ViewController.swift */; };
+		CE3040092FCFEC16004F7C9F /* MEMELibInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3040082FCFEC16004F7C9F /* MEMELibInterface.swift */; };
+		CE30400B2FCFEC1E004F7C9F /* MEMELibFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE30400A2FCFEC1E004F7C9F /* MEMELibFactory.swift */; };
+		CE30400D2FCFEC40004F7C9F /* MockMEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE30400C2FCFEC40004F7C9F /* MockMEMELib_Academic.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +31,9 @@
 		CE0364482FCE9A570082DF51 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CE03644A2FCE9A680082DF51 /* MEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELib_Academic.swift; sourceTree = "<group>"; };
 		CE03644C2FCE9BA00082DF51 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		CE3040082FCFEC16004F7C9F /* MEMELibInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibInterface.swift; sourceTree = "<group>"; };
+		CE30400A2FCFEC1E004F7C9F /* MEMELibFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibFactory.swift; sourceTree = "<group>"; };
+		CE30400C2FCFEC40004F7C9F /* MockMEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMEMELib_Academic.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +82,9 @@
 				24843F9F1E822F5500CF4199 /* Info.plist */,
 				24843F9C1E822F5500CF4199 /* Main.storyboard */,
 				24843F941E822F5500CF4199 /* Supporting Files */,
+				CE3040082FCFEC16004F7C9F /* MEMELibInterface.swift */,
+				CE30400A2FCFEC1E004F7C9F /* MEMELibFactory.swift */,
+				CE30400C2FCFEC40004F7C9F /* MockMEMELib_Academic.swift */,
 			);
 			path = MEME_Academic;
 			sourceTree = "<group>";
@@ -157,7 +166,10 @@
 			files = (
 				CE0364492FCE9A5A0082DF51 /* AppDelegate.swift in Sources */,
 				CE0364472FCE9A480082DF51 /* DecEnc.swift in Sources */,
+				CE30400D2FCFEC40004F7C9F /* MockMEMELib_Academic.swift in Sources */,
+				CE30400B2FCFEC1E004F7C9F /* MEMELibFactory.swift in Sources */,
 				CE0364452FCE9A2F0082DF51 /* AcademicFullData.swift in Sources */,
+				CE3040092FCFEC16004F7C9F /* MEMELibInterface.swift in Sources */,
 				CE0364432FCE99E50082DF51 /* Version.swift in Sources */,
 				CE03644D2FCE9BA50082DF51 /* ViewController.swift in Sources */,
 				CE03644B2FCE9A6B0082DF51 /* MEMELib_Academic.swift in Sources */,

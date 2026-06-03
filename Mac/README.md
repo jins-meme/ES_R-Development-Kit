@@ -6,7 +6,6 @@
 * sample code included
 * Checked runnning on MacOS 26 and Xcode 26
 * Dongle(BLE receiver) is NOT needed for Mac
-* 
 * To record the data, you need to write codes as needed.
 * `ES_R_DevKit_Mac` now ships with a **Mock mode** so you can develop and run the app without an actual JINS MEME ES_R device (see "Mock Mode" section below).
 
@@ -15,7 +14,7 @@
 ### STEP1 Download and Build the xcode project
 
 * Download ES_R-Development-kit at https://github.com/jins-meme/ES_R-Development-Kit
-* go to /Mac/ES_R_DevKit_Mac or /Mac/ES_R_DevKit_Mac/Simple
+* go to /Mac/ES_R_DevKit_Mac or /Mac/ES_R_DevKit_Mac_Simple
 * launch "MEME_Academic.xcodeproj"
 * Then, build the project
 
@@ -33,9 +32,9 @@ When, successfully build, sample UI shows up.
 * Press "Start Measurement" button to start working JINS MEME
 ![screen shot 2017-06-06 at 18 02 08](https://cloud.githubusercontent.com/assets/18042520/26821755/7ef5c136-4ae2-11e7-9913-27c6ee52397d.png)
 
-## STEP2B Using Mock Mode
+### STEP2B Using Mock Mode
 
-`ES_R_DevKit_Mac` provides a **Mock mode** that replaces the CoreBluetooth-backed device with an in-app mock generating simulated data. This is useful when you want to develop, test, or demo the app without owning a real JINS MEME ES_R, or without enabling Bluetooth.
+**Mock mode** replaces the CoreBluetooth-backed device with an in-app mock generating simulated data. This is useful when you want to develop, test, or demo the app without owning a real JINS MEME ES_R, or without enabling Bluetooth.
 If you want to use the Mock mode, select "MEME_Academic Mock" scheme on Xcode.
 
 ### STEP3 Making your original application
@@ -78,8 +77,6 @@ The MEME library has been abstracted behind a Swift protocol so that real and mo
 * If the process is launched with the `-mock` argument, it returns `MockMEMELib_Academic`.
 * Otherwise it returns the real `MEMELib_Academic`.
 
-The mock implementation is wrapped in `#if DEBUG`, so it is **excluded from Release builds**.
-
 ### How to switch mode
 
 The repository ships with two shared schemes:
@@ -101,7 +98,7 @@ To return to the real device, switch back to the **MEME_Academic** scheme.
 
 The mock reproduces the basic Scan → Connect → Measure → Disconnect flow:
 
-* **Scan** — After ~300 ms a simulated device named `MEME_MOCK_001` is reported via `memePeripheralFoundDelegate`.
+* **Scan** — After ~300 ms a simulated device named `ESR_MOCK` is reported via `memePeripheralFoundDelegate`.
 * **Connect** — After ~300 ms `memePeripheralConnectedDelegate` fires with `MEMELIB_OK`. `memeVersion` is `99.0.0` and `macAddress` is `MOCK00000000`.
 * **Measurement** — A timer drives data delivery at the rate selected by `setTransMode` (100 Hz for `MEMEQuality_High`, 50 Hz for `MEMEQuality_Low`). Dummy values for the selected mode are emitted:
   * `MEMEMode_Standard` → `AcademicStandardData` (acc / 4-channel EOG, with derived H and V)
@@ -115,7 +112,7 @@ State transitions are logged to the Xcode console with the prefix `[Mock]`, for 
 ```
 [MockMEMELib_Academic] initialized
 [Mock] state idle -> scanning
-[Mock] emit memePeripheralFoundDelegate: MEME_MOCK_001
+[Mock] emit memePeripheralFoundDelegate: ESR_MOCK
 [Mock] state scanning -> connecting
 [Mock] emit memePeripheralConnectedDelegate (state=connected)
 [Mock] startDataReport (mode=1, interval=0.01)
@@ -140,5 +137,3 @@ If you want to customize the simulated data (waveforms, battery level, device na
 * `tick()` — invoked on each timer fire; dispatches to one of `makeStandardData()` / `makeFullData()` / `makeQuaternionData()`.
 * `sinValue(_:freq:phaseShift:)` — helper used to build oscillating Int16 channel values.
 * `mockDeviceName`, `mockUUID`, `battLvMock`, `memeVersion` — constants advertised to the app.
-
-> Note: Mock mode is currently available only in `ES_R_DevKit_Mac`. Adding the same feature to `ES_R_DevKit_Mac_Simple` is planned for a follow-up.

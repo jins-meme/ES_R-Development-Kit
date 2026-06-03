@@ -7,7 +7,6 @@
 //  かけず、起動引数 (-mock) でのみ呼び分けるようにしている。
 //
 //  状態遷移: idle → scanning → connecting → connected → (disconnect) → idle
-//  実機の Scan / Connect / Disconnect / 再Scan の挙動に合わせている。
 //
 
 import Foundation
@@ -15,9 +14,8 @@ import Foundation
 @MainActor
 final class MockMEMELib_Academic: MEMELibInterface {
 
-    weak var delegate: MEMELibDelegate?
+    weak var delegate: MEMELibAcademicDelegate?
     let memeVersion: Version
-    var macAddress: String = "MOCK00000000"
 
     private enum State: String {
         case idle
@@ -31,7 +29,7 @@ final class MockMEMELib_Academic: MEMELibInterface {
     /// disconnect の通知は途中で潰されないよう、このプロパティでは管理しない。
     private var pendingTask: Task<Void, Never>?
 
-    private var selectMode: UInt32 = MEMEMode_Standard
+    private var selectMode: UInt32 = MEMEMode_Full
     private var transMode: UInt32 = MEMEQuality_High
     private var accelRange: UInt32 = MEMEAccelRange_2G
     private var gyroRange: UInt32 = MEMEGyroRange_250dps
@@ -40,7 +38,7 @@ final class MockMEMELib_Academic: MEMELibInterface {
     private var counter: UInt32 = 0
     private var phase: Double = 0.0
 
-    private let mockDeviceName = "ESR_MOCK"
+    private let mockDeviceName = "ESR_MOCK "
     private let mockUUID = "MOCK-0000-0000-0000-000000000001"
     private let battLvMock: UInt16 = 4
 
@@ -147,19 +145,19 @@ final class MockMEMELib_Academic: MEMELibInterface {
 
     func getSelectMode() -> UInt32 { selectMode }
     @discardableResult
-    func setSelectMode(_ mode: UInt32) -> UInt32 { selectMode = mode; return MEMELIB_OK }
+    func setSelectMode(mode: UInt32) -> UInt32 { selectMode = mode; return MEMELIB_OK }
 
     func getTransMode() -> UInt32 { transMode }
     @discardableResult
-    func setTransMode(_ mode: UInt32) -> UInt32 { transMode = mode; return MEMELIB_OK }
+    func setTransMode(mode: UInt32) -> UInt32 { transMode = mode; return MEMELIB_OK }
 
     func getAccelRange() -> UInt32 { accelRange }
     @discardableResult
-    func setAccelRange(_ range: UInt32) -> UInt32 { accelRange = range; return MEMELIB_OK }
+    func setAccelRange(range: UInt32) -> UInt32 { accelRange = range; return MEMELIB_OK }
 
     func getGyroRange() -> UInt32 { gyroRange }
     @discardableResult
-    func setGyroRange(_ range: UInt32) -> UInt32 { gyroRange = range; return MEMELIB_OK }
+    func setGyroRange(range: UInt32) -> UInt32 { gyroRange = range; return MEMELIB_OK }
 
     // MARK: - Data Report
 
@@ -203,39 +201,12 @@ final class MockMEMELib_Academic: MEMELibInterface {
         phase += 0.05
         if phase > .pi * 2 { phase -= .pi * 2 }
 
-        switch selectMode {
-        case MEMEMode_Full:
-            delegate?.memeAcademicFullDataReceivedDelegate(data: makeFullData())
-        case MEMEMode_Quaternion:
-            delegate?.memeAcademicQuaternionDataReceivedDelegate(data: makeQuaternionData())
-        default:
-            delegate?.memeAcademicStandardDataReceivedDelegate(data: makeStandardData())
-        }
+        delegate?.memeAcademicFullDataReceivedDelegate(data: makeFullData())
     }
 
     private func sinValue(_ amplitude: Double, freq: Double, phaseShift: Double = 0) -> Int16 {
         let v = amplitude * sin(phase * freq + phaseShift)
         return Int16(clamping: Int(v))
-    }
-
-    private func makeStandardData() -> AcademicStandardData {
-        let d = AcademicStandardData()
-        d.cnt = counter
-        d.battLv = battLvMock
-        d.accX = sinValue(800, freq: 1.0)
-        d.accY = sinValue(800, freq: 1.0, phaseShift: .pi / 2)
-        d.accZ = sinValue(800, freq: 0.7)
-        d.eogL1 = sinValue(400, freq: 2.0)
-        d.eogR1 = sinValue(400, freq: 2.0, phaseShift: 0.3)
-        d.eogL2 = sinValue(400, freq: 2.5)
-        d.eogR2 = sinValue(400, freq: 2.5, phaseShift: 0.3)
-        d.eogH1 = d.eogL1 &- d.eogR1
-        d.eogH2 = d.eogL2 &- d.eogR2
-        let sum1 = Int32(d.eogL1) + Int32(d.eogR1)
-        let sum2 = Int32(d.eogL2) + Int32(d.eogR2)
-        d.eogV1 = Int16(truncatingIfNeeded: 0 - (sum1 / 2))
-        d.eogV2 = Int16(truncatingIfNeeded: 0 - (sum2 / 2))
-        return d
     }
 
     private func makeFullData() -> AcademicFullData {
@@ -253,18 +224,6 @@ final class MockMEMELib_Academic: MEMELibInterface {
         d.eogH = d.eogL &- d.eogR
         let sum = Int32(d.eogL) + Int32(d.eogR)
         d.eogV = Int16(truncatingIfNeeded: 0 - (sum / 2))
-        return d
-    }
-
-    private func makeQuaternionData() -> AcademicQuaternionData {
-        let d = AcademicQuaternionData()
-        d.cnt = counter
-        d.battLv = battLvMock
-        let scale: Double = 1_073_741_824 // 2^30 程度の固定小数点表現を想定
-        d.quaternionW = Int64(scale * cos(phase * 0.5))
-        d.quaternionX = Int64(scale * sin(phase * 0.5))
-        d.quaternionY = Int64(scale * sin(phase * 0.7))
-        d.quaternionZ = Int64(scale * sin(phase * 0.9))
         return d
     }
 }

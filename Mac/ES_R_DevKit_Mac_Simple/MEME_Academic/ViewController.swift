@@ -37,15 +37,15 @@ class ViewController: NSViewController {
     @IBOutlet weak var label_DataBattLv: NSTextField!
 
     // MARK: - Private Properties
-    private var memelib: MEMELib_Academic!
+    private var memelib: (any MEMELibInterface)!
     private var connectedFlag = false
     private var measurementFlag = false
 
     // MARK: - View Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        memelib = MEMELib_Academic()
+
+        memelib = MEMELibFactory.make()
         memelib.delegate = self
 
         connectedFlag = false
