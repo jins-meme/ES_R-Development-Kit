@@ -28,6 +28,9 @@
 		CE4AF26F2FCEB47500EEB213 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */; };
 		CE4AF2712FCEB47500EEB213 /* SettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */; };
 		CE4AF2732FCEB54100EEB213 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2722FCEB54100EEB213 /* ViewController.swift */; };
+		CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */; };
+		CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */; };
+		CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,6 +58,9 @@
 		CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingViewController.swift; sourceTree = "<group>"; };
 		CE4AF2722FCEB54100EEB213 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibInterface.swift; sourceTree = "<group>"; };
+		CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibFactory.swift; sourceTree = "<group>"; };
+		CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMEMELib_Academic.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +125,9 @@
 				CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */,
 				CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */,
 				CE4AF2722FCEB54100EEB213 /* ViewController.swift */,
+				CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */,
+				CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */,
+				CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */,
 			);
 			path = MEME_Academic;
 			sourceTree = "<group>";
@@ -216,10 +225,13 @@
 				CE4AF26B2FCEB47400EEB213 /* ChartData.swift in Sources */,
 				CE4AF2692FCEB43D00EEB213 /* MEMELib_Academic.swift in Sources */,
 				CE4AF2612FCEB3DD00EEB213 /* Common.swift in Sources */,
+				CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */,
 				CE4AF25B2FCEB39F00EEB213 /* AcademicQuaternionData.swift in Sources */,
 				CE4AF2712FCEB47500EEB213 /* SettingViewController.swift in Sources */,
 				CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */,
+				CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */,
 				CE4AF2732FCEB54100EEB213 /* ViewController.swift in Sources */,
+				CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */,
 				CE4AF25D2FCEB3A100EEB213 /* DecEnc.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -336,7 +348,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
@@ -346,7 +358,7 @@
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.2.3;
+				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -361,7 +373,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -372,7 +384,7 @@
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.2.3;
+				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

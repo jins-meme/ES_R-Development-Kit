@@ -71,7 +71,7 @@ protocol MEMELibDelegate: AnyObject {
 
 // MARK: - Main Class
 @MainActor
-class MEMELib_Academic: NSObject {
+class MEMELib_Academic: NSObject, MEMELibInterface {
 
     var centralManager: CBCentralManager!
     var peripheral: CBPeripheral?

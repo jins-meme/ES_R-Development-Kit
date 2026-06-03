@@ -126,7 +126,7 @@ class ViewController: NSViewController {
     @IBOutlet weak var textField_Chart3_Y7: NSTextField!
 
     // MARK: - Private Properties
-    private var memelib: MEMELib_Academic!
+    private var memelib: (any MEMELibInterface)!
     private var connectedFlag = false
     private var measurementFlag = false
 
@@ -164,7 +164,7 @@ class ViewController: NSViewController {
 
         UserSetting.fristSetting()
 
-        memelib = MEMELib_Academic()
+        memelib = MEMELibFactory.make()
         memelib.delegate = self
 
         connectedFlag = false
@@ -558,7 +558,14 @@ class ViewController: NSViewController {
 
     @IBAction func button_StartScan_Tapped(_ sender: Any) {
         NSLog("Call : startScanningPeripherals")
-        peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionShowPowerAlertKey: "YES"])
+        if MEMELibFactory.isMock {
+            // モック実行時は CBPeripheralManager の電源チェックを介さず直接スキャンを開始する
+            button_StartScan.isEnabled = false
+            combobox_MEME.removeAllItems()
+            memelib.startScanningPeripherals()
+        } else {
+            peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionShowPowerAlertKey: "YES"])
+        }
     }
 
     @IBAction func button_Connect_Tapped(_ sender: Any) {
