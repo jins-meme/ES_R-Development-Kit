@@ -38,7 +38,7 @@ final class MockMEMELib_Academic: MEMELibInterface {
     private var counter: UInt32 = 0
     private var phase: Double = 0.0
 
-    private let mockDeviceName = "ESR_MOCK "
+    private let mockDeviceName = "ESR_MOCK"
     private let mockUUID = "MOCK-0000-0000-0000-000000000001"
     private let battLvMock: UInt16 = 4
 
@@ -145,19 +145,19 @@ final class MockMEMELib_Academic: MEMELibInterface {
 
     func getSelectMode() -> UInt32 { selectMode }
     @discardableResult
-    func setSelectMode(mode: UInt32) -> UInt32 { selectMode = mode; return MEMELIB_OK }
+    func setSelectMode(_ mode: UInt32) -> UInt32 { selectMode = mode; return MEMELIB_OK }
 
     func getTransMode() -> UInt32 { transMode }
     @discardableResult
-    func setTransMode(mode: UInt32) -> UInt32 { transMode = mode; return MEMELIB_OK }
+    func setTransMode(_ mode: UInt32) -> UInt32 { transMode = mode; return MEMELIB_OK }
 
     func getAccelRange() -> UInt32 { accelRange }
     @discardableResult
-    func setAccelRange(range: UInt32) -> UInt32 { accelRange = range; return MEMELIB_OK }
+    func setAccelRange(_ range: UInt32) -> UInt32 { accelRange = range; return MEMELIB_OK }
 
     func getGyroRange() -> UInt32 { gyroRange }
     @discardableResult
-    func setGyroRange(range: UInt32) -> UInt32 { gyroRange = range; return MEMELIB_OK }
+    func setGyroRange(_ range: UInt32) -> UInt32 { gyroRange = range; return MEMELIB_OK }
 
     // MARK: - Data Report
 

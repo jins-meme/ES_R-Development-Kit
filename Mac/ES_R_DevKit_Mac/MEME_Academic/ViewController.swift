@@ -970,8 +970,8 @@ extension ViewController: @preconcurrency CBPeripheralManagerDelegate {
     }
 }
 
-// MARK: - MEMELibDelegate
-extension ViewController: MEMELibDelegate {
+// MARK: - MEMELibAcademicDelegate
+extension ViewController: MEMELibAcademicDelegate {
 
     func memePeripheralFoundDelegate(result: UInt32, deviceName: String?, uuid: String?) {
         if result == MEMELIB_OK {

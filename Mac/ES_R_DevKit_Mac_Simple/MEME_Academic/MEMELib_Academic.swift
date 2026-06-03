@@ -106,7 +106,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
     }
     
     // MARK: - Public Methods
-    
+
+    @discardableResult
     func startScanningPeripherals() -> UInt32 {
         if libraryFlag && !scanFlag && !connectedFlag {
             deviceScanStart()
@@ -115,7 +116,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             return MEMELIB_NG
         }
     }
-    
+
+    @discardableResult
     func stopScanningPeripherals() -> UInt32 {
         if libraryFlag && scanFlag && !connectedFlag {
             deviceScanStop()
@@ -124,7 +126,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             return MEMELIB_NG
         }
     }
-    
+
+    @discardableResult
     func connectPeripheral(deviceName: String) -> UInt32 {
         if libraryFlag && !connectedFlag {
             deviceConnectionStart(deviceName: deviceName)
@@ -133,7 +136,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             return MEMELIB_NG
         }
     }
-    
+
+    @discardableResult
     func disconnectPeripheral() -> UInt32 {
         if libraryFlag && connectedFlag {
             deviceDisconnectionStart()
@@ -142,39 +146,44 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             return MEMELIB_NG
         }
     }
-    
+
     func getSelectMode() -> UInt32 { return selectMode }
-    
-    func setSelectMode(mode: UInt32) -> UInt32 {
+
+    @discardableResult
+    func setSelectMode(_ mode: UInt32) -> UInt32 {
         selectMode = mode
         memeAdnSetMode()
         return MEMELIB_OK
     }
-    
+
     func getTransMode() -> UInt32 { return transMode }
-    
-    func setTransMode(mode: UInt32) -> UInt32 {
+
+    @discardableResult
+    func setTransMode(_ mode: UInt32) -> UInt32 {
         transMode = mode
         memeAdnSetMode()
         return MEMELIB_OK
     }
-    
+
     func getAccelRange() -> UInt32 { return accelRange }
-    
-    func setAccelRange(range: UInt32) -> UInt32 {
+
+    @discardableResult
+    func setAccelRange(_ range: UInt32) -> UInt32 {
         accelRange = range
         memeAdnSet6AxisParams()
         return MEMELIB_OK
     }
-    
+
     func getGyroRange() -> UInt32 { return gyroRange }
-    
-    func setGyroRange(range: UInt32) -> UInt32 {
+
+    @discardableResult
+    func setGyroRange(_ range: UInt32) -> UInt32 {
         gyroRange = range
         memeAdnSet6AxisParams()
         return MEMELIB_OK
     }
-    
+
+    @discardableResult
     func startDataReport() -> UInt32 {
         if libraryFlag && connectedFlag && !measureFlag {
             measureFlag = true
@@ -184,7 +193,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             return MEMELIB_NG
         }
     }
-    
+
+    @discardableResult
     func stopDataReport() -> UInt32 {
         if libraryFlag && connectedFlag && measureFlag {
             measureFlag = false
@@ -198,8 +208,12 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
     // MARK: - Private Methods
     
     private func dataSend(buff: inout [UInt8]) {
-        DecEnc.encode(&buff)
-        let sendData = Data(bytes: &buff, count: PACKET_LENGTH)
+        buff.withUnsafeMutableBufferPointer { ptr in
+            if let baseAddress = ptr.baseAddress {
+                DecEnc.encode(baseAddress)
+            }
+        }
+        let sendData = Data(buff)
         if let peripheral = self.peripheral, let outputChar = self.outputCharacteristic {
             peripheral.writeValue(sendData, for: outputChar, type: .withResponse)
         }
@@ -331,19 +345,27 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
         }
     }
     
+    // 2つのUInt8から符号付きInt16を安全に復元するヘルパー
+    private static func toInt16(high: UInt8, low: UInt8) -> Int16 {
+        let combined = (UInt16(high) << 8) | UInt16(low)
+        return Int16(bitPattern: combined)
+    }
+
     private func dataAnalysis() {
         guard !recvData.isEmpty else { return }
         let cnt = recvData.count - 1
         let data = recvData[cnt]
-        
+
         var buff = [UInt8](repeating: 0, count: PACKET_LENGTH)
         let len = min(data.count, PACKET_LENGTH)
         data.copyBytes(to: &buff, count: len)
-        
-        DecEnc.decode(&buff)
-        
-        let fullData = AcademicFullData()
-        
+
+        buff.withUnsafeMutableBufferPointer { ptr in
+            if let baseAddress = ptr.baseAddress {
+                DecEnc.decode(baseAddress)
+            }
+        }
+
         if buff[0] == UInt8(PACKET_LENGTH) {
             switch buff[1] {
             case 0x81:
@@ -368,34 +390,29 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
                 libLog("0x98")
             case 0x99:
                 libLog("0x99")
-                
+
+                let fullData = AcademicFullData()
                 let cntPart1 = (UInt32(buff[3]) << 8) & 0x0F00
                 let cntPart2 = UInt32(buff[2])
                 fullData.cnt = cntPart1 | cntPart2
                 fullData.battLv = UInt16(buff[3] >> 4)
-                
-                // 2つのUInt8から符号付きInt16を安全に復元するヘルパー
-                func toInt16(high: UInt8, low: UInt8) -> Int16 {
-                    let combined = (UInt16(high) << 8) | UInt16(low)
-                    return Int16(bitPattern: combined)
-                }
-                
-                fullData.accX = toInt16(high: buff[5], low: buff[4])
-                fullData.accY = toInt16(high: buff[7], low: buff[6])
-                fullData.accZ = toInt16(high: buff[9], low: buff[8])
-                
-                fullData.gyroX = toInt16(high: buff[11], low: buff[10])
-                fullData.gyroY = toInt16(high: buff[13], low: buff[12])
-                fullData.gyroZ = toInt16(high: buff[15], low: buff[14])
-                
-                fullData.eogL = toInt16(high: buff[17], low: buff[16])
-                fullData.eogR = toInt16(high: buff[19], low: buff[18])
-                
+
+                fullData.accX = Self.toInt16(high: buff[5], low: buff[4])
+                fullData.accY = Self.toInt16(high: buff[7], low: buff[6])
+                fullData.accZ = Self.toInt16(high: buff[9], low: buff[8])
+
+                fullData.gyroX = Self.toInt16(high: buff[11], low: buff[10])
+                fullData.gyroY = Self.toInt16(high: buff[13], low: buff[12])
+                fullData.gyroZ = Self.toInt16(high: buff[15], low: buff[14])
+
+                fullData.eogL = Self.toInt16(high: buff[17], low: buff[16])
+                fullData.eogR = Self.toInt16(high: buff[19], low: buff[18])
+
                 fullData.eogH = fullData.eogL &- fullData.eogR
-                
+
                 let sumEog = Int32(fullData.eogL) + Int32(fullData.eogR)
                 fullData.eogV = Int16(truncatingIfNeeded: 0 - (sumEog / 2))
-                
+
                 delegate?.memeAcademicFullDataReceivedDelegate(data: fullData)
             case 0x9A:
                 libLog("0x9A")
@@ -567,6 +584,12 @@ extension MEMELib_Academic: @preconcurrency CBPeripheralDelegate {
         if let value = characteristic.value {
             recvData.append(value)
             dataAnalysis()
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+            libLog("Write失敗...error:\(error)")
         }
     }
 }

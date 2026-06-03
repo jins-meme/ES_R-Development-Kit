@@ -15,7 +15,7 @@ import Foundation
 @MainActor
 final class MockMEMELib_Academic: MEMELibInterface {
 
-    weak var delegate: MEMELibDelegate?
+    weak var delegate: MEMELibAcademicDelegate?
     let memeVersion: Version
     var macAddress: String = "MOCK00000000"
 

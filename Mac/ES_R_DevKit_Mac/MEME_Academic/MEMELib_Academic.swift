@@ -60,7 +60,7 @@ func libLog(_ message: String, file: String = #file, line: Int = #line, function
 
 // MARK: - Delegate Protocol
 @MainActor
-protocol MEMELibDelegate: AnyObject {
+protocol MEMELibAcademicDelegate: AnyObject {
     func memePeripheralFoundDelegate(result: UInt32, deviceName: String?, uuid: String?)
     func memePeripheralConnectedDelegate(result: UInt32)
     func memePeripheralDisconnectedDelegate(result: UInt32)
@@ -84,7 +84,7 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
     var sdkVersion = Version()
     var macAddress: String = ""
 
-    weak var delegate: MEMELibDelegate?
+    weak var delegate: MEMELibAcademicDelegate?
 
     private var dataCount: UInt32 = 0
     private var checkTimer: Timer?

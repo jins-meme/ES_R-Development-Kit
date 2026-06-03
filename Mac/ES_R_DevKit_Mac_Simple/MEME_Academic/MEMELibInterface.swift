@@ -24,13 +24,13 @@ protocol MEMELibInterface: AnyObject {
 
     // MARK: - Mode / Range
     func getSelectMode() -> UInt32
-    @discardableResult func setSelectMode(mode: UInt32) -> UInt32
+    @discardableResult func setSelectMode(_ mode: UInt32) -> UInt32
     func getTransMode() -> UInt32
-    @discardableResult func setTransMode(mode: UInt32) -> UInt32
+    @discardableResult func setTransMode(_ mode: UInt32) -> UInt32
     func getAccelRange() -> UInt32
-    @discardableResult func setAccelRange(range: UInt32) -> UInt32
+    @discardableResult func setAccelRange(_ range: UInt32) -> UInt32
     func getGyroRange() -> UInt32
-    @discardableResult func setGyroRange(range: UInt32) -> UInt32
+    @discardableResult func setGyroRange(_ range: UInt32) -> UInt32
 
     // MARK: - Data Report
     @discardableResult func startDataReport() -> UInt32

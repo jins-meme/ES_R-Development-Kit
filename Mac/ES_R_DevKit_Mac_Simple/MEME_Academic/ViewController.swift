@@ -105,10 +105,10 @@ class ViewController: NSViewController {
             button_Connect.isHidden = true
             button_StartMeasurement.isHidden = false
 
-            _ = memelib.setSelectMode(mode: MEMEMode_Full)
-            _ = memelib.setTransMode(mode: MEMEQuality_High)
-            _ = memelib.setAccelRange(range: UInt32(accelrange))
-            _ = memelib.setGyroRange(range: UInt32(gyrorange))
+            _ = memelib.setSelectMode(MEMEMode_Full)
+            _ = memelib.setTransMode(MEMEQuality_High)
+            _ = memelib.setAccelRange(UInt32(accelrange))
+            _ = memelib.setGyroRange(UInt32(gyrorange))
             
             measurementFlag = true
             _ = memelib.startDataReport()

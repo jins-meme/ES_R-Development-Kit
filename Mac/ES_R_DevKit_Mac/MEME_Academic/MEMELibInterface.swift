@@ -13,7 +13,7 @@ import Foundation
 protocol MEMELibInterface: AnyObject {
 
     // MARK: - Properties
-    var delegate: MEMELibDelegate? { get set }
+    var delegate: MEMELibAcademicDelegate? { get set }
     var memeVersion: Version { get }
     var macAddress: String { get }
 
