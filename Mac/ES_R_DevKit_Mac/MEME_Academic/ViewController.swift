@@ -350,6 +350,26 @@ class ViewController: NSViewController {
         label_MemeVersion.stringValue = "MEME Version：\(memelib.memeVersion.major).\(memelib.memeVersion.minor).\(memelib.memeVersion.revision)"
     }
 
+    /// AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS で取得したデバイス側の現在値を各セレクタに反映する。
+    private func syncDeviceSettingsUI() {
+        let modeIdx = Int(memelib.getSelectMode()) - 1   // 1=Standard, 2=Full, 3=Quaternion
+        if (0..<combobox_SelectMode.numberOfItems).contains(modeIdx) {
+            combobox_SelectMode.selectItem(at: modeIdx)
+        }
+        let transIdx = Int(memelib.getTransMode()) - 1   // 1=High(100Hz), 2=Low(50Hz)
+        if (0..<combobox_TransSpeed.numberOfItems).contains(transIdx) {
+            combobox_TransSpeed.selectItem(at: transIdx)
+        }
+        let accelIdx = Int(memelib.getAccelRange())      // 0..3
+        if (0..<combobox_AccelRange.numberOfItems).contains(accelIdx) {
+            combobox_AccelRange.selectItem(at: accelIdx)
+        }
+        let gyroIdx = Int(memelib.getGyroRange())        // 0..3
+        if (0..<combobox_GyroRange.numberOfItems).contains(gyroIdx) {
+            combobox_GyroRange.selectItem(at: gyroIdx)
+        }
+    }
+
     // MARK: - Data dictionary
 
     private func dataToDictionary(_ data: AcademicData) -> [String: Any] {
@@ -1005,6 +1025,7 @@ extension ViewController: MEMELibAcademicDelegate {
         button_StartMeasurement.isHidden = false
 
         showMemeVersion()
+        syncDeviceSettingsUI()
     }
 
     func memePeripheralDisconnectedDelegate(result: UInt32) {

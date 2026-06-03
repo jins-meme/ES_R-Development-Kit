@@ -158,6 +158,28 @@ extension ViewController: MEMELibAcademicDelegate {
         button_StartScan.isHidden = true
         button_Connect.isHidden = false
         button_StartMeasurement.isHidden = false
+
+        syncDeviceSettingsUI()
+    }
+
+    /// AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS で取得したデバイス側の現在値を各セレクタに反映する。
+    private func syncDeviceSettingsUI() {
+        let modeIdx = Int(memelib.getSelectMode()) - 1   // 1=Full
+        if (0..<combobox_SelectMode.numberOfItems).contains(modeIdx) {
+            combobox_SelectMode.selectItem(at: modeIdx)
+        }
+        let transIdx = Int(memelib.getTransMode()) - 1   // 1=High(100Hz)
+        if (0..<combobox_TransSpeed.numberOfItems).contains(transIdx) {
+            combobox_TransSpeed.selectItem(at: transIdx)
+        }
+        let accelIdx = Int(memelib.getAccelRange())      // 0..3
+        if (0..<combobox_AccelRange.numberOfItems).contains(accelIdx) {
+            combobox_AccelRange.selectItem(at: accelIdx)
+        }
+        let gyroIdx = Int(memelib.getGyroRange())        // 0..3
+        if (0..<combobox_GyroRange.numberOfItems).contains(gyroIdx) {
+            combobox_GyroRange.selectItem(at: gyroIdx)
+        }
     }
 
     func memePeripheralDisconnectedDelegate(result: UInt32) {
