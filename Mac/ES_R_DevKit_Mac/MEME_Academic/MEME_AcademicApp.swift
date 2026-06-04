@@ -16,7 +16,7 @@ struct MEME_AcademicApp: App {
         Window("JINS MEME Academic", id: "main") {
             ContentView()
                 .environment(viewModel)
-                .frame(minWidth: 1200, minHeight: 820)
+                .frame(minWidth: 1200, minHeight: 720)
         }
         .windowResizability(.contentSize)
     }

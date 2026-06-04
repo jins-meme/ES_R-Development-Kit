@@ -11,6 +11,8 @@ import Charts
 
 struct RealtimeChartView: View {
 
+    @Environment(\.colorScheme) private var colorScheme
+
     let plot: ChartPlot
 
     private let xMax: Int = 200
@@ -54,7 +56,12 @@ struct RealtimeChartView: View {
         .chartForegroundStyleScale(seriesColorMapping)
         .chartLegend(.hidden)
         .padding(.vertical, 4)
-        .background(Color.white)
+        .background(chartBackground)
+    }
+
+    /// チャート背景色（ライトでは白、ダークでは暗色）
+    private var chartBackground: Color {
+        colorScheme == .dark ? Color(white: 0.12) : .white
     }
 
     /// x軸目盛の値（xLongScale 単位、xInitial分シフト）

@@ -17,7 +17,7 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 12) {
             LeftColumnView()
                 .environment(viewModel)
-                .frame(width: 360)
+                .frame(width: 270)
 
             VStack(spacing: 8) {
                 ChartPanelView(index: 1,
@@ -61,7 +61,7 @@ private struct LeftColumnView: View {
     var body: some View {
         @Bindable var vm = viewModel
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Button("Settings") { viewModel.openSettings() }
                     .disabled(viewModel.isInputDisabled)
@@ -95,7 +95,7 @@ private struct LeftColumnView: View {
 
             Divider()
 
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
                 GridRow {
                     LabeledPicker(title: "Select Mode",
                                   selection: $vm.selectMode,
@@ -135,13 +135,10 @@ private struct LeftColumnView: View {
 
             Divider()
 
-            DataDisplayView()
-                .environment(viewModel)
-
-            Divider()
-
             StatsDisplayView()
                 .environment(viewModel)
+
+            Spacer(minLength: 0)
         }
     }
 }
@@ -169,57 +166,11 @@ private struct LabeledPicker: View {
     }
 }
 
-private struct DataDisplayView: View {
-    @Environment(MEMEViewModel.self) private var viewModel
-
-    var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-            GridRow {
-                DataCell(label: "Cnt", value: "\(viewModel.displayCnt)")
-                DataCell(label: "Battery", value: "\(viewModel.displayBattLv)")
-            }
-            GridRow {
-                DataCell(label: "Acc X", value: "\(viewModel.displayAccX)")
-                DataCell(label: "Gyro X", value: "\(viewModel.displayGyroX)")
-            }
-            GridRow {
-                DataCell(label: "Acc Y", value: "\(viewModel.displayAccY)")
-                DataCell(label: "Gyro Y", value: "\(viewModel.displayGyroY)")
-            }
-            GridRow {
-                DataCell(label: "Acc Z", value: "\(viewModel.displayAccZ)")
-                DataCell(label: "Gyro Z", value: "\(viewModel.displayGyroZ)")
-            }
-            GridRow {
-                DataCell(label: "EOG L", value: "\(viewModel.displayEogL)")
-                DataCell(label: "EOG R", value: "\(viewModel.displayEogR)")
-            }
-            GridRow {
-                DataCell(label: "EOG H", value: "\(viewModel.displayEogH)")
-                DataCell(label: "EOG V", value: "\(viewModel.displayEogV)")
-            }
-        }
-        .font(.system(.body, design: .monospaced))
-    }
-}
-
-private struct DataCell: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(label).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
-            Text(value).frame(width: 80, alignment: .trailing).monospacedDigit()
-        }
-    }
-}
-
 private struct StatsDisplayView: View {
     @Environment(MEMEViewModel.self) private var viewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Success rate:").foregroundStyle(.secondary)
                 Text(viewModel.successRateText).monospacedDigit()
@@ -272,7 +223,7 @@ private struct ChartPanelView: View {
                     .disabled(viewModel.isInputDisabled)
             }
 
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 ChannelToggles(category: categoryBinding,
                                eog: $eog, gyro: $gyro, accel: $accel,
                                disabled: viewModel.isInputDisabled)
@@ -301,7 +252,7 @@ private struct ChannelToggles: View {
     var body: some View {
         switch category {
         case 0:
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 10) {
                 Toggle("Left", isOn: $eog.left).foregroundStyle(.yellow)
                 Toggle("Right", isOn: $eog.right).foregroundStyle(.green)
                 Toggle("ΔH", isOn: $eog.deltaH).foregroundStyle(.red)
@@ -310,7 +261,7 @@ private struct ChannelToggles: View {
             .toggleStyle(.checkbox)
             .disabled(disabled)
         case 1:
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 10) {
                 Toggle("X Axis", isOn: $gyro.x).foregroundStyle(.red)
                 Toggle("Y Axis", isOn: $gyro.y).foregroundStyle(.green)
                 Toggle("Z Axis", isOn: $gyro.z).foregroundStyle(.blue)
@@ -318,7 +269,7 @@ private struct ChannelToggles: View {
             .toggleStyle(.checkbox)
             .disabled(disabled)
         case 2:
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 10) {
                 Toggle("X Axis", isOn: $accel.x).foregroundStyle(.red)
                 Toggle("Y Axis", isOn: $accel.y).foregroundStyle(.green)
                 Toggle("Z Axis", isOn: $accel.z).foregroundStyle(.blue)
