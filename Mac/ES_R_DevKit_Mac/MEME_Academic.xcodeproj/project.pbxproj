@@ -8,8 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9A1E822F5500CF4199 /* Assets.xcassets */; };
-		24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9C1E822F5500CF4199 /* Main.storyboard */; };
-		C7C5CC5928C1C76B00A78BEC /* Setting.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */; };
 		C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */; };
 		CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2522FCEB35B00EEB213 /* Version.swift */; };
 		CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */; };
@@ -23,11 +21,11 @@
 		CE4AF2652FCEB3DE00EEB213 /* CsvManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */; };
 		CE4AF2672FCEB3DF00EEB213 /* TCPSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */; };
 		CE4AF2692FCEB43D00EEB213 /* MEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */; };
-		CE4AF26B2FCEB47400EEB213 /* ChartData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF26A2FCEB47400EEB213 /* ChartData.swift */; };
-		CE4AF26D2FCEB47400EEB213 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF26C2FCEB47400EEB213 /* ChartView.swift */; };
-		CE4AF26F2FCEB47500EEB213 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */; };
-		CE4AF2712FCEB47500EEB213 /* SettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */; };
-		CE4AF2732FCEB54100EEB213 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2722FCEB54100EEB213 /* ViewController.swift */; };
+		CE5B62E42FD107FD0003C982 /* MEME_AcademicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */; };
+		CE5B62E62FD107FD0003C982 /* MEMEViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */; };
+		CE5B62E82FD108290003C982 /* RealtimeChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E72FD108290003C982 /* RealtimeChartView.swift */; };
+		CE5B62EA2FD108290003C982 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E92FD108290003C982 /* SettingsView.swift */; };
+		CE5B62EC2FD108570003C982 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62EB2FD108570003C982 /* ContentView.swift */; };
 		CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */; };
 		CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */; };
 		CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */; };
@@ -36,9 +34,7 @@
 /* Begin PBXFileReference section */
 		24843F8E1E822F5500CF4199 /* MEME_Academic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MEME_Academic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24843F9A1E822F5500CF4199 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		24843F9D1E822F5500CF4199 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		24843F9F1E822F5500CF4199 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Setting.storyboard; sourceTree = "<group>"; };
 		C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colors.xcassets; sourceTree = "<group>"; };
 		C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MEME_Academic.entitlements; sourceTree = "<group>"; };
 		CE4AF2522FCEB35B00EEB213 /* Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Version.swift; sourceTree = "<group>"; };
@@ -53,11 +49,11 @@
 		CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CsvManager.swift; sourceTree = "<group>"; };
 		CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCPSocket.swift; sourceTree = "<group>"; };
 		CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELib_Academic.swift; sourceTree = "<group>"; };
-		CE4AF26A2FCEB47400EEB213 /* ChartData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartData.swift; sourceTree = "<group>"; };
-		CE4AF26C2FCEB47400EEB213 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
-		CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingViewController.swift; sourceTree = "<group>"; };
-		CE4AF2722FCEB54100EEB213 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEME_AcademicApp.swift; sourceTree = "<group>"; };
+		CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMEViewModel.swift; sourceTree = "<group>"; };
+		CE5B62E72FD108290003C982 /* RealtimeChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeChartView.swift; sourceTree = "<group>"; };
+		CE5B62E92FD108290003C982 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		CE5B62EB2FD108570003C982 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibInterface.swift; sourceTree = "<group>"; };
 		CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibFactory.swift; sourceTree = "<group>"; };
 		CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMEMELib_Academic.swift; sourceTree = "<group>"; };
@@ -105,9 +101,7 @@
 				24843F9A1E822F5500CF4199 /* Assets.xcassets */,
 				C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */,
 				24843F9F1E822F5500CF4199 /* Info.plist */,
-				24843F9C1E822F5500CF4199 /* Main.storyboard */,
 				24843F941E822F5500CF4199 /* Supporting Files */,
-				C7C5CC5828C1C76B00A78BEC /* Setting.storyboard */,
 				CE4AF2522FCEB35B00EEB213 /* Version.swift */,
 				CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */,
 				CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */,
@@ -120,14 +114,14 @@
 				CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */,
 				CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */,
 				CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */,
-				CE4AF26A2FCEB47400EEB213 /* ChartData.swift */,
-				CE4AF26C2FCEB47400EEB213 /* ChartView.swift */,
-				CE4AF26E2FCEB47500EEB213 /* AppDelegate.swift */,
-				CE4AF2702FCEB47500EEB213 /* SettingViewController.swift */,
-				CE4AF2722FCEB54100EEB213 /* ViewController.swift */,
 				CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */,
 				CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */,
 				CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */,
+				CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */,
+				CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */,
+				CE5B62E72FD108290003C982 /* RealtimeChartView.swift */,
+				CE5B62E92FD108290003C982 /* SettingsView.swift */,
+				CE5B62EB2FD108570003C982 /* ContentView.swift */,
 			);
 			path = MEME_Academic;
 			sourceTree = "<group>";
@@ -201,8 +195,6 @@
 			files = (
 				24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */,
 				C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */,
-				24843F9E1E822F5500CF4199 /* Main.storyboard in Resources */,
-				C7C5CC5928C1C76B00A78BEC /* Setting.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -214,46 +206,37 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE4AF2592FCEB39E00EEB213 /* AcademicStandardData.swift in Sources */,
+				CE5B62EC2FD108570003C982 /* ContentView.swift in Sources */,
 				CE4AF2652FCEB3DE00EEB213 /* CsvManager.swift in Sources */,
 				CE4AF2672FCEB3DF00EEB213 /* TCPSocket.swift in Sources */,
 				CE4AF2572FCEB39E00EEB213 /* AcademicFullData.swift in Sources */,
 				CE4AF2632FCEB3DE00EEB213 /* UserSetting.swift in Sources */,
-				CE4AF26F2FCEB47500EEB213 /* AppDelegate.swift in Sources */,
 				CE4AF25F2FCEB3DC00EEB213 /* Const.swift in Sources */,
-				CE4AF26D2FCEB47400EEB213 /* ChartView.swift in Sources */,
 				CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */,
-				CE4AF26B2FCEB47400EEB213 /* ChartData.swift in Sources */,
+				CE5B62EA2FD108290003C982 /* SettingsView.swift in Sources */,
 				CE4AF2692FCEB43D00EEB213 /* MEMELib_Academic.swift in Sources */,
+				CE5B62E42FD107FD0003C982 /* MEME_AcademicApp.swift in Sources */,
 				CE4AF2612FCEB3DD00EEB213 /* Common.swift in Sources */,
 				CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */,
 				CE4AF25B2FCEB39F00EEB213 /* AcademicQuaternionData.swift in Sources */,
-				CE4AF2712FCEB47500EEB213 /* SettingViewController.swift in Sources */,
 				CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */,
 				CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */,
-				CE4AF2732FCEB54100EEB213 /* ViewController.swift in Sources */,
 				CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */,
+				CE5B62E62FD107FD0003C982 /* MEMEViewModel.swift in Sources */,
 				CE4AF25D2FCEB3A100EEB213 /* DecEnc.swift in Sources */,
+				CE5B62E82FD108290003C982 /* RealtimeChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXVariantGroup section */
-		24843F9C1E822F5500CF4199 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				24843F9D1E822F5500CF4199 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		24843FA01E822F5500CF4199 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -303,6 +286,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -344,6 +329,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
@@ -358,7 +344,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -370,6 +356,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = MEME_Academic/MEME_Academic.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
@@ -384,7 +371,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.jins-jp.MEME-Academic";
 				PRODUCT_NAME = "$(TARGET_NAME)";
