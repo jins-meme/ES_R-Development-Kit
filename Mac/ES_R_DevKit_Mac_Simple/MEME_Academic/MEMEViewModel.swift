@@ -24,28 +24,32 @@ final class MEMEViewModel {
         case measuring
     }
 
-    // MARK: - Observable State
-
-    var phase: Phase = .idle
-    var foundDevices: [String] = []
-    var selectedDevice: String = ""
-    var connectionStateText: String = "State : Disconnected"
-
-    var selectMode: Int = 0
-    var transSpeed: Int = 0
-    var accelRange: Int = 0
-    var gyroRange: Int = 0
-
-    var latestData: AcademicFullData = AcademicFullData()
-
-    // MARK: - Static option lists
+    // MARK: - Static options
 
     let selectModeOptions = ["Full"]
     let transSpeedOptions = ["100Hz"]
     let accelRangeOptions = ["±2G", "±4G", "±8G", "±16G"]
     let gyroRangeOptions = ["±250dps", "±500dps", "±1000dps", "±2000dps"]
 
-    // MARK: - Private
+    // MARK: - Observable state
+
+    var phase: Phase = .idle
+
+    // Scan / Connect
+    var foundDevices: [String] = []
+    var selectedDevice: String = ""
+    var connectionStateText: String = "State : Disconnected"
+
+    // Settings selectors
+    var selectMode: Int = 0
+    var transSpeed: Int = 0
+    var accelRange: Int = 0
+    var gyroRange: Int = 0
+
+    // Latest data
+    var latestData: AcademicFullData = AcademicFullData()
+
+    // MARK: - Private state
 
     private let memelib: any MEMELibInterface
 
@@ -56,7 +60,7 @@ final class MEMEViewModel {
         self.memelib.delegate = self
     }
 
-    // MARK: - Actions
+    // MARK: - Scan / Connect actions
 
     func startScan() {
         print("Call : startScanningPeripherals")
@@ -87,6 +91,28 @@ final class MEMEViewModel {
             _ = memelib.setGyroRange(UInt32(gyroRange))
             _ = memelib.startDataReport()
             phase = .measuring
+        }
+    }
+
+    // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
+
+    /// デバイス側の現在値を各セレクタに反映する。
+    private func syncDeviceSettings() {
+        let modeIdx = Int(memelib.getSelectMode()) - 1   // 1=Full
+        if selectModeOptions.indices.contains(modeIdx) {
+            selectMode = modeIdx
+        }
+        let transIdx = Int(memelib.getTransMode()) - 1   // 1=High(100Hz)
+        if transSpeedOptions.indices.contains(transIdx) {
+            transSpeed = transIdx
+        }
+        let accelIdx = Int(memelib.getAccelRange())      // 0..3
+        if accelRangeOptions.indices.contains(accelIdx) {
+            accelRange = accelIdx
+        }
+        let gyroIdx = Int(memelib.getGyroRange())        // 0..3
+        if gyroRangeOptions.indices.contains(gyroIdx) {
+            gyroRange = gyroIdx
         }
     }
 }
@@ -126,26 +152,5 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
 
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData) {
         latestData = data
-    }
-
-    /// AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS で取得した
-    /// デバイス側の現在値を各セレクタに反映する。
-    private func syncDeviceSettings() {
-        let modeIdx = Int(memelib.getSelectMode()) - 1   // 1=Full
-        if selectModeOptions.indices.contains(modeIdx) {
-            selectMode = modeIdx
-        }
-        let transIdx = Int(memelib.getTransMode()) - 1   // 1=High(100Hz)
-        if transSpeedOptions.indices.contains(transIdx) {
-            transSpeed = transIdx
-        }
-        let accelIdx = Int(memelib.getAccelRange())      // 0..3
-        if accelRangeOptions.indices.contains(accelIdx) {
-            accelRange = accelIdx
-        }
-        let gyroIdx = Int(memelib.getGyroRange())        // 0..3
-        if gyroRangeOptions.indices.contains(gyroIdx) {
-            gyroRange = gyroIdx
-        }
     }
 }
