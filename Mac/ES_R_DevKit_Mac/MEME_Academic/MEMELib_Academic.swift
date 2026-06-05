@@ -47,7 +47,7 @@ let STATUS_SET_TIME_REQ_EXEC: Int = 0x07
 let STATUS_REC_START_REQ_EXEC: Int = 0x08
 let STATUS_REC_STOP_REQ_EXEC: Int = 0x09
 
-let CHECK_TIMEOUT_TIME: TimeInterval = 20
+let CHECK_TIMEOUT_TIME: TimeInterval = 30
 let TIME_SYNC_COUNT: Int = 2
 let PACKET_LENGTH: Int = 20
 
@@ -96,6 +96,10 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
     private var serviceFlag = false
     private var analysisFlag = false
 
+    /// central がまだ .poweredOn でない状態で startScanningPeripherals が
+    /// 呼ばれたときに保留しておき、状態が .poweredOn になった瞬間に実行する。
+    private var pendingScanRequest = false
+
     private var libStatus: Int = STATUS_IDLE
     private var selectMode: UInt32 = MEMEMode_Full
     private var transMode: UInt32 = MEMEQuality_High
@@ -111,11 +115,21 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
 
     @discardableResult
     func startScanningPeripherals() -> UInt32 {
-        if libraryFlag && !scanFlag && !connectedFlag {
-            deviceScanStart()
+        if connectedFlag {
+            return MEMELIB_NG
+        }
+        if scanFlag {
+            // すでにスキャン中なら冪等に成功扱い
             return MEMELIB_OK
         }
-        return MEMELIB_NG
+        if !libraryFlag {
+            // BT がまだ .poweredOn でない。リクエストを保留し、
+            // centralManagerDidUpdateState(.poweredOn) で発火する。
+            pendingScanRequest = true
+            return MEMELIB_OK
+        }
+        deviceScanStart()
+        return MEMELIB_OK
     }
 
     @discardableResult
@@ -455,7 +469,20 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
 extension MEMELib_Academic: @preconcurrency CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        libraryFlag = true
+        libraryFlag = (central.state == .poweredOn)
+        if !libraryFlag {
+            // BT が OFF/resetting/unauthorized 等になった場合は
+            // 進行中のスキャンを止めて整合性を取る。
+            if scanFlag {
+                deviceScanStop()
+            }
+            return
+        }
+        // .poweredOn になった瞬間に保留スキャンを実行する。
+        if pendingScanRequest && !connectedFlag && !scanFlag {
+            pendingScanRequest = false
+            deviceScanStart()
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {

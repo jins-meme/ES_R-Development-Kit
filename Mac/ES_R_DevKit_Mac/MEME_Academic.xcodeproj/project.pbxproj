@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9A1E822F5500CF4199 /* Assets.xcassets */; };
 		C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */; };
+		CE1F934B2FD25EA000536986 /* CommunicationStatsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */; };
+		CE1F934C2FD25EA000536986 /* DataPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */; };
+		CE1F934D2FD25EA000536986 /* ChartService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F93482FD25EA000536986 /* ChartService.swift */; };
 		CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2522FCEB35B00EEB213 /* Version.swift */; };
 		CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */; };
 		CE4AF2572FCEB39E00EEB213 /* AcademicFullData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */; };
@@ -37,6 +40,9 @@
 		24843F9F1E822F5500CF4199 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colors.xcassets; sourceTree = "<group>"; };
 		C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MEME_Academic.entitlements; sourceTree = "<group>"; };
+		CE1F93482FD25EA000536986 /* ChartService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartService.swift; sourceTree = "<group>"; };
+		CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationStatsTracker.swift; sourceTree = "<group>"; };
+		CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPersistenceService.swift; sourceTree = "<group>"; };
 		CE4AF2522FCEB35B00EEB213 /* Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Version.swift; sourceTree = "<group>"; };
 		CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicData.swift; sourceTree = "<group>"; };
 		CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicFullData.swift; sourceTree = "<group>"; };
@@ -97,6 +103,9 @@
 		24843F901E822F5500CF4199 /* MEME_Academic */ = {
 			isa = PBXGroup;
 			children = (
+				CE1F93482FD25EA000536986 /* ChartService.swift */,
+				CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */,
+				CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */,
 				C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */,
 				24843F9A1E822F5500CF4199 /* Assets.xcassets */,
 				C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */,
@@ -210,6 +219,9 @@
 				CE4AF2652FCEB3DE00EEB213 /* CsvManager.swift in Sources */,
 				CE4AF2672FCEB3DF00EEB213 /* TCPSocket.swift in Sources */,
 				CE4AF2572FCEB39E00EEB213 /* AcademicFullData.swift in Sources */,
+				CE1F934B2FD25EA000536986 /* CommunicationStatsTracker.swift in Sources */,
+				CE1F934C2FD25EA000536986 /* DataPersistenceService.swift in Sources */,
+				CE1F934D2FD25EA000536986 /* ChartService.swift in Sources */,
 				CE4AF2632FCEB3DE00EEB213 /* UserSetting.swift in Sources */,
 				CE4AF25F2FCEB3DC00EEB213 /* Const.swift in Sources */,
 				CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */,
