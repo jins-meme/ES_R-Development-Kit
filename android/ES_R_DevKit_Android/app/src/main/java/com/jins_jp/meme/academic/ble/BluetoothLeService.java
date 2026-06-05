@@ -159,12 +159,16 @@ public class BluetoothLeService extends Service {
 
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
+        // target=34+ で receiver が RECEIVER_NOT_EXPORTED の場合、暗黙 broadcast は配信されない。
+        // 自プロセス宛なので package を明示して explicit broadcast にする。
+        intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void broadcastUpdate(final String action,
             final BluetoothGattCharacteristic characteristic) {
         final Intent intent = new Intent(action);
+        intent.setPackage(getPackageName());
         final byte[] data = characteristic.getValue();
         if (data != null && data.length > 0) {
             intent.putExtra(EXTRA_DATA, DataEncryption.decode(data));

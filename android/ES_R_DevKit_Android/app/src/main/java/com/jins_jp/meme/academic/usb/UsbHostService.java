@@ -73,11 +73,13 @@ public class UsbHostService extends Service {
 
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
+        intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void broadcastUpdate(final String action, final byte[] data) {
         final Intent intent = new Intent(action);
+        intent.setPackage(getPackageName());
         if (data != null && data.length > 0) {
             intent.putExtra(EXTRA_DATA, data);
         }
