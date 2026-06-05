@@ -7,9 +7,11 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattConnectionSettings
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -135,6 +137,8 @@ class MemeBleRepository(private val context: Context) {
             }
         }
 
+        @Deprecated("Used on API < 33; API 33+ uses the overload below.")
+        @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(
             g: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
@@ -143,7 +147,6 @@ class MemeBleRepository(private val context: Context) {
             _incoming.tryEmit(decoded)
         }
 
-        @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(
             g: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -162,7 +165,16 @@ class MemeBleRepository(private val context: Context) {
         DataEncryption.setKey(address)
         currentAddress = address
         _connection.value = ConnectionState.Connecting
-        gatt = device.connectGatt(context, false, gattCallback)
+        gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+            val settings = BluetoothGattConnectionSettings.Builder()
+                .setAutoConnectEnabled(false)
+                .setTransport(BluetoothDevice.TRANSPORT_LE)
+                .build()
+            device.connectGatt(settings, ContextCompat.getMainExecutor(context), gattCallback)
+        } else {
+            @Suppress("DEPRECATION")
+            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        }
         return gatt != null
     }
 
@@ -172,8 +184,15 @@ class MemeBleRepository(private val context: Context) {
         val rx = service.getCharacteristic(MemeBleConstants.RX_CHAR_UUID) ?: return false
         if (!g.setCharacteristicNotification(rx, true)) return false
         val descriptor = rx.getDescriptor(MemeBleConstants.CCCD_UUID) ?: return false
-        descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        return g.writeDescriptor(descriptor)
+        val payload = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            g.writeDescriptor(descriptor, payload) == BluetoothStatusCodes.SUCCESS
+        } else {
+            @Suppress("DEPRECATION")
+            descriptor.value = payload
+            @Suppress("DEPRECATION")
+            g.writeDescriptor(descriptor)
+        }
     }
 
     fun disconnect() {
@@ -184,8 +203,14 @@ class MemeBleRepository(private val context: Context) {
         val g = gatt ?: return false
         val service = g.getService(MemeBleConstants.SERVICE_UUID) ?: return false
         val tx = service.getCharacteristic(MemeBleConstants.TX_CHAR_UUID) ?: return false
-        tx.value = data
-        return g.writeCharacteristic(tx)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            g.writeCharacteristic(tx, data, tx.writeType) == BluetoothStatusCodes.SUCCESS
+        } else {
+            @Suppress("DEPRECATION")
+            run { tx.value = data }
+            @Suppress("DEPRECATION")
+            g.writeCharacteristic(tx)
+        }
     }
 
     fun currentAddress(): String? = currentAddress

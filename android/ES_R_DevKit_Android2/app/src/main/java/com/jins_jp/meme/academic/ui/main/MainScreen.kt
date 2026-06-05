@@ -17,8 +17,8 @@ import androidx.compose.material.icons.filled.Battery2Bar
 import androidx.compose.material.icons.filled.Battery3Bar
 import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Battery6Bar
+import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.BatteryUnknown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -31,6 +31,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -265,7 +266,7 @@ private fun DeviceDropdown(
             enabled = enabled,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled)
                 .fillMaxWidth(),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -432,7 +433,7 @@ private fun EnumDropdown(
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled)
                 .fillMaxWidth(),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -454,7 +455,7 @@ private fun BatteryIcon(level: Int) {
         3 -> Icons.Filled.Battery5Bar to "3"
         4 -> Icons.Filled.Battery6Bar to "4"
         5 -> Icons.Filled.BatteryFull to "5"
-        else -> Icons.Filled.BatteryUnknown to "?"
+        else -> Icons.AutoMirrored.Filled.BatteryUnknown to "?"
     }
     AssistChip(onClick = {}, label = { Text(desc) }, leadingIcon = {
         Icon(icon, contentDescription = null)
