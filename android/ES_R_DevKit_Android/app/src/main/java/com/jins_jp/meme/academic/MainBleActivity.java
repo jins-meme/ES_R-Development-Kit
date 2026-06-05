@@ -16,7 +16,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v7.widget.Toolbar;
+import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
@@ -331,7 +331,7 @@ public class MainBleActivity extends MainActivity {
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            getParams();
+                            loadParams();
                         }
                     }, 900L);
                 } else if (BluetoothLeService.ACTION_GATT_CHARACTERISTIC_WRITE.equals(action)) {

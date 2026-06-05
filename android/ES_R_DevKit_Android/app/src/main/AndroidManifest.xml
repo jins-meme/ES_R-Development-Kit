@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jins_jp.meme.academic">
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- Bluetooth (Android 12+ runtime permissions) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Location: still requested by some OEMs for BLE classic scans on legacy devices -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />-->
+
+    <!-- Notifications (Android 13+, optional but kept for future use) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-feature
@@ -24,33 +28,36 @@
         android:fullBackupContent="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/AppTheme"
-        android:requestLegacyExternalStorage="true">
+        android:theme="@style/AppTheme">
 
         <activity
-            android:name="com.jins_jp.meme.academic.SplashActivity"
+            android:name=".SplashActivity"
+            android:exported="true"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name="com.jins_jp.meme.academic.MainBleActivity"
+            android:name=".MainBleActivity"
+            android:exported="false"
             android:label="@string/app_name"
             android:launchMode="singleTask" />
         <activity
-            android:name="com.jins_jp.meme.academic.MainUsbActivity"
+            android:name=".MainUsbActivity"
+            android:exported="false"
             android:label="@string/app_name"
             android:launchMode="singleTask" />
 
         <service
-            android:name="com.jins_jp.meme.academic.ble.BluetoothLeService"
-            android:enabled="true" />
+            android:name=".ble.BluetoothLeService"
+            android:enabled="true"
+            android:exported="false" />
         <service
-            android:name="com.jins_jp.meme.academic.usb.UsbHostService"
-            android:enabled="true" />
+            android:name=".usb.UsbHostService"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

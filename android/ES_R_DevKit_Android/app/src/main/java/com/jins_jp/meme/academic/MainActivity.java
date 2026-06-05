@@ -16,9 +16,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AppCompatActivity;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -128,8 +128,13 @@ abstract class MainActivity extends AppCompatActivity {
         mDeviceSet = Collections.synchronizedSortedSet(new TreeSet<String>());
         mDeviceAdapter = new ArrayAdapter<String>(getApplicationContext(), R.layout.list_item_1);
         mDeviceAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
-        // register BroadcastReceiver
-        registerReceiver(mReceiver, makeIntentFilter());
+        // register BroadcastReceiver (Context.RECEIVER_NOT_EXPORTED required on API 33+
+        // when targeting Android 14+; receiver is in-process, no exported allowance needed)
+        androidx.core.content.ContextCompat.registerReceiver(
+                this,
+                mReceiver,
+                makeIntentFilter(),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     @Override
@@ -298,7 +303,7 @@ abstract class MainActivity extends AppCompatActivity {
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
-                                    getParams();
+                                    loadParams();
                                 }
                             }, 600L);
                             // cancel the timer
@@ -784,7 +789,7 @@ abstract class MainActivity extends AppCompatActivity {
 
     }
 
-    protected void getParams() {
+    protected void loadParams() {
         LogCat.i(TAG, "get range parameters of the sensor");
         // create data
         byte[] data = new byte[20];

@@ -86,50 +86,37 @@ public class Common extends Object {
     }
 
     public void makeDirectory(String local) {
-        String stateStorage = Environment.getExternalStorageState();
-        if (!Environment.MEDIA_MOUNTED.equals(stateStorage)) {
-            Log.d("logd","ダイアログ表示");
-            // show dialog
+        // Scoped storage (API 29+): write to the app-private external dir under Downloads.
+        // No runtime storage permission required. Path is /Android/data/<pkg>/files/Download<local>.
+        File base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (base == null) {
+            Log.d("logd", "external files dir unavailable");
             AlertDialog.Builder builder = new AlertDialog.Builder(activity);
             builder.setMessage(context.getString(R.string.msg_unmount_storage));
             builder.setPositiveButton(R.string.button_dialog_ok,
-                    new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            activity.finish();
-                        }
-                    });
+                    (dialog, which) -> activity.finish());
             builder.setCancelable(false);
             builder.show();
-            builder = null;
-        } else {
-            Log.d("logd","ファイル作成 開始");
-            // make directory
-            // ルートディレクトリだとMANAGE_EXTERNAL_STORAGE権限が必要なのでダウンロードディレクト以下にする
-//            String path = Environment.getExternalStorageDirectory()
-//                    .getAbsolutePath() + local;
-            String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() + local;
-            Log.d("logd","path : " + path);
-            PreferenceManager
-                    .getDefaultSharedPreferences(context)
-                    .edit().putString(context.getString(R.string.key_pref_path), path)
-                    .commit();
-//            if (!new File(path).exists())
-//                new File(path).mkdirs();
-            if (!new File(path).exists()) {
-                if (new File(path).mkdirs()) {
-                    Log.d("logd","ファイル作成 成功");
-                }
-                else {
-                    Log.d("logd","ファイル作成 失敗");
-                }
-            }
-            else {
-                Log.d("logd","ファイル作成 成功済み");
-            }
-
+            return;
         }
-        stateStorage = null;
+
+        String path = base.getAbsolutePath() + local;
+        Log.d("logd", "path : " + path);
+        PreferenceManager
+                .getDefaultSharedPreferences(context)
+                .edit().putString(context.getString(R.string.key_pref_path), path)
+                .apply();
+
+        File dir = new File(path);
+        if (!dir.exists()) {
+            if (dir.mkdirs()) {
+                Log.d("logd", "ファイル作成 成功");
+            } else {
+                Log.d("logd", "ファイル作成 失敗");
+            }
+        } else {
+            Log.d("logd", "ファイル作成 成功済み");
+        }
     }
 
     public void setViewConnect(final boolean isConnect, final String mMemeVersion) {

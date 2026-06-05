@@ -12,7 +12,7 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v7.widget.Toolbar;
+import androidx.appcompat.widget.Toolbar;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -480,7 +480,7 @@ public class MainUsbActivity extends MainActivity {
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
-                                    getParams();
+                                    loadParams();
                                 }
                             }, 600L);
                             // cancel the timer
