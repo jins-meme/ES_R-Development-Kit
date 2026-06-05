@@ -39,7 +39,7 @@ struct SettingsView: View {
                 }
 
                 GridRow {
-                    Text("Offset X / Y / Z")
+                    Text("Acc Offset X / Y / Z")
                     HStack(spacing: 8) {
                         axisField(text: $xAxis, label: "X")
                         axisField(text: $yAxis, label: "Y")
