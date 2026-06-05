@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ES_R DevKit 2</string>
+    <string name="app_title">JINS MEME DATA LOGGER</string>
+    <string name="label_version">version %s</string>
+
+    <string name="text_label_connect_meme">Connect to MEME device</string>
+    <string name="text_label_measure">Measure</string>
+    <string name="text_label_version_ble">MEME ver. %s</string>
+    <string name="text_label_status">Status:</string>
+    <string name="text_state_connected">Connected</string>
+    <string name="text_state_disconnect">Disconnect</string>
+    <string name="text_label_notice">recording…</string>
+    <string name="text_label_set_mode">Select mode</string>
+    <string name="text_label_set_quality">Transmission speed</string>
+    <string name="text_label_set_acceleration">Accelerometer range</string>
+    <string name="text_label_set_gyroacope">Gyroscope range</string>
+
+    <string name="button_scan_device">Scan device</string>
+    <string name="button_connect">Connect</string>
+    <string name="button_disconnect">Disconnect</string>
+    <string name="button_initialize">Initialize</string>
+    <string name="button_measurement_start">Start Measurement</string>
+    <string name="button_measurement_stop">Stop Measurement</string>
+    <string name="button_free_marking">Free Marking</string>
+    <string name="button_dialog_ok">OK</string>
+    <string name="button_dailog_no">Cancel</string>
+
+    <string name="msg_finish_app">Exit the application?</string>
+    <string name="msg_start_measurement">"START" the measurement?</string>
+    <string name="msg_stop_measurement">"STOP" the measurement?</string>
+    <string name="msg_failed_get_information">Failed to get the device information</string>
+    <string name="msg_failed_get_mode">Failed to get Mode and Quality</string>
+    <string name="msg_failed_get_params">Failed to get Sensor parameter</string>
+    <string name="msg_success_initialize">Success to initialize</string>
+    <string name="msg_failed_initialize">Failed to initialize</string>
+    <string name="msg_failed_set_mode">Failed to set Mode and Quality</string>
+    <string name="msg_failed_set_params">failed to set Sensor parameter</string>
+    <string name="msg_failed_start">failed to start the measurement</string>
+    <string name="msg_permission_required">権限を許可しないと実行できません</string>
+
+    <string name="eog_graph_title">EOG data</string>
+    <string name="acc_graph_title">Accel data</string>
+    <string name="gyro_graph_title">Gyro data</string>
+</resources>

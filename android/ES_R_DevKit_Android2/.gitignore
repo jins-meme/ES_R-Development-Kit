@@ -1,0 +1,40 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Local configuration (SDK path, signing, etc.)
+local.properties
+
+# Logs / crash dumps
+*.log
+hs_err_pid*
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.navigation/
+.externalNativeBuild/
+.cxx/
+
+# Keystores (uncomment to ignore)
+#*.jks
+#*.keystore
+
+# macOS / OS noise
+.DS_Store
+Thumbs.db
