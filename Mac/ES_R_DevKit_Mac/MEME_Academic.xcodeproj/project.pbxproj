@@ -3,67 +3,31 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 24843F9A1E822F5500CF4199 /* Assets.xcassets */; };
-		C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */; };
-		CE1F934B2FD25EA000536986 /* CommunicationStatsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */; };
-		CE1F934C2FD25EA000536986 /* DataPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */; };
-		CE1F934D2FD25EA000536986 /* ChartService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE1F93482FD25EA000536986 /* ChartService.swift */; };
-		CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2522FCEB35B00EEB213 /* Version.swift */; };
-		CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */; };
-		CE4AF2572FCEB39E00EEB213 /* AcademicFullData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */; };
-		CE4AF2592FCEB39E00EEB213 /* AcademicStandardData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2582FCEB39E00EEB213 /* AcademicStandardData.swift */; };
-		CE4AF25B2FCEB39F00EEB213 /* AcademicQuaternionData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF25A2FCEB39F00EEB213 /* AcademicQuaternionData.swift */; };
-		CE4AF25D2FCEB3A100EEB213 /* DecEnc.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF25C2FCEB3A100EEB213 /* DecEnc.swift */; };
-		CE4AF25F2FCEB3DC00EEB213 /* Const.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF25E2FCEB3DC00EEB213 /* Const.swift */; };
-		CE4AF2612FCEB3DD00EEB213 /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2602FCEB3DD00EEB213 /* Common.swift */; };
-		CE4AF2632FCEB3DE00EEB213 /* UserSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2622FCEB3DE00EEB213 /* UserSetting.swift */; };
-		CE4AF2652FCEB3DE00EEB213 /* CsvManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */; };
-		CE4AF2672FCEB3DF00EEB213 /* TCPSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */; };
-		CE4AF2692FCEB43D00EEB213 /* MEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */; };
-		CE5B62E42FD107FD0003C982 /* MEME_AcademicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */; };
-		CE5B62E62FD107FD0003C982 /* MEMEViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */; };
-		CE5B62E82FD108290003C982 /* RealtimeChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E72FD108290003C982 /* RealtimeChartView.swift */; };
-		CE5B62EA2FD108290003C982 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62E92FD108290003C982 /* SettingsView.swift */; };
-		CE5B62EC2FD108570003C982 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B62EB2FD108570003C982 /* ContentView.swift */; };
-		CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */; };
-		CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */; };
-		CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */; };
+		CEC642032FD2B22D0018F042 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEC641FF2FD2B22D0018F042 /* Assets.xcassets */; };
+		CEC642042FD2B22D0018F042 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEC642002FD2B22D0018F042 /* Colors.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		24843F8E1E822F5500CF4199 /* MEME_Academic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MEME_Academic.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		24843F9A1E822F5500CF4199 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		24843F9F1E822F5500CF4199 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colors.xcassets; sourceTree = "<group>"; };
-		C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MEME_Academic.entitlements; sourceTree = "<group>"; };
-		CE1F93482FD25EA000536986 /* ChartService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartService.swift; sourceTree = "<group>"; };
-		CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationStatsTracker.swift; sourceTree = "<group>"; };
-		CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPersistenceService.swift; sourceTree = "<group>"; };
-		CE4AF2522FCEB35B00EEB213 /* Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Version.swift; sourceTree = "<group>"; };
-		CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicData.swift; sourceTree = "<group>"; };
-		CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicFullData.swift; sourceTree = "<group>"; };
-		CE4AF2582FCEB39E00EEB213 /* AcademicStandardData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicStandardData.swift; sourceTree = "<group>"; };
-		CE4AF25A2FCEB39F00EEB213 /* AcademicQuaternionData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademicQuaternionData.swift; sourceTree = "<group>"; };
-		CE4AF25C2FCEB3A100EEB213 /* DecEnc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecEnc.swift; sourceTree = "<group>"; };
-		CE4AF25E2FCEB3DC00EEB213 /* Const.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Const.swift; sourceTree = "<group>"; };
-		CE4AF2602FCEB3DD00EEB213 /* Common.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Common.swift; sourceTree = "<group>"; };
-		CE4AF2622FCEB3DE00EEB213 /* UserSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSetting.swift; sourceTree = "<group>"; };
-		CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CsvManager.swift; sourceTree = "<group>"; };
-		CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCPSocket.swift; sourceTree = "<group>"; };
-		CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELib_Academic.swift; sourceTree = "<group>"; };
-		CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEME_AcademicApp.swift; sourceTree = "<group>"; };
-		CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMEViewModel.swift; sourceTree = "<group>"; };
-		CE5B62E72FD108290003C982 /* RealtimeChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeChartView.swift; sourceTree = "<group>"; };
-		CE5B62E92FD108290003C982 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		CE5B62EB2FD108570003C982 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibInterface.swift; sourceTree = "<group>"; };
-		CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MEMELibFactory.swift; sourceTree = "<group>"; };
-		CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMEMELib_Academic.swift; sourceTree = "<group>"; };
+		CEC641FF2FD2B22D0018F042 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CEC642002FD2B22D0018F042 /* Colors.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colors.xcassets; sourceTree = "<group>"; };
+		CEC642012FD2B22D0018F042 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CEC642022FD2B22D0018F042 /* MEME_Academic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MEME_Academic.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CEB1C8A42FD2AF53001E2262 /* BLE */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = BLE; sourceTree = "<group>"; };
+		CEB1C8A52FD2AFCD001E2262 /* Utility */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utility; sourceTree = "<group>"; };
+		CEB1C8A62FD2AFE6001E2262 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
+		CEB1C8A72FD2AFF6001E2262 /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ViewModels; sourceTree = "<group>"; };
+		CEB1C8AA2FD2B043001E2262 /* Services */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Services; sourceTree = "<group>"; };
+		CEB1C8AB2FD2B069001E2262 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
+		CEB1C8AC2FD2B088001E2262 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		24843F8B1E822F5500CF4199 /* Frameworks */ = {
@@ -103,43 +67,19 @@
 		24843F901E822F5500CF4199 /* MEME_Academic */ = {
 			isa = PBXGroup;
 			children = (
-				CE1F93482FD25EA000536986 /* ChartService.swift */,
-				CE1F93492FD25EA000536986 /* CommunicationStatsTracker.swift */,
-				CE1F934A2FD25EA000536986 /* DataPersistenceService.swift */,
-				C7D463D928C6E38F006B6FA5 /* MEME_Academic.entitlements */,
-				24843F9A1E822F5500CF4199 /* Assets.xcassets */,
-				C7C5CC5A28C1F43700A78BEC /* Colors.xcassets */,
-				24843F9F1E822F5500CF4199 /* Info.plist */,
-				24843F941E822F5500CF4199 /* Supporting Files */,
-				CE4AF2522FCEB35B00EEB213 /* Version.swift */,
-				CE4AF2542FCEB39E00EEB213 /* AcademicData.swift */,
-				CE4AF2562FCEB39E00EEB213 /* AcademicFullData.swift */,
-				CE4AF2582FCEB39E00EEB213 /* AcademicStandardData.swift */,
-				CE4AF25A2FCEB39F00EEB213 /* AcademicQuaternionData.swift */,
-				CE4AF25C2FCEB3A100EEB213 /* DecEnc.swift */,
-				CE4AF25E2FCEB3DC00EEB213 /* Const.swift */,
-				CE4AF2602FCEB3DD00EEB213 /* Common.swift */,
-				CE4AF2622FCEB3DE00EEB213 /* UserSetting.swift */,
-				CE4AF2642FCEB3DE00EEB213 /* CsvManager.swift */,
-				CE4AF2662FCEB3DF00EEB213 /* TCPSocket.swift */,
-				CE4AF2682FCEB43D00EEB213 /* MEMELib_Academic.swift */,
-				CED4CC442FCFA7B900C0C0BE /* MEMELibInterface.swift */,
-				CED4CC462FCFAB0000C0C0BE /* MEMELibFactory.swift */,
-				CED4CC482FCFAB0000C0C0BE /* MockMEMELib_Academic.swift */,
-				CE5B62E32FD107FD0003C982 /* MEME_AcademicApp.swift */,
-				CE5B62E52FD107FD0003C982 /* MEMEViewModel.swift */,
-				CE5B62E72FD108290003C982 /* RealtimeChartView.swift */,
-				CE5B62E92FD108290003C982 /* SettingsView.swift */,
-				CE5B62EB2FD108570003C982 /* ContentView.swift */,
+				CEB1C8A42FD2AF53001E2262 /* BLE */,
+				CEB1C8AA2FD2B043001E2262 /* Services */,
+				CEB1C8A52FD2AFCD001E2262 /* Utility */,
+				CEB1C8A62FD2AFE6001E2262 /* Models */,
+				CEB1C8AC2FD2B088001E2262 /* App */,
+				CEB1C8A72FD2AFF6001E2262 /* ViewModels */,
+				CEB1C8AB2FD2B069001E2262 /* Views */,
+				CEC641FF2FD2B22D0018F042 /* Assets.xcassets */,
+				CEC642002FD2B22D0018F042 /* Colors.xcassets */,
+				CEC642012FD2B22D0018F042 /* Info.plist */,
+				CEC642022FD2B22D0018F042 /* MEME_Academic.entitlements */,
 			);
 			path = MEME_Academic;
-			sourceTree = "<group>";
-		};
-		24843F941E822F5500CF4199 /* Supporting Files */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -156,6 +96,15 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CEB1C8A42FD2AF53001E2262 /* BLE */,
+				CEB1C8A52FD2AFCD001E2262 /* Utility */,
+				CEB1C8A62FD2AFE6001E2262 /* Models */,
+				CEB1C8A72FD2AFF6001E2262 /* ViewModels */,
+				CEB1C8AA2FD2B043001E2262 /* Services */,
+				CEB1C8AB2FD2B069001E2262 /* Views */,
+				CEB1C8AC2FD2B088001E2262 /* App */,
 			);
 			name = MEME_Academic;
 			productName = MEME_Academic;
@@ -202,8 +151,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				24843F9B1E822F5500CF4199 /* Assets.xcassets in Resources */,
-				C7C5CC5B28C1F43700A78BEC /* Colors.xcassets in Resources */,
+				CEC642032FD2B22D0018F042 /* Assets.xcassets in Resources */,
+				CEC642042FD2B22D0018F042 /* Colors.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -214,29 +163,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE4AF2592FCEB39E00EEB213 /* AcademicStandardData.swift in Sources */,
-				CE5B62EC2FD108570003C982 /* ContentView.swift in Sources */,
-				CE4AF2652FCEB3DE00EEB213 /* CsvManager.swift in Sources */,
-				CE4AF2672FCEB3DF00EEB213 /* TCPSocket.swift in Sources */,
-				CE4AF2572FCEB39E00EEB213 /* AcademicFullData.swift in Sources */,
-				CE1F934B2FD25EA000536986 /* CommunicationStatsTracker.swift in Sources */,
-				CE1F934C2FD25EA000536986 /* DataPersistenceService.swift in Sources */,
-				CE1F934D2FD25EA000536986 /* ChartService.swift in Sources */,
-				CE4AF2632FCEB3DE00EEB213 /* UserSetting.swift in Sources */,
-				CE4AF25F2FCEB3DC00EEB213 /* Const.swift in Sources */,
-				CE4AF2552FCEB39E00EEB213 /* AcademicData.swift in Sources */,
-				CE5B62EA2FD108290003C982 /* SettingsView.swift in Sources */,
-				CE4AF2692FCEB43D00EEB213 /* MEMELib_Academic.swift in Sources */,
-				CE5B62E42FD107FD0003C982 /* MEME_AcademicApp.swift in Sources */,
-				CE4AF2612FCEB3DD00EEB213 /* Common.swift in Sources */,
-				CED4CC492FCFAB0000C0C0BE /* MockMEMELib_Academic.swift in Sources */,
-				CE4AF25B2FCEB39F00EEB213 /* AcademicQuaternionData.swift in Sources */,
-				CE4AF2532FCEB35B00EEB213 /* Version.swift in Sources */,
-				CED4CC452FCFA7B900C0C0BE /* MEMELibInterface.swift in Sources */,
-				CED4CC472FCFAB0000C0C0BE /* MEMELibFactory.swift in Sources */,
-				CE5B62E62FD107FD0003C982 /* MEMEViewModel.swift in Sources */,
-				CE4AF25D2FCEB3A100EEB213 /* DecEnc.swift in Sources */,
-				CE5B62E82FD108290003C982 /* RealtimeChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,6 +192,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -317,6 +244,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -351,7 +279,10 @@
 				DEVELOPMENT_TEAM = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
@@ -378,7 +309,10 @@
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = M2F9RAQ2X3;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = MEME_Academic/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/MEME_Academic",
