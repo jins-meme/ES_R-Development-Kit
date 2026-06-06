@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Battery6Bar
 import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -29,8 +30,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -40,8 +41,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -75,7 +74,8 @@ import com.jins_jp.meme.academic.ui.theme.GyroGreen
 import com.jins_jp.meme.academic.ui.theme.GyroRed
 import kotlinx.coroutines.launch
 
-private const val GRAPH_LEN = 200
+// 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
+private const val GRAPH_LEN = 150
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,13 +111,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                     gyroX.clear(); gyroY.clear(); gyroZ.clear()
                 }
                 is GraphEvent.Eog -> {
-                    eogVh.add(ev.x, ev.vh); eogVv.add(ev.x, ev.vv)
+                    eogVh.add(ev.vh); eogVv.add(ev.vv)
                 }
                 is GraphEvent.Acc -> {
-                    accX.add(ev.x, ev.x1); accY.add(ev.x, ev.y); accZ.add(ev.x, ev.z)
+                    accX.add(ev.x1); accY.add(ev.y); accZ.add(ev.z)
                 }
                 is GraphEvent.Gyro -> {
-                    gyroX.add(ev.x, ev.x1); gyroY.add(ev.x, ev.y); gyroZ.add(ev.x, ev.z)
+                    gyroX.add(ev.x1); gyroY.add(ev.y); gyroZ.add(ev.z)
                 }
             }
             bumper++
@@ -125,15 +125,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHost) },
         modifier = Modifier.fillMaxSize(),
     ) { inner ->
@@ -183,14 +174,28 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
+    var showSettings by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                stringResource(R.string.text_label_connect_meme),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(R.string.text_label_connect_meme),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.text_label_settings),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { vm.startScan() },
@@ -234,6 +239,73 @@ private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
             }
         }
     }
+
+    if (showSettings) {
+        SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> Unit) {
+    val canEditSettings = !ui.isMeasuring
+    val canInitialize = ui.connection == ConnectionState.ServicesReady &&
+            !ui.isMeasuring && !ui.isInitializing
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.text_label_settings)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = { vm.initialize() },
+                        enabled = canInitialize,
+                    ) { Text(stringResource(R.string.button_initialize)) }
+                    if (ui.isInitializing) {
+                        Box(Modifier.width(8.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
+
+                EnumDropdown(
+                    label = stringResource(R.string.text_label_set_mode),
+                    options = MemeMode.entries.map { it.display },
+                    selectedIndex = ui.settings.mode.ordinal,
+                    enabled = canEditSettings,
+                ) { i -> vm.updateSettings { it.copy(mode = MemeMode.fromIndex(i)) } }
+
+                EnumDropdown(
+                    label = stringResource(R.string.text_label_set_quality),
+                    options = MemeQuality.entries.map { it.display },
+                    selectedIndex = ui.settings.quality.ordinal,
+                    enabled = canEditSettings,
+                ) { i -> vm.updateSettings { it.copy(quality = MemeQuality.fromIndex(i)) } }
+
+                EnumDropdown(
+                    label = stringResource(R.string.text_label_set_acceleration),
+                    options = AccRange.entries.map { it.display },
+                    selectedIndex = ui.settings.accRange.ordinal,
+                    enabled = canEditSettings,
+                ) { i -> vm.updateSettings { it.copy(accRange = AccRange.fromIndex(i)) } }
+
+                EnumDropdown(
+                    label = stringResource(R.string.text_label_set_gyroacope),
+                    options = GyroRange.entries.map { it.display },
+                    selectedIndex = ui.settings.gyroRange.ordinal,
+                    enabled = canEditSettings,
+                ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.button_dialog_ok))
+            }
+        },
+    )
 }
 
 @Composable
@@ -284,7 +356,6 @@ private fun DeviceDropdown(
 @Composable
 private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
     var confirmingMeasure by remember { mutableStateOf(false) }
-    val canEditSettings = ui.connection == ConnectionState.ServicesReady && !ui.isMeasuring
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -305,47 +376,6 @@ private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
                 }
                 BatteryIcon(ui.batteryLevel)
             }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = { vm.initialize() },
-                    enabled = ui.connection == ConnectionState.ServicesReady && !ui.isMeasuring && !ui.isInitializing,
-                ) { Text(stringResource(R.string.button_initialize)) }
-                if (ui.isInitializing) {
-                    Box(Modifier.width(8.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
-            }
-
-            HorizontalDivider()
-
-            EnumDropdown(
-                label = stringResource(R.string.text_label_set_mode),
-                options = MemeMode.entries.map { it.display },
-                selectedIndex = ui.settings.mode.ordinal,
-                enabled = canEditSettings,
-            ) { i -> vm.updateSettings { it.copy(mode = MemeMode.fromIndex(i)) } }
-
-            EnumDropdown(
-                label = stringResource(R.string.text_label_set_quality),
-                options = MemeQuality.entries.map { it.display },
-                selectedIndex = ui.settings.quality.ordinal,
-                enabled = canEditSettings,
-            ) { i -> vm.updateSettings { it.copy(quality = MemeQuality.fromIndex(i)) } }
-
-            EnumDropdown(
-                label = stringResource(R.string.text_label_set_acceleration),
-                options = AccRange.entries.map { it.display },
-                selectedIndex = ui.settings.accRange.ordinal,
-                enabled = canEditSettings,
-            ) { i -> vm.updateSettings { it.copy(accRange = AccRange.fromIndex(i)) } }
-
-            EnumDropdown(
-                label = stringResource(R.string.text_label_set_gyroacope),
-                options = GyroRange.entries.map { it.display },
-                selectedIndex = ui.settings.gyroRange.ordinal,
-                enabled = canEditSettings,
-            ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

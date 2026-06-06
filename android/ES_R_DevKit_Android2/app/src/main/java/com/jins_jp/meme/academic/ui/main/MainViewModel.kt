@@ -18,6 +18,7 @@ import com.jins_jp.meme.academic.data.GyroRange
 import com.jins_jp.meme.academic.data.MeasurementSettings
 import com.jins_jp.meme.academic.data.MemeMode
 import com.jins_jp.meme.academic.data.MemeQuality
+import com.jins_jp.meme.academic.data.SettingsStore
 import com.jins_jp.meme.academic.data.formatRow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -63,7 +64,9 @@ class MainViewModel(
     private val repo: MemeBleRepository,
 ) : AndroidViewModel(application) {
 
-    private val _ui = MutableStateFlow(MainUiState())
+    private val settingsStore = SettingsStore(application)
+
+    private val _ui = MutableStateFlow(MainUiState(settings = settingsStore.load()))
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
 
     private val _graph = MutableSharedFlow<GraphEvent>(extraBufferCapacity = 1024)
@@ -124,10 +127,7 @@ class MainViewModel(
 
     private suspend fun collectDescriptorWritten() {
         repo.descriptorWritten.collect {
-            // After notifications ready: query version, mode, params with delays.
             delay(300); requestDeviceInfo()
-            delay(300); requestMode()
-            delay(300); requestParams()
         }
     }
 
@@ -162,6 +162,7 @@ class MainViewModel(
 
     fun updateSettings(transform: (MeasurementSettings) -> MeasurementSettings) {
         _ui.update { it.copy(settings = transform(it.settings)) }
+        settingsStore.save(_ui.value.settings)
     }
 
     fun initialize() {
@@ -282,8 +283,6 @@ class MainViewModel(
         if (data.size < 2) return
         when (data[1]) {
             MemeBleConstants.AUP_REPORT_DEV_INFO -> handleDevInfo(data)
-            MemeBleConstants.AUP_REPORT_MODE -> handleMode(data)
-            MemeBleConstants.AUP_REPORT_6AXIS_PARAMS -> handleParams(data)
             MemeBleConstants.AUP_REPORT_RESP -> handleResp(data)
             MemeBleConstants.AUP_REPORT_ACADEMIA1,
             MemeBleConstants.AUP_REPORT_ACADEMIA2,
@@ -297,35 +296,10 @@ class MainViewModel(
         _ui.update { it.copy(firmwareVersion = v) }
     }
 
-    private fun handleMode(data: ByteArray) {
-        val mode = ((data[4].toInt() and 0xFF) - 1).coerceIn(0, MemeMode.entries.size - 1)
-        val quality = ((data[5].toInt() and 0xFF) - 1).coerceIn(0, MemeQuality.entries.size - 1)
-        _ui.update {
-            it.copy(settings = it.settings.copy(
-                mode = MemeMode.fromIndex(mode),
-                quality = MemeQuality.fromIndex(quality),
-            ))
-        }
-    }
-
-    private fun handleParams(data: ByteArray) {
-        val acc = (data[2].toInt() and 0xFF).coerceIn(0, AccRange.entries.size - 1)
-        val gyro = (data[3].toInt() and 0xFF).coerceIn(0, GyroRange.entries.size - 1)
-        _ui.update {
-            it.copy(settings = it.settings.copy(
-                accRange = AccRange.fromIndex(acc),
-                gyroRange = GyroRange.fromIndex(gyro),
-            ))
-        }
-    }
-
     private fun handleResp(data: ByteArray) {
         if (ui.value.isInitializing) {
             when (data[2]) {
-                0x00.toByte() -> {
-                    _ui.update { it.copy(isInitializing = false, toast = "Success to initialize") }
-                    viewModelScope.launch { delay(300); requestMode(); delay(300); requestParams() }
-                }
+                0x00.toByte() -> _ui.update { it.copy(isInitializing = false, toast = "Success to initialize") }
                 0xFF.toByte() -> _ui.update { it.copy(isInitializing = false, toast = "Failed to initialize") }
             }
         }
