@@ -21,11 +21,18 @@ class SettingsStore(context: Context) {
             .apply()
     }
 
+    fun loadMockEnabled(): Boolean = prefs.getBoolean(KEY_MOCK, false)
+
+    fun saveMockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MOCK, enabled).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "measurement_settings"
         const val KEY_MODE = "mode"
         const val KEY_QUALITY = "quality"
         const val KEY_ACC = "acc_range"
         const val KEY_GYRO = "gyro_range"
+        const val KEY_MOCK = "mock_enabled"
     }
 }

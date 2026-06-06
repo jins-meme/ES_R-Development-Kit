@@ -56,7 +56,39 @@ class MemeBleRepository(private val context: Context) {
     private var scanner: BluetoothLeScanner? = null
     private var currentAddress: String? = null
 
+    private val mock = MockMemeBleEngine(
+        scanning = _scanning,
+        devices = _devices,
+        connection = _connection,
+        incoming = _incoming,
+        descriptorWritten = _descriptorWritten,
+    )
+
+    /**
+     * When true, all calls are routed to [MockMemeBleEngine] and the real
+     * GATT stack is never touched. Toggling while connected forces the
+     * existing connection (real or mock) closed so the next scan/connect
+     * cycle starts from a clean state.
+     */
+    var mockMode: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (value) {
+                runCatching { gatt?.disconnect() }
+                runCatching { gatt?.close() }
+                gatt = null
+            } else {
+                mock.reset()
+            }
+            _scanning.value = false
+            _devices.value = emptySet()
+            _connection.value = ConnectionState.Disconnected
+            currentAddress = null
+        }
+
     fun hasConnectPermission(): Boolean {
+        if (mockMode) return true
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             context, Manifest.permission.BLUETOOTH_CONNECT
@@ -64,13 +96,14 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun hasScanPermission(): Boolean {
+        if (mockMode) return true
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             context, Manifest.permission.BLUETOOTH_SCAN
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
+    fun isBluetoothEnabled(): Boolean = mockMode || adapter?.isEnabled == true
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -91,6 +124,7 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun startScan() {
+        if (mockMode) { mock.startScan(); return }
         if (!hasScanPermission() || adapter?.isEnabled != true) return
         if (_scanning.value) return
         _devices.value = emptySet()
@@ -100,6 +134,7 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun stopScan() {
+        if (mockMode) { mock.stopScan(); return }
         if (!hasScanPermission()) return
         scanner?.stopScan(scanCallback)
         _scanning.value = false
@@ -158,6 +193,10 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun connect(address: String): Boolean {
+        if (mockMode) {
+            currentAddress = address
+            return mock.connect(address)
+        }
         val a = adapter ?: return false
         if (!hasConnectPermission() || !a.isEnabled) return false
         val device: BluetoothDevice = runCatching { a.getRemoteDevice(address) }
@@ -179,6 +218,7 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun enableNotifications(): Boolean {
+        if (mockMode) return mock.enableNotifications()
         val g = gatt ?: return false
         val service = g.getService(MemeBleConstants.SERVICE_UUID) ?: return false
         val rx = service.getCharacteristic(MemeBleConstants.RX_CHAR_UUID) ?: return false
@@ -196,10 +236,12 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun disconnect() {
+        if (mockMode) { mock.disconnect(); return }
         gatt?.disconnect()
     }
 
     fun send(data: ByteArray): Boolean {
+        if (mockMode) return mock.send(data)
         val g = gatt ?: return false
         val service = g.getService(MemeBleConstants.SERVICE_UUID) ?: return false
         val tx = service.getCharacteristic(MemeBleConstants.TX_CHAR_UUID) ?: return false

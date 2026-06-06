@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jins_jp.meme.academic.BuildConfig
 import com.jins_jp.meme.academic.R
 import com.jins_jp.meme.academic.ble.ConnectionState
 import com.jins_jp.meme.academic.data.AccRange
@@ -298,6 +300,22 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     selectedIndex = ui.settings.gyroRange.ordinal,
                     enabled = canEditSettings,
                 ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
+
+                if (BuildConfig.DEBUG) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.text_label_mock_mode),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = ui.mockEnabled,
+                            onCheckedChange = { vm.setMockEnabled(it) },
+                        )
+                    }
+                }
             }
         },
         confirmButton = {

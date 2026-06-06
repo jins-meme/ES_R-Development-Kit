@@ -50,6 +50,7 @@ data class MainUiState(
     val successRate: Double = 1.0,
     val commRate: Double = 1.0,
     val toast: String? = null,
+    val mockEnabled: Boolean = false,
 )
 
 sealed class GraphEvent {
@@ -66,7 +67,12 @@ class MainViewModel(
 
     private val settingsStore = SettingsStore(application)
 
-    private val _ui = MutableStateFlow(MainUiState(settings = settingsStore.load()))
+    private val _ui = MutableStateFlow(
+        MainUiState(
+            settings = settingsStore.load(),
+            mockEnabled = settingsStore.loadMockEnabled(),
+        )
+    )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
 
     private val _graph = MutableSharedFlow<GraphEvent>(extraBufferCapacity = 1024)
@@ -88,11 +94,26 @@ class MainViewModel(
     private var ratioPrev: Long = 100
 
     init {
+        repo.mockMode = _ui.value.mockEnabled
         viewModelScope.launch { collectScanning() }
         viewModelScope.launch { collectDevices() }
         viewModelScope.launch { collectConnection() }
         viewModelScope.launch { collectIncoming() }
         viewModelScope.launch { collectDescriptorWritten() }
+    }
+
+    fun setMockEnabled(enabled: Boolean) {
+        if (_ui.value.mockEnabled == enabled) return
+        if (_ui.value.isMeasuring) stopMeasurement()
+        settingsStore.saveMockEnabled(enabled)
+        repo.mockMode = enabled
+        _ui.update {
+            it.copy(
+                mockEnabled = enabled,
+                isInitializing = false,
+                firmwareVersion = null,
+            )
+        }
     }
 
     private suspend fun collectScanning() {
