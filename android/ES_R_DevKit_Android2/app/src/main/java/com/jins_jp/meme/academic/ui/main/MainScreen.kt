@@ -1,15 +1,25 @@
 package com.jins_jp.meme.academic.ui.main
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Battery0Bar
@@ -52,8 +62,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -74,6 +90,7 @@ import com.jins_jp.meme.academic.ui.theme.EogRed
 import com.jins_jp.meme.academic.ui.theme.GyroBlue
 import com.jins_jp.meme.academic.ui.theme.GyroGreen
 import com.jins_jp.meme.academic.ui.theme.GyroRed
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 // 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
@@ -138,8 +155,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ConnectCard(ui, viewModel)
-            MeasureCard(ui, viewModel)
+            if (!ui.isMeasuring) {
+                ConnectCard(ui, viewModel)
+            }
+            if (ui.connection == ConnectionState.ServicesReady) {
+                MeasureCard(ui, viewModel)
+            }
             if (ui.isMeasuring) {
                 bumper // ensure recomposition keys
                 LiveLineChart(
@@ -348,17 +369,33 @@ private fun DeviceDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val current = devices.getOrNull(selectedIndex) ?: ""
+    val borderAlpha = if (enabled) 1f else 0.38f
+    val textAlpha = if (enabled) 1f else 0.38f
+    val shape = RoundedCornerShape(50)
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (enabled) expanded = it }) {
-        OutlinedTextField(
-            value = current,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        Row(
             modifier = Modifier
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled)
-                .fillMaxWidth(),
-        )
+                .fillMaxWidth()
+                .height(40.dp)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = borderAlpha),
+                    shape = shape,
+                )
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = current,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = textAlpha),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+        }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             devices.forEachIndexed { i, address ->
                 DropdownMenuItem(
@@ -373,8 +410,6 @@ private fun DeviceDropdown(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
-    var confirmingMeasure by remember { mutableStateOf(false) }
-
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -399,21 +434,31 @@ private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Button(
+                HoldButton(
                     modifier = Modifier.weight(1f),
-                    onClick = { confirmingMeasure = true },
-                    enabled = ui.connection == ConnectionState.ServicesReady,
-                ) {
-                    Text(
-                        if (ui.isMeasuring) stringResource(R.string.button_measurement_stop)
-                        else stringResource(R.string.button_measurement_start)
-                    )
-                }
+                    text = if (ui.isMeasuring) stringResource(R.string.button_measurement_stop)
+                    else stringResource(R.string.button_measurement_start),
+                    enabled = ui.connection == ConnectionState.ServicesReady && !ui.isStarting,
+                    onConfirmed = { vm.toggleMeasurement() },
+                )
                 Button(
                     modifier = Modifier.weight(1f),
                     onClick = { vm.marking() },
                     enabled = ui.isMeasuring,
                 ) { Text(stringResource(R.string.button_free_marking)) }
+            }
+
+            if (ui.isStarting) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(stringResource(R.string.text_label_starting))
+                }
             }
 
             if (ui.isMeasuring) {
@@ -436,28 +481,76 @@ private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
             }
         }
     }
+}
 
-    if (confirmingMeasure) {
-        AlertDialog(
-            onDismissRequest = { confirmingMeasure = false },
-            text = {
-                Text(
-                    if (ui.isMeasuring) stringResource(R.string.msg_stop_measurement)
-                    else stringResource(R.string.msg_start_measurement)
+@Composable
+private fun HoldButton(
+    text: String,
+    enabled: Boolean,
+    onConfirmed: () -> Unit,
+    modifier: Modifier = Modifier,
+    holdMs: Int = 700,
+) {
+    val progress = remember { Animatable(0f) }
+    var holding by remember { mutableStateOf(false) }
+
+    LaunchedEffect(holding, enabled) {
+        if (holding && enabled) {
+            progress.snapTo(0f)
+            try {
+                progress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = holdMs, easing = LinearEasing),
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmingMeasure = false
-                    vm.toggleMeasurement()
-                }) { Text(stringResource(R.string.button_dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmingMeasure = false }) {
-                    Text(stringResource(R.string.button_dailog_no))
+                onConfirmed()
+            } catch (_: CancellationException) {
+                // released early; the snap-back is handled in the else branch.
+            }
+        } else {
+            progress.animateTo(0f, tween(durationMillis = 150))
+        }
+    }
+
+    val overlayColor = Color.Black.copy(alpha = 0.25f)
+    Button(
+        onClick = {},
+        enabled = enabled,
+        contentPadding = PaddingValues(0.dp),
+        modifier = modifier
+            .height(40.dp)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    holding = true
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        // Reset even when pointerInput is cancelled mid-press
+                        // (e.g. `enabled` flips false while isStarting is true)
+                        // so that a stale `holding = true` doesn't immediately
+                        // re-arm the timer once `enabled` returns to true.
+                        holding = false
+                    }
                 }
             },
-        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    if (progress.value > 0f) {
+                        drawRect(
+                            color = overlayColor,
+                            topLeft = Offset.Zero,
+                            size = Size(size.width * progress.value, size.height),
+                        )
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text, modifier = Modifier.padding(horizontal = 16.dp))
+        }
     }
 }
 

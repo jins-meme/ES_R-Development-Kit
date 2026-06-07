@@ -43,6 +43,7 @@ data class MainUiState(
     val firmwareVersion: String? = null,
     val settings: MeasurementSettings = MeasurementSettings(),
     val isMeasuring: Boolean = false,
+    val isStarting: Boolean = false,
     val isInitializing: Boolean = false,
     val isMarking: Boolean = false,
     val recordingRows: Long = 0L,
@@ -139,7 +140,13 @@ class MainViewModel(
                     repo.enableNotifications()
                 }
                 ConnectionState.Disconnected -> {
-                    _ui.update { it.copy(firmwareVersion = null, isMeasuring = false) }
+                    _ui.update {
+                        it.copy(
+                            firmwareVersion = null,
+                            isMeasuring = false,
+                            isStarting = false,
+                        )
+                    }
                 }
                 else -> Unit
             }
@@ -204,12 +211,17 @@ class MainViewModel(
 
     private fun startMeasurement() {
         viewModelScope.launch {
+            _ui.update { it.copy(isStarting = true) }
             graphSkipCount = if (ui.value.settings.quality == MemeQuality.Hz100) 4L else 2L
             _graph.tryEmit(GraphEvent.Reset)
             totalCount = 0; errorCount = 0; prevCount = -1; prevTimeMs = 0
             prevTotalLast = 0; prevTotalPrev = 0; ratioPrev = 100
 
-            val addr = repo.currentAddress() ?: return@launch
+            val addr = repo.currentAddress()
+            if (addr == null) {
+                _ui.update { it.copy(isStarting = false) }
+                return@launch
+            }
             csv.start(addr, ui.value.settings)
 
             delay(0); sendSetMode()
@@ -220,7 +232,7 @@ class MainViewModel(
             startCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
             startCmd[2] = 0x01
             sendEncoded(startCmd)
-            _ui.update { it.copy(isMeasuring = true) }
+            _ui.update { it.copy(isMeasuring = true, isStarting = false) }
             startCommTicker()
         }
     }

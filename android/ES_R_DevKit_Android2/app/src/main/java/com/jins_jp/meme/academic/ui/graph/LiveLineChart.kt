@@ -33,7 +33,7 @@ fun LiveLineChart(
     yMin: Float,
     yMax: Float,
     modifier: Modifier = Modifier,
-    height: Dp = 180.dp,
+    height: Dp = 171.dp,
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     Card(modifier = modifier.fillMaxWidth()) {

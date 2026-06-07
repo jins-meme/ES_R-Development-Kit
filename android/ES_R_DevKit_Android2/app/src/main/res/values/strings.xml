@@ -17,6 +17,7 @@
     <string name="text_label_set_gyroacope">Gyroscope range</string>
     <string name="text_label_settings">Settings</string>
     <string name="text_label_mock_mode">Mock mode (debug)</string>
+    <string name="text_label_starting">Starting…</string>
 
     <string name="button_scan_device">Scan device</string>
     <string name="button_connect">Connect</string>
