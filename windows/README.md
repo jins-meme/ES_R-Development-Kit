@@ -1,4 +1,4 @@
-# Development Kit for JINS MEME ES_R on Windows
+# ES_R-Development-Kit/Windows
 
 # English
 ([日本語補足](#japanesedoc))

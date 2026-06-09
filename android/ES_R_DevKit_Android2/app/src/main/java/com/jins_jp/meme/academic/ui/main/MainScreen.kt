@@ -49,6 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,7 +71,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jins_jp.meme.academic.BuildConfig
@@ -91,6 +99,7 @@ import com.jins_jp.meme.academic.ui.theme.GyroBlue
 import com.jins_jp.meme.academic.ui.theme.GyroGreen
 import com.jins_jp.meme.academic.ui.theme.GyroRed
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
@@ -432,12 +441,15 @@ private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 HoldButton(
                     modifier = Modifier.weight(1f),
                     text = if (ui.isMeasuring) stringResource(R.string.button_measurement_stop)
                     else stringResource(R.string.button_measurement_start),
+                    hintText = if (ui.isMeasuring) stringResource(R.string.hint_hold_to_stop)
+                    else stringResource(R.string.hint_hold_to_start),
                     enabled = ui.connection == ConnectionState.ServicesReady && !ui.isStarting,
                     onConfirmed = { vm.toggleMeasurement() },
                 )
@@ -486,6 +498,7 @@ private fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
 @Composable
 private fun HoldButton(
     text: String,
+    hintText: String,
     enabled: Boolean,
     onConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -493,6 +506,8 @@ private fun HoldButton(
 ) {
     val progress = remember { Animatable(0f) }
     var holding by remember { mutableStateOf(false) }
+    var hintTrigger by remember { mutableStateOf(0) }
+    var showHint by remember { mutableStateOf(false) }
 
     LaunchedEffect(holding, enabled) {
         if (holding && enabled) {
@@ -511,45 +526,94 @@ private fun HoldButton(
         }
     }
 
+    LaunchedEffect(hintTrigger) {
+        if (hintTrigger > 0) {
+            showHint = true
+            delay(2000)
+            showHint = false
+        }
+    }
+
     val overlayColor = Color.Black.copy(alpha = 0.25f)
-    Button(
-        onClick = {},
-        enabled = enabled,
-        contentPadding = PaddingValues(0.dp),
-        modifier = modifier
-            .height(40.dp)
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    holding = true
-                    try {
-                        waitForUpOrCancellation()
-                    } finally {
-                        // Reset even when pointerInput is cancelled mid-press
-                        // (e.g. `enabled` flips false while isStarting is true)
-                        // so that a stale `holding = true` doesn't immediately
-                        // re-arm the timer once `enabled` returns to true.
-                        holding = false
-                    }
-                }
-            },
-    ) {
-        Box(
+    val positionProvider = remember {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect,
+                windowSize: IntSize,
+                layoutDirection: LayoutDirection,
+                popupContentSize: IntSize,
+            ): IntOffset {
+                val x = anchorBounds.left +
+                        (anchorBounds.width - popupContentSize.width) / 2
+                val y = anchorBounds.top - popupContentSize.height - 16
+                return IntOffset(x, y)
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        Button(
+            onClick = {},
+            enabled = enabled,
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    if (progress.value > 0f) {
-                        drawRect(
-                            color = overlayColor,
-                            topLeft = Offset.Zero,
-                            size = Size(size.width * progress.value, size.height),
-                        )
+                .fillMaxWidth()
+                .height(40.dp)
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val downTime = System.currentTimeMillis()
+                        holding = true
+                        try {
+                            waitForUpOrCancellation()
+                        } finally {
+                            val shortTap = System.currentTimeMillis() - downTime < holdMs
+                            // Reset even when pointerInput is cancelled mid-press
+                            // (e.g. `enabled` flips false while isStarting is true)
+                            // so that a stale `holding = true` doesn't immediately
+                            // re-arm the timer once `enabled` returns to true.
+                            holding = false
+                            if (shortTap) hintTrigger++
+                        }
                     }
                 },
-            contentAlignment = Alignment.Center,
         ) {
-            Text(text, modifier = Modifier.padding(horizontal = 16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        if (progress.value > 0f) {
+                            drawRect(
+                                color = overlayColor,
+                                topLeft = Offset.Zero,
+                                size = Size(size.width * progress.value, size.height),
+                            )
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+        }
+        if (showHint) {
+            Popup(
+                popupPositionProvider = positionProvider,
+                properties = PopupProperties(focusable = false),
+            ) {
+                Surface(
+                    color = Color(0xFF323232),
+                    shape = RoundedCornerShape(6.dp),
+                    shadowElevation = 4.dp,
+                ) {
+                    Text(
+                        text = hintText,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
         }
     }
 }

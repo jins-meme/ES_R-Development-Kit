@@ -1,8 +1,10 @@
 package com.jins_jp.meme.academic.data
 
+import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.os.Environment
-import java.io.File
+import android.provider.MediaStore
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -10,11 +12,11 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Writes CSV files into the app-private Downloads directory (Scoped Storage, no permission needed).
+ * Writes CSV files into the public Downloads/ESR Logger directory via MediaStore.
  */
 class CsvWriter(private val context: Context) {
 
-    private var file: File? = null
+    private var uri: Uri? = null
     private var pendingHeader: String? = null
     private val buffer: ArrayDeque<String> = ArrayDeque()
     private val flushThreshold = 100
@@ -23,16 +25,26 @@ class CsvWriter(private val context: Context) {
     val recordedRows: Long get() = rowCount
 
     fun start(address: String, settings: MeasurementSettings) {
-        val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return
-        val dir = File(base, "JINS/MEME academic")
-        if (!dir.exists()) dir.mkdirs()
-
         val nameFmt = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).apply {
             timeZone = TimeZone.getTimeZone("GMT")
         }
         val timestamp = nameFmt.format(Date())
         val safeAddress = address.replace(":", "")
-        file = File(dir, "${safeAddress}_$timestamp.csv")
+        val fileName = "${safeAddress}_$timestamp.csv"
+
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+            put(
+                MediaStore.Downloads.RELATIVE_PATH,
+                "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
+            )
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            values,
+        )
         rowCount = 0
         buffer.clear()
         pendingHeader = buildHeader(settings)
@@ -45,36 +57,33 @@ class CsvWriter(private val context: Context) {
 
     fun stop() {
         flush()
-        file = null
+        val u = uri
+        if (u != null) {
+            val finish = ContentValues().apply {
+                put(MediaStore.Downloads.IS_PENDING, 0)
+            }
+            runCatching { context.contentResolver.update(u, finish, null, null) }
+        }
+        uri = null
         pendingHeader = null
     }
 
     private fun flush() {
-        val target = file ?: return
+        val u = uri ?: return
         if (buffer.isEmpty() && pendingHeader == null) return
         val header = pendingHeader
-        if (header != null) {
-            buffer.addFirst(header)
-            pendingHeader = null
-        }
         runCatching {
-            target.outputStream().use { fos ->
-                // append mode if file exists already
-                if (target.length() > 0) {
-                    java.io.FileOutputStream(target, true).bufferedWriter(Charsets.UTF_8).use { w ->
-                        while (buffer.isNotEmpty()) {
-                            w.write(buffer.removeFirst())
-                            w.write("\r\n")
-                            rowCount++
-                        }
+            context.contentResolver.openOutputStream(u, "wa")?.use { os ->
+                OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
+                    if (header != null) {
+                        w.write(header)
+                        w.write("\r\n")
+                        pendingHeader = null
                     }
-                } else {
-                    OutputStreamWriter(fos, Charsets.UTF_8).buffered().use { w ->
-                        while (buffer.isNotEmpty()) {
-                            w.write(buffer.removeFirst())
-                            w.write("\r\n")
-                            rowCount++
-                        }
+                    while (buffer.isNotEmpty()) {
+                        w.write(buffer.removeFirst())
+                        w.write("\r\n")
+                        rowCount++
                     }
                 }
             }

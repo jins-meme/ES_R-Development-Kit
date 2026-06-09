@@ -15,3 +15,7 @@ xcuserdata/
 **/xcshareddata/WorkspaceSettings.xcsettings
 
 UserInterfaceState.xcuserstate 
+
+# Claude
+CLAUDE.local.md
+.claude/settings.local.json
