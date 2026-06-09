@@ -18,11 +18,15 @@ final class CommunicationStatsTracker {
     private(set) var errorCount: Int = 0
     private(set) var quality: Int = 1
     private(set) var dataCount: Int = 0
-    private(set) var dataCount200ms: Int = 0
-    private var startDate = Date()
+    private(set) var dataCountInWindow: Int = 0
+    /// 最初のデータが届いた瞬間にセットされる。
+    /// 成功率の分母（経過時間）はここを基準にする。
+    private var firstDataDate: Date?
 
     // MARK: - Timer
 
+    /// communication (通信率) の集計ウィンドウ秒数。
+    private let communicationWindow: TimeInterval = 1.0
     private var communicationTimer: Timer?
 
     // MARK: - Callbacks
@@ -41,14 +45,15 @@ final class CommunicationStatsTracker {
         errorCount = 0
         quality = 1
         dataCount = 0
-        dataCount200ms = 0
-        startDate = Date()
+        dataCountInWindow = 0
+        firstDataDate = nil
     }
 
     // MARK: - Measurement lifecycle
 
     func startMeasurement(quality: Int) {
-        startDate = Date()
+        // startDate は最初のデータ受信時にセットする (bumpDataCount 参照)
+        firstDataDate = nil
         self.quality = quality
         startCommunicationTimer()
     }
@@ -88,27 +93,37 @@ final class CommunicationStatsTracker {
     }
 
     /// 受信完了ごとに呼ぶ。displayCnt 更新ではなく dataCount のみ更新。
+    /// 成功率の再計算は約 0.2 秒間隔（100Hz→20件・50Hz→10件）に集約する。
+    /// 1件目を受け取った瞬間に firstDataDate を確定させ、成功率の分母（経過時間）の起点とする。
     func bumpDataCount() {
+        if firstDataDate == nil {
+            firstDataDate = Date()
+        }
         dataCount += 1
-        dataCount200ms += 1
-        updateSuccessRate()
+        dataCountInWindow += 1
+        let stride = max(20 / quality, 1)
+        if dataCount % stride == 0 {
+            updateSuccessRate()
+        }
     }
 
     // MARK: - Private
 
     private func updateSuccessRate() {
-        let timeCount = Date().timeIntervalSince1970 - startDate.timeIntervalSince1970
+        guard let firstDataDate else { return }
+        let timeCount = Date().timeIntervalSince1970 - firstDataDate.timeIntervalSince1970
         let rate: Double
         if timeCount > 0 {
             rate = (Double(dataCount) / (timeCount * 100.0 / Double(quality))) * 100.0
         } else {
             rate = 0
         }
-        onSuccessRate?(rate, String(format: "%.2f%%", rate))
+        let clamped = min(rate, 100.0)
+        onSuccessRate?(clamped, String(format: "%.1f%%", clamped))
     }
 
     private func startCommunicationTimer() {
-        communicationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+        communicationTimer = Timer.scheduledTimer(withTimeInterval: communicationWindow, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.tickCommunication()
             }
@@ -121,8 +136,9 @@ final class CommunicationStatsTracker {
     }
 
     private func tickCommunication() {
-        let comm = (Double(dataCount200ms) / (0.2 * 100.0 / Double(quality))) * 100.0
-        onCommunication?(comm, String(format: "%.2f%%", comm))
-        dataCount200ms = 0
+        let comm = (Double(dataCountInWindow) / (communicationWindow * 100.0 / Double(quality))) * 100.0
+        let clamped = min(comm, 100.0)
+        onCommunication?(clamped, String(format: "%.1f%%", clamped))
+        dataCountInWindow = 0
     }
 }

@@ -65,9 +65,9 @@ final class MEMEViewModel: NSObject {
     var displayBattLv: UInt16 = 0
 
     // Stats
-    var successRateText: String = "0.00%"
+    var successRateText: String = "0.0%"
     var successRateValue: Double = 0
-    var communicationText: String = "0.00%"
+    var communicationText: String = "0.0%"
     var communicationValue: Double = 0
 
     // App / Network info
@@ -446,6 +446,8 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         NSLog("memePeripheralDisconnectedDelegate : %d", result)
         connectedFlag = false
         connectionStateText = "State : Disconnected"
+        foundDevices.removeAll()
+        selectedDevice = ""
         phase = .idle
     }
 
@@ -525,8 +527,8 @@ extension MEMEViewModel: TcpSocketDelegate {
 // =============================================================================
 
 struct EogToggles {
-    var left: Bool = true
-    var right: Bool = true
+    var left: Bool = false
+    var right: Bool = false
     var deltaH: Bool = true
     var deltaV: Bool = true
 }
