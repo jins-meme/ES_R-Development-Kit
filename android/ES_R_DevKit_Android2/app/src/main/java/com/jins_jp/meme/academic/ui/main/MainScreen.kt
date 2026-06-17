@@ -1,5 +1,7 @@
 package com.jins_jp.meme.academic.ui.main
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -201,6 +203,19 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
             }
         }
     }
+
+    if (ui.mockError != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissMockError() },
+            title = { Text(stringResource(R.string.mock_error_title)) },
+            text = { Text(ui.mockError ?: "") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissMockError() }) {
+                    Text(stringResource(R.string.button_dialog_ok))
+                }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -284,6 +299,11 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
 
+    // Enabling mock mode opens a file picker; the chosen CSV drives the mock engine.
+    val mockCsvPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> vm.onMockCsvSelected(uri) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.text_label_settings)) },
@@ -342,7 +362,10 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                         )
                         Switch(
                             checked = ui.mockEnabled,
-                            onCheckedChange = { vm.setMockEnabled(it) },
+                            onCheckedChange = { checked ->
+                                if (checked) mockCsvPicker.launch(arrayOf("*/*"))
+                                else vm.setMockEnabled(false)
+                            },
                         )
                     }
                 }

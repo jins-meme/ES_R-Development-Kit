@@ -1,6 +1,7 @@
 package com.jins_jp.meme.academic.ui.main
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -18,10 +19,14 @@ import com.jins_jp.meme.academic.data.GyroRange
 import com.jins_jp.meme.academic.data.MeasurementSettings
 import com.jins_jp.meme.academic.data.MemeMode
 import com.jins_jp.meme.academic.data.MemeQuality
+import com.jins_jp.meme.academic.data.MockCsvFormatException
+import com.jins_jp.meme.academic.data.MockCsvLoader
 import com.jins_jp.meme.academic.data.SettingsStore
 import com.jins_jp.meme.academic.data.formatRow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -52,6 +57,7 @@ data class MainUiState(
     val commRate: Double = 1.0,
     val toast: String? = null,
     val mockEnabled: Boolean = false,
+    val mockError: String? = null,
 )
 
 sealed class GraphEvent {
@@ -103,19 +109,71 @@ class MainViewModel(
         viewModelScope.launch { collectDescriptorWritten() }
     }
 
+    /**
+     * Turns mock mode OFF. Enabling now requires a CSV file, so the on-path goes
+     * through [onMockCsvSelected] after the user picks one in the file dialog.
+     */
     fun setMockEnabled(enabled: Boolean) {
-        if (_ui.value.mockEnabled == enabled) return
+        if (enabled || !_ui.value.mockEnabled) return
         if (_ui.value.isMeasuring) stopMeasurement()
-        settingsStore.saveMockEnabled(enabled)
-        repo.mockMode = enabled
+        settingsStore.saveMockEnabled(false)
+        repo.mockMode = false
         _ui.update {
             it.copy(
-                mockEnabled = enabled,
+                mockEnabled = false,
                 isInitializing = false,
                 firmwareVersion = null,
             )
         }
     }
+
+    /**
+     * Result of the file-open dialog launched when the Mock switch is turned on.
+     * On a valid logger CSV: reflect its settings, load it into the mock engine
+     * and enable mock mode. On failure (or unreadable file): keep mock off and
+     * surface the reason via [MainUiState.mockError]. A null uri means the user
+     * cancelled, which leaves the switch off.
+     */
+    fun onMockCsvSelected(uri: Uri?) {
+        if (uri == null) return
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val app = getApplication<Application>()
+                    val stream = app.contentResolver.openInputStream(uri)
+                        ?: throw MockCsvFormatException("ファイルを開けませんでした。")
+                    stream.use { MockCsvLoader.parse(it) }
+                }
+            }
+            result.onSuccess { data ->
+                if (_ui.value.isMeasuring) stopMeasurement()
+                repo.loadMockCsv(data)
+                repo.mockMode = true
+                settingsStore.saveMockEnabled(true)
+                settingsStore.save(data.settings)
+                _ui.update {
+                    it.copy(
+                        mockEnabled = true,
+                        settings = data.settings,
+                        isInitializing = false,
+                        firmwareVersion = null,
+                        mockError = null,
+                        toast = "Mockデータを読み込みました（${data.rows.size} 行）",
+                    )
+                }
+            }.onFailure { e ->
+                _ui.update {
+                    it.copy(
+                        mockEnabled = false,
+                        mockError = (e as? MockCsvFormatException)?.message
+                            ?: "CSVの読み込みに失敗しました。",
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissMockError() { _ui.update { it.copy(mockError = null) } }
 
     private suspend fun collectScanning() {
         repo.scanning.collect { v -> _ui.update { it.copy(scanning = v) } }

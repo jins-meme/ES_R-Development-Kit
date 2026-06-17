@@ -20,6 +20,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.jins.meme.academic.util.DataEncryption
+import com.jins_jp.meme.academic.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -86,6 +87,9 @@ class MemeBleRepository(private val context: Context) {
             _connection.value = ConnectionState.Disconnected
             currentAddress = null
         }
+
+    /** Hand the mock engine logged rows to replay instead of synthetic data. */
+    fun loadMockCsv(data: MockCsvData) = mock.loadCsv(data)
 
     fun hasConnectPermission(): Boolean {
         if (mockMode) return true

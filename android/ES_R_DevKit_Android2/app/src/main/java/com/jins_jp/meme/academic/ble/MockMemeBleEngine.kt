@@ -1,6 +1,7 @@
 package com.jins_jp.meme.academic.ble
 
 import com.jins.meme.academic.util.DataEncryption
+import com.jins_jp.meme.academic.data.MockCsvData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +38,17 @@ class MockMemeBleEngine(
     private var qualityId = 1
     private var accRangeId = 0
     private var gyroRangeId = 0
+
+    // Logged data loaded from a CSV; when present the stream replays these rows
+    // instead of generating synthetic sine waves.
+    private var csvRows: List<IntArray>? = null
+    private var csvIndex = 0
+
+    /** Replace the synthetic generator with rows parsed from a logger CSV. */
+    fun loadCsv(data: MockCsvData) {
+        csvRows = data.rows
+        csvIndex = 0
+    }
 
     fun startScan() {
         scanning.value = true
@@ -99,6 +111,8 @@ class MockMemeBleEngine(
         connection.value = ConnectionState.Disconnected
         address = null
         packetCount = 0
+        csvRows = null
+        csvIndex = 0
     }
 
     private fun handleCommand(data: ByteArray) {
@@ -175,6 +189,8 @@ class MockMemeBleEngine(
     private fun startStream() {
         stopStream()
         packetCount = 0
+        // Restart CSV playback from the first logged row on each measurement.
+        csvIndex = 0
         val periodMs = if (qualityId == 2) 20L else 10L
         val type = when (modeId) {
             2 -> MemeBleConstants.AUP_REPORT_ACADEMIA2
@@ -203,8 +219,35 @@ class MockMemeBleEngine(
         packet[2] = (head and 0xFF).toByte()
         packet[3] = ((head ushr 8) and 0xFF).toByte()
 
-        val t = packetCount.toDouble() * 0.01  // ~10 ms per sample baseline
+        val rows = csvRows
+        if (rows != null && rows.isNotEmpty()) {
+            // Replay one logged row, looping back to the start once exhausted.
+            encodeRow(packet, type, rows[csvIndex])
+            csvIndex = (csvIndex + 1) % rows.size
+        } else {
+            encodeSynthetic(packet, type, packetCount.toDouble() * 0.01)
+        }
 
+        packetCount = (packetCount + 1) and 0x0FFF
+        emit(packet)
+    }
+
+    /** Re-encode a CSV value row into a packet, the inverse of DataParser. */
+    private fun encodeRow(packet: ByteArray, type: Byte, row: IntArray) {
+        when (type) {
+            // accX/Y/Z + raw EOG L1/R1/L2/R2; H/V columns are re-derived on parse.
+            MemeBleConstants.AUP_REPORT_ACADEMIA1 ->
+                for (i in 0 until 7) putShortLE(packet, 4 + i * 2, row.getOrElse(i) { 0 })
+            // accX/Y/Z + gyroX/Y/Z + raw EOG L/R.
+            MemeBleConstants.AUP_REPORT_ACADEMIA2 ->
+                for (i in 0 until 8) putShortLE(packet, 4 + i * 2, row.getOrElse(i) { 0 })
+            // Quaternion W/X/Y/Z as 32-bit values.
+            MemeBleConstants.AUP_REPORT_ACADEMIA3 ->
+                for (i in 0 until 4) putIntLE(packet, 4 + i * 4, row.getOrElse(i) { 0 })
+        }
+    }
+
+    private fun encodeSynthetic(packet: ByteArray, type: Byte, t: Double) {
         when (type) {
             MemeBleConstants.AUP_REPORT_ACADEMIA1 -> {
                 // accX/Y/Z then 4 raw EOG channels.
@@ -234,9 +277,6 @@ class MockMemeBleEngine(
                 putIntLE(packet, 16, sineI(t, 0.2, 1_000_000, 0.75))
             }
         }
-
-        packetCount = (packetCount + 1) and 0x0FFF
-        emit(packet)
     }
 
     private fun sineI(t: Double, hz: Double, amp: Int, phase: Double): Int {
