@@ -26,19 +26,29 @@ import com.jins_jp.meme.academic.data.formatRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "MainViewModel"
 private const val GRAPH_WIDTH = 200
 private const val GRAPH_SKIP_CULL = 25L
+
+// Auto-reconnect tuning. The retry window is comfortably longer than
+// SCAN_TIMEOUT_MS (8s) so each scan attempt has time to auto-stop before the
+// next retry, matching the "scan stops once within the window" assumption.
+private const val RECONNECT_RETRY_INTERVAL_MS = 15_000L
+private const val RECONNECT_CONNECT_TIMEOUT_MS = 15_000L
+private const val RECONNECT_NOTIFY_TIMEOUT_MS = 6_000L
 
 data class MainUiState(
     val scanning: Boolean = false,
@@ -59,6 +69,8 @@ data class MainUiState(
     val mockEnabled: Boolean = false,
     val mockError: String? = null,
     val bluetoothError: Boolean = false,
+    val reconnectEnabled: Boolean = false,
+    val isReconnecting: Boolean = false,
 )
 
 sealed class GraphEvent {
@@ -79,6 +91,7 @@ class MainViewModel(
         MainUiState(
             settings = settingsStore.load(),
             mockEnabled = settingsStore.loadMockEnabled(),
+            reconnectEnabled = settingsStore.loadReconnectEnabled(),
         )
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -101,6 +114,12 @@ class MainViewModel(
     private var prevTotalPrev: Long = 0
     private var ratioPrev: Long = 100
 
+    // Auto-reconnect book-keeping. lastDeviceAddress survives the BLE callback
+    // clearing currentAddress on disconnect so we can rescan for the same device.
+    private var reconnectJob: Job? = null
+    private var lastDeviceAddress: String? = null
+    private var userInitiatedDisconnect = false
+
     init {
         repo.mockMode = _ui.value.mockEnabled
         viewModelScope.launch { collectScanning() }
@@ -116,6 +135,7 @@ class MainViewModel(
      */
     fun setMockEnabled(enabled: Boolean) {
         if (enabled || !_ui.value.mockEnabled) return
+        cancelAutoReconnect()
         if (_ui.value.isMeasuring) stopMeasurement()
         settingsStore.saveMockEnabled(false)
         repo.mockMode = false
@@ -147,6 +167,7 @@ class MainViewModel(
                 }
             }
             result.onSuccess { data ->
+                cancelAutoReconnect()
                 if (_ui.value.isMeasuring) stopMeasurement()
                 repo.loadMockCsv(data)
                 repo.mockMode = true
@@ -201,12 +222,28 @@ class MainViewModel(
                     repo.enableNotifications()
                 }
                 ConnectionState.Disconnected -> {
+                    val wasMeasuring = _ui.value.isMeasuring
+                    // On any drop, finish appending and release the CSV file and
+                    // stop the comm ticker. stopMeasurement() is not reached on an
+                    // unexpected disconnect, so this is the only place that closes
+                    // the file in that case (no-op if nothing was being written).
+                    stopCommTicker()
+                    if (!_ui.value.mockEnabled) csv.stop()
                     _ui.update {
                         it.copy(
                             firmwareVersion = null,
                             isMeasuring = false,
                             isStarting = false,
+                            recordingRows = 0L,
                         )
+                    }
+                    // Auto-reconnect only on an unexpected drop while measuring.
+                    if (wasMeasuring &&
+                        _ui.value.reconnectEnabled &&
+                        !_ui.value.mockEnabled &&
+                        !userInitiatedDisconnect
+                    ) {
+                        startAutoReconnect()
                     }
                 }
                 else -> Unit
@@ -229,6 +266,8 @@ class MainViewModel(
     /* ---- User commands ---- */
 
     fun startScan() {
+        // A manual scan overrides any auto-reconnect in progress.
+        cancelAutoReconnect()
         if (!repo.hasScanPermission()) return
         if (!repo.isBluetoothEnabled()) {
             _ui.update { it.copy(bluetoothError = true) }
@@ -246,11 +285,24 @@ class MainViewModel(
     fun connectOrDisconnect() {
         val st = ui.value
         if (st.connection != ConnectionState.Disconnected && st.connection != ConnectionState.Disconnecting) {
+            // Mark the disconnect as deliberate so it does not trigger reconnect.
+            userInitiatedDisconnect = true
+            cancelAutoReconnect()
             repo.disconnect()
         } else {
+            // A manual connect overrides any auto-reconnect in progress.
+            cancelAutoReconnect()
             val address = st.devices.getOrNull(st.selectedDeviceIndex) ?: return
+            userInitiatedDisconnect = false
+            lastDeviceAddress = address
             repo.connect(address)
         }
+    }
+
+    fun setReconnectEnabled(enabled: Boolean) {
+        settingsStore.saveReconnectEnabled(enabled)
+        _ui.update { it.copy(reconnectEnabled = enabled) }
+        if (!enabled) cancelAutoReconnect()
     }
 
     fun updateSettings(transform: (MeasurementSettings) -> MeasurementSettings) {
@@ -317,6 +369,79 @@ class MainViewModel(
             stopCommTicker()
             _ui.update { it.copy(isMeasuring = false, recordingRows = 0L) }
         }
+    }
+
+    /* ---- Auto-reconnect ---- */
+
+    /**
+     * Re-scan for the last connected device and, once found, reconnect and
+     * restart measurement (with a fresh CSV file). Retries every
+     * [RECONNECT_RETRY_INTERVAL_MS] until it succeeds or is cancelled by a
+     * manual scan/connect or by turning the setting off.
+     */
+    private fun startAutoReconnect() {
+        val addr = lastDeviceAddress ?: return
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch {
+            _ui.update { it.copy(isReconnecting = true) }
+            try {
+                while (isActive) {
+                    // The previous scan should have auto-stopped within the window;
+                    // stop it defensively in case it is still running before rescanning.
+                    if (repo.scanning.value) repo.stopScan()
+                    repo.startScan()
+                    // Auto-stop the scan after the normal timeout, well inside the window.
+                    val stopper = launch {
+                        delay(MemeBleConstants.SCAN_TIMEOUT_MS)
+                        repo.stopScan()
+                    }
+                    val found = withTimeoutOrNull(RECONNECT_RETRY_INTERVAL_MS) {
+                        repo.devices.first { addr in it }
+                    } != null
+                    stopper.cancel()
+                    if (found) {
+                        repo.stopScan()
+                        if (reconnectAndRestart(addr)) break
+                    }
+                    // else: window elapsed without the device; loop and retry.
+                }
+            } finally {
+                if (repo.scanning.value) repo.stopScan()
+                _ui.update { it.copy(isReconnecting = false) }
+            }
+        }
+    }
+
+    /**
+     * Connect to [addr], wait for services and notifications to come up the same
+     * way the normal connect flow does, then start a fresh measurement. Returns
+     * true once measurement has been (re)started.
+     */
+    private suspend fun reconnectAndRestart(addr: String): Boolean {
+        userInitiatedDisconnect = false
+        lastDeviceAddress = addr
+        if (!repo.connect(addr)) return false
+        val ready = withTimeoutOrNull(RECONNECT_CONNECT_TIMEOUT_MS) {
+            repo.connection.first { it == ConnectionState.ServicesReady }
+        } != null
+        if (!ready) { repo.disconnect(); return false }
+        // collectConnection enables notifications ~1.5s after ServicesReady;
+        // wait for that to complete before streaming data.
+        val notified = withTimeoutOrNull(RECONNECT_NOTIFY_TIMEOUT_MS) {
+            repo.descriptorWritten.first()
+        } != null
+        if (!notified) { repo.disconnect(); return false }
+        delay(500)
+        startMeasurement()
+        return true
+    }
+
+    private fun cancelAutoReconnect() {
+        val job = reconnectJob ?: return
+        reconnectJob = null
+        job.cancel()
+        if (repo.scanning.value) repo.stopScan()
+        _ui.update { it.copy(isReconnecting = false) }
     }
 
     fun marking() {

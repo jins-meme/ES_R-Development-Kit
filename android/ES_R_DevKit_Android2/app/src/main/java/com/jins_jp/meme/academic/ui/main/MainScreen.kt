@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -36,6 +37,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -364,6 +366,22 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     enabled = canEditSettings,
                 ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
 
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.setReconnectEnabled(!ui.reconnectEnabled) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.reconnectEnabled,
+                        onCheckedChange = { vm.setReconnectEnabled(it) },
+                    )
+                    Text(
+                        stringResource(R.string.text_label_reconnect),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
                 if (BuildConfig.DEBUG) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -394,6 +412,7 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
 
 @Composable
 private fun statusLabel(ui: MainUiState): String {
+    if (ui.isReconnecting) return stringResource(R.string.text_state_reconnecting)
     return when (ui.connection) {
         ConnectionState.Disconnected -> stringResource(R.string.text_state_disconnect)
         ConnectionState.Connecting -> "Connecting…"
