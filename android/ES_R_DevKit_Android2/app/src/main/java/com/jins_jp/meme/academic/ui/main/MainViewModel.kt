@@ -58,6 +58,7 @@ data class MainUiState(
     val toast: String? = null,
     val mockEnabled: Boolean = false,
     val mockError: String? = null,
+    val bluetoothError: Boolean = false,
 )
 
 sealed class GraphEvent {
@@ -175,6 +176,8 @@ class MainViewModel(
 
     fun dismissMockError() { _ui.update { it.copy(mockError = null) } }
 
+    fun dismissBluetoothError() { _ui.update { it.copy(bluetoothError = false) } }
+
     private suspend fun collectScanning() {
         repo.scanning.collect { v -> _ui.update { it.copy(scanning = v) } }
     }
@@ -226,7 +229,11 @@ class MainViewModel(
     /* ---- User commands ---- */
 
     fun startScan() {
-        if (!repo.hasScanPermission() || !repo.isBluetoothEnabled()) return
+        if (!repo.hasScanPermission()) return
+        if (!repo.isBluetoothEnabled()) {
+            _ui.update { it.copy(bluetoothError = true) }
+            return
+        }
         viewModelScope.launch {
             repo.startScan()
             delay(MemeBleConstants.SCAN_TIMEOUT_MS)
@@ -280,7 +287,9 @@ class MainViewModel(
                 _ui.update { it.copy(isStarting = false) }
                 return@launch
             }
-            csv.start(addr, ui.value.settings)
+            if (!ui.value.mockEnabled) {
+                csv.start(addr, ui.value.settings)
+            }
 
             delay(0); sendSetMode()
             delay(500); sendSetParams()
@@ -290,7 +299,7 @@ class MainViewModel(
             startCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
             startCmd[2] = 0x01
             sendEncoded(startCmd)
-            _ui.update { it.copy(isMeasuring = true, isStarting = false) }
+            _ui.update { it.copy(isMeasuring = true, isStarting = false, recordingRows = 0L) }
             startCommTicker()
         }
     }
@@ -302,7 +311,9 @@ class MainViewModel(
             stopCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
             stopCmd[2] = 0x00
             sendEncoded(stopCmd)
-            csv.stop()
+            if (!ui.value.mockEnabled) {
+                csv.stop()
+            }
             stopCommTicker()
             _ui.update { it.copy(isMeasuring = false, recordingRows = 0L) }
         }
@@ -420,7 +431,9 @@ class MainViewModel(
         }
 
         val row = formatRow(ui.value.isMarking, totalCount, prevTimeMs, packet.values)
-        csv.writeRow(row)
+        if (!ui.value.mockEnabled) {
+            csv.writeRow(row)
+        }
         _ui.update { it.copy(recordingRows = csv.recordedRows, batteryLevel = packet.batteryLevel.toInt()) }
 
         // success rate from total/error

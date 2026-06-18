@@ -216,6 +216,19 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
             },
         )
     }
+
+    if (ui.bluetoothError) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissBluetoothError() },
+            title = { Text(stringResource(R.string.bluetooth_error_title)) },
+            text = { Text(stringResource(R.string.bluetooth_error_text)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissBluetoothError() }) {
+                    Text(stringResource(R.string.button_dialog_ok))
+                }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
