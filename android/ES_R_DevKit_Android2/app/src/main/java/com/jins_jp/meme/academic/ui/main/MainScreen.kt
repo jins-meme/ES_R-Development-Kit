@@ -87,6 +87,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jins_jp.meme.academic.BuildConfig
 import com.jins_jp.meme.academic.R
 import com.jins_jp.meme.academic.ble.ConnectionState
 import com.jins_jp.meme.academic.data.AccRange
@@ -434,8 +435,19 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.button_dialog_ok))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "${stringResource(R.string.app_name)} version ${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.button_dialog_ok))
+                }
             }
         },
     )
