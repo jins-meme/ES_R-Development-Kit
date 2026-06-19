@@ -87,7 +87,6 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jins_jp.meme.academic.BuildConfig
 import com.jins_jp.meme.academic.R
 import com.jins_jp.meme.academic.ble.ConnectionState
 import com.jins_jp.meme.academic.data.AccRange
@@ -416,23 +415,21 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     )
                 }
 
-                if (BuildConfig.DEBUG) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(R.string.text_label_mock_mode),
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = ui.mockEnabled,
-                            onCheckedChange = { checked ->
-                                if (checked) mockCsvPicker.launch(arrayOf("*/*"))
-                                else vm.setMockEnabled(false)
-                            },
-                        )
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.text_label_mock_mode),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = ui.mockEnabled,
+                        onCheckedChange = { checked ->
+                            if (checked) mockCsvPicker.launch(arrayOf("*/*"))
+                            else vm.setMockEnabled(false)
+                        },
+                    )
                 }
             }
         },

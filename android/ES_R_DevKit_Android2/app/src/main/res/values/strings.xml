@@ -17,7 +17,7 @@
     <string name="text_label_set_acceleration">Accelerometer range</string>
     <string name="text_label_set_gyroacope">Gyroscope range</string>
     <string name="text_label_settings">Settings</string>
-    <string name="text_label_mock_mode">Mock mode (debug)</string>
+    <string name="text_label_mock_mode">Replay mode</string>
     <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>
     <string name="mock_error_title">Mock CSV load error</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
