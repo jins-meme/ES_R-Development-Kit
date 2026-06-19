@@ -29,9 +29,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class LineSeries(val color: Color, val values: FloatArray, val label: String = "")
 
@@ -51,6 +55,10 @@ fun LiveLineChart(
     height: Dp = 171.dp,
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Card(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -87,16 +95,34 @@ fun LiveLineChart(
                     val w = size.width
                     val h = size.height
                     val span = (yMax - yMin).coerceAtLeast(1f)
-                    for (i in 1..3) {
-                        val y = h * i / 4f
-                        drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+
+                    // Y-axis tick labels down the left edge: yMax at top … yMin at bottom.
+                    // 4 divisions => 5 ticks; the plot area is shifted right by the gutter.
+                    val ticks = 4
+                    val labels = Array(ticks + 1) {
+                        textMeasurer.measure(formatTick(yMax - (yMax - yMin) * it / ticks), labelStyle)
                     }
+                    val labelGap = 4.dp.toPx()
+                    val gutter = labels.maxOf { it.size.width }.toFloat() + labelGap
+                    val plotWidth = (w - gutter).coerceAtLeast(1f)
+
+                    for (i in 0..ticks) {
+                        val y = h * i / ticks
+                        // Inner gridlines only; top & bottom are the chart frame edges.
+                        if (i in 1 until ticks) {
+                            drawLine(gridColor, Offset(gutter, y), Offset(w, y), strokeWidth = 1f)
+                        }
+                        val label = labels[i]
+                        val ty = (y - label.size.height / 2f).coerceIn(0f, h - label.size.height)
+                        drawText(label, topLeft = Offset(gutter - labelGap - label.size.width, ty))
+                    }
+
                     series.forEach { s ->
                         if (s.values.size < 2) return@forEach
-                        val step = w / (s.values.size - 1).toFloat()
+                        val step = plotWidth / (s.values.size - 1).toFloat()
                         val path = Path()
                         s.values.forEachIndexed { i, v ->
-                            val x = i * step
+                            val x = gutter + i * step
                             val ny = ((v - yMin) / span).coerceIn(0f, 1f)
                             val y = h - ny * h
                             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
@@ -107,6 +133,12 @@ fun LiveLineChart(
             }
         }
     }
+}
+
+/** Tick value formatting: whole numbers stay integers, otherwise one decimal place. */
+private fun formatTick(value: Float): String {
+    val rounded = value.roundToInt()
+    return if (abs(value - rounded) < 0.001f) rounded.toString() else "%.1f".format(value)
 }
 
 @Composable
