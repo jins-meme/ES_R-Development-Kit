@@ -8,11 +8,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.jins_jp.meme.academic2"
+        applicationId = "com.jins_jp.meme.academic"
         minSdk = 31
         targetSdk = 37
         versionCode = 2
-        versionName = "1.0.1"
+        versionName = "3.0.0"
     }
 
     buildTypes {
