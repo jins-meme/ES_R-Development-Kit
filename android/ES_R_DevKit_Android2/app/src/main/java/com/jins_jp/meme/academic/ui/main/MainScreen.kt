@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Battery3Bar
 import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Battery6Bar
 import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -133,6 +135,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
     val gyroY = remember { GraphBuffer(GRAPH_LEN) }
     val gyroZ = remember { GraphBuffer(GRAPH_LEN) }
     var bumper by remember { mutableStateOf(0) }
+    var minimizedCharts by remember { mutableStateOf(setOf<String>()) }
 
     LaunchedEffect(Unit) {
         viewModel.graph.collect { ev ->
@@ -176,32 +179,63 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
             }
             if (ui.isMeasuring) {
                 bumper // ensure recomposition keys
-                LiveLineChart(
-                    title = stringResource(R.string.eog_graph_title),
-                    series = listOf(
-                        LineSeries(EogBlue, eogVv.snapshotY()),
-                        LineSeries(EogRed, eogVh.snapshotY()),
+                val charts = listOf(
+                    ChartSpec(
+                        key = "eog",
+                        title = stringResource(R.string.eog_graph_title),
+                        series = listOf(
+                            LineSeries(EogBlue, eogVv.snapshotY(), "Vv"),
+                            LineSeries(EogRed, eogVh.snapshotY(), "Vh"),
+                        ),
+                        yMin = -400f, yMax = 400f,
                     ),
-                    yMin = -400f, yMax = 400f,
-                )
-                LiveLineChart(
-                    title = stringResource(R.string.acc_graph_title),
-                    series = listOf(
-                        LineSeries(AccBlue, accX.snapshotY()),
-                        LineSeries(AccGreen, accY.snapshotY()),
-                        LineSeries(AccRed, accZ.snapshotY()),
+                    ChartSpec(
+                        key = "acc",
+                        title = stringResource(R.string.acc_graph_title),
+                        series = listOf(
+                            LineSeries(AccBlue, accX.snapshotY(), "X"),
+                            LineSeries(AccGreen, accY.snapshotY(), "Y"),
+                            LineSeries(AccRed, accZ.snapshotY(), "Z"),
+                        ),
+                        yMin = -35000f, yMax = 35000f,
                     ),
-                    yMin = -35000f, yMax = 35000f,
-                )
-                LiveLineChart(
-                    title = stringResource(R.string.gyro_graph_title),
-                    series = listOf(
-                        LineSeries(GyroBlue, gyroX.snapshotY()),
-                        LineSeries(GyroGreen, gyroY.snapshotY()),
-                        LineSeries(GyroRed, gyroZ.snapshotY()),
+                    ChartSpec(
+                        key = "gyro",
+                        title = stringResource(R.string.gyro_graph_title),
+                        series = listOf(
+                            LineSeries(GyroBlue, gyroX.snapshotY(), "X"),
+                            LineSeries(GyroGreen, gyroY.snapshotY(), "Y"),
+                            LineSeries(GyroRed, gyroZ.snapshotY(), "Z"),
+                        ),
+                        yMin = -35000f, yMax = 35000f,
                     ),
-                    yMin = -35000f, yMax = 35000f,
                 )
+                charts.forEach { spec ->
+                    if (spec.key !in minimizedCharts) {
+                        LiveLineChart(
+                            title = spec.title,
+                            series = spec.series,
+                            yMin = spec.yMin,
+                            yMax = spec.yMax,
+                            onMinimize = { minimizedCharts = minimizedCharts + spec.key },
+                        )
+                    }
+                }
+                if (minimizedCharts.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        charts.filter { it.key in minimizedCharts }.forEach { spec ->
+                            MinimizedChartChip(
+                                title = spec.title,
+                                onClick = { minimizedCharts = minimizedCharts - spec.key },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -720,4 +754,22 @@ private fun BatteryIcon(level: Int) {
     AssistChip(onClick = {}, label = { Text(desc) }, leadingIcon = {
         Icon(icon, contentDescription = null)
     })
+}
+
+/** A minimized chart, rendered as a tappable title chip that restores the chart. */
+private data class ChartSpec(
+    val key: String,
+    val title: String,
+    val series: List<LineSeries>,
+    val yMin: Float,
+    val yMax: Float,
+)
+
+@Composable
+private fun MinimizedChartChip(title: String, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(title) },
+        leadingIcon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
+    )
 }
