@@ -111,6 +111,9 @@ import kotlinx.coroutines.launch
 // 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
 private const val GRAPH_LEN = 150
 
+// プロット点のレート(Hz)。経過時間の換算に使う（GRAPH_LEN / PLOT_HZ = 6秒の可視窓）。
+private const val PLOT_HZ = 25
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)) {
@@ -136,6 +139,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
     val gyroZ = remember { GraphBuffer(GRAPH_LEN) }
     var bumper by remember { mutableStateOf(0) }
     var minimizedCharts by remember { mutableStateOf(setOf<String>()) }
+    // 最新プロット点の通番(= totalCount / graphSkipCount)。経過秒の換算に使う。
+    var emitX by remember { mutableStateOf(0L) }
 
     LaunchedEffect(Unit) {
         viewModel.graph.collect { ev ->
@@ -144,9 +149,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                     eogVh.clear(); eogVv.clear()
                     accX.clear(); accY.clear(); accZ.clear()
                     gyroX.clear(); gyroY.clear(); gyroZ.clear()
+                    emitX = 0L
                 }
                 is GraphEvent.Eog -> {
                     eogVh.add(ev.vh); eogVv.add(ev.vv)
+                    emitX = ev.x
                 }
                 is GraphEvent.Acc -> {
                     accX.add(ev.x1); accY.add(ev.y); accZ.add(ev.z)
@@ -218,6 +225,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                             yMin = spec.yMin,
                             yMax = spec.yMax,
                             onMinimize = { minimizedCharts = minimizedCharts + spec.key },
+                            // 経過時間(理論値): 右端=最新点の経過秒、1点=1/PLOT_HZ 秒。
+                            xRightSeconds = emitX / PLOT_HZ.toFloat(),
+                            xSecondsPerPoint = 1f / PLOT_HZ,
                         )
                     }
                 }
