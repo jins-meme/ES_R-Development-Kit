@@ -12,6 +12,7 @@ import com.jins_jp.meme.academic.App
 import com.jins_jp.meme.academic.ble.ConnectionState
 import com.jins_jp.meme.academic.ble.MemeBleConstants
 import com.jins_jp.meme.academic.ble.MemeBleRepository
+import com.jins_jp.meme.academic.ble.MockMemeBleEngine
 import com.jins_jp.meme.academic.data.AccRange
 import com.jins_jp.meme.academic.data.CsvWriter
 import com.jins_jp.meme.academic.data.DataParser
@@ -90,7 +91,8 @@ class MainViewModel(
     private val _ui = MutableStateFlow(
         MainUiState(
             settings = settingsStore.load(),
-            mockEnabled = settingsStore.loadMockEnabled(),
+            // Playback (mock) is started on demand from the Play button and is
+            // never persisted: every launch begins in live-BLE mode.
             reconnectEnabled = settingsStore.loadReconnectEnabled(),
         )
     )
@@ -121,7 +123,6 @@ class MainViewModel(
     private var userInitiatedDisconnect = false
 
     init {
-        repo.mockMode = _ui.value.mockEnabled
         viewModelScope.launch { collectScanning() }
         viewModelScope.launch { collectDevices() }
         viewModelScope.launch { collectConnection() }
@@ -130,32 +131,18 @@ class MainViewModel(
     }
 
     /**
-     * Turns mock mode OFF. Enabling now requires a CSV file, so the on-path goes
-     * through [onMockCsvSelected] after the user picks one in the file dialog.
+     * Play-button entry point. Opens the CSV chosen in the file dialog and, when
+     * it is a valid logger CSV, enters playback (mock) mode: load the rows into
+     * the mock engine, reflect/persist the CSV's measurement settings, then
+     * emulate Scan device → Connect against the mock device (see
+     * [startPlaybackScanConnect]). On failure surface the reason via
+     * [MainUiState.mockError] and leave the current mode untouched. A null uri
+     * means the user cancelled the dialog.
+     *
+     * Playback is invoked fresh on every Play tap, so this always re-enters mock
+     * mode from a clean state even if a previous playback is still running.
      */
-    fun setMockEnabled(enabled: Boolean) {
-        if (enabled || !_ui.value.mockEnabled) return
-        cancelAutoReconnect()
-        if (_ui.value.isMeasuring) stopMeasurement()
-        settingsStore.saveMockEnabled(false)
-        repo.mockMode = false
-        _ui.update {
-            it.copy(
-                mockEnabled = false,
-                isInitializing = false,
-                firmwareVersion = null,
-            )
-        }
-    }
-
-    /**
-     * Result of the file-open dialog launched when the Mock switch is turned on.
-     * On a valid logger CSV: reflect its settings, load it into the mock engine
-     * and enable mock mode. On failure (or unreadable file): keep mock off and
-     * surface the reason via [MainUiState.mockError]. A null uri means the user
-     * cancelled, which leaves the switch off.
-     */
-    fun onMockCsvSelected(uri: Uri?) {
+    fun startPlayback(uri: Uri?) {
         if (uri == null) return
         viewModelScope.launch {
             val result = runCatching {
@@ -169,9 +156,11 @@ class MainViewModel(
             result.onSuccess { data ->
                 cancelAutoReconnect()
                 if (_ui.value.isMeasuring) stopMeasurement()
-                repo.loadMockCsv(data)
+                // Force a clean (re-)entry into mock mode even when a previous
+                // playback was already running, so each Play starts from scratch.
+                if (repo.mockMode) repo.mockMode = false
                 repo.mockMode = true
-                settingsStore.saveMockEnabled(true)
+                repo.loadMockCsv(data)
                 settingsStore.save(data.settings)
                 _ui.update {
                     it.copy(
@@ -180,18 +169,58 @@ class MainViewModel(
                         isInitializing = false,
                         firmwareVersion = null,
                         mockError = null,
-                        toast = "Mockデータを読み込みました（${data.rows.size} 行）",
+                        toast = "再生データを読み込みました（${data.rows.size} 行）",
                     )
                 }
+                startPlaybackScanConnect()
             }.onFailure { e ->
                 _ui.update {
                     it.copy(
-                        mockEnabled = false,
                         mockError = (e as? MockCsvFormatException)?.message
                             ?: "CSVの読み込みに失敗しました。",
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Playback one-shot: emulate the Scan device button against the mock engine,
+     * then auto-connect to the mock device as soon as it is advertised. Mirrors
+     * the manual Scan → Connect flow so the rest of the app sees an ordinary
+     * connection coming up.
+     */
+    private fun startPlaybackScanConnect() {
+        viewModelScope.launch {
+            repo.startScan()
+            val found = withTimeoutOrNull(MemeBleConstants.SCAN_TIMEOUT_MS) {
+                repo.devices.first { MockMemeBleEngine.MOCK_ADDRESS in it }
+            } != null
+            repo.stopScan()
+            if (!found) return@launch
+            userInitiatedDisconnect = false
+            lastDeviceAddress = MockMemeBleEngine.MOCK_ADDRESS
+            _ui.update {
+                it.copy(
+                    selectedDeviceIndex =
+                        it.devices.indexOf(MockMemeBleEngine.MOCK_ADDRESS).coerceAtLeast(0),
+                )
+            }
+            repo.connect(MockMemeBleEngine.MOCK_ADDRESS)
+        }
+    }
+
+    /** Leave playback mode and return to the initial live-BLE state. */
+    private fun exitPlayback() {
+        cancelAutoReconnect()
+        if (_ui.value.isMeasuring) stopMeasurement()
+        repo.mockMode = false
+        _ui.update {
+            it.copy(
+                mockEnabled = false,
+                isInitializing = false,
+                firmwareVersion = null,
+            )
         }
     }
 
@@ -288,7 +317,8 @@ class MainViewModel(
             // Mark the disconnect as deliberate so it does not trigger reconnect.
             userInitiatedDisconnect = true
             cancelAutoReconnect()
-            repo.disconnect()
+            // Disconnecting from playback returns to the initial live-BLE state.
+            if (st.mockEnabled) exitPlayback() else repo.disconnect()
         } else {
             // A manual connect overrides any auto-reconnect in progress.
             cancelAutoReconnect()

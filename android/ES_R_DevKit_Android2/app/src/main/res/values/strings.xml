@@ -17,9 +17,9 @@
     <string name="text_label_set_acceleration">Accelerometer range</string>
     <string name="text_label_set_gyroacope">Gyroscope range</string>
     <string name="text_label_settings">Settings</string>
-    <string name="text_label_mock_mode">Replay mode</string>
+    <string name="button_playback">Playback (replay logged CSV)</string>
     <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>
-    <string name="mock_error_title">Mock CSV load error</string>
+    <string name="mock_error_title">Playback CSV load error</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
     <string name="bluetooth_error_text">Bluetooth is off. Please turn it on from the settings.</string>
     <string name="text_label_starting">Starting…</string>

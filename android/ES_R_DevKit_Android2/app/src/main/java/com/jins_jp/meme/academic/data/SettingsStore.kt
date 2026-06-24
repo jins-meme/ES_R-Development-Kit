@@ -21,12 +21,6 @@ class SettingsStore(context: Context) {
             .apply()
     }
 
-    fun loadMockEnabled(): Boolean = prefs.getBoolean(KEY_MOCK, false)
-
-    fun saveMockEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_MOCK, enabled).apply()
-    }
-
     fun loadReconnectEnabled(): Boolean = prefs.getBoolean(KEY_RECONNECT, false)
 
     fun saveReconnectEnabled(enabled: Boolean) {
@@ -39,7 +33,6 @@ class SettingsStore(context: Context) {
         const val KEY_QUALITY = "quality"
         const val KEY_ACC = "acc_range"
         const val KEY_GYRO = "gyro_range"
-        const val KEY_MOCK = "mock_enabled"
         const val KEY_RECONNECT = "reconnect_enabled"
     }
 }

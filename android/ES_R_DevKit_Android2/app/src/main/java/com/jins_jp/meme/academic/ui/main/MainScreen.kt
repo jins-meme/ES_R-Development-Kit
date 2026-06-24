@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Battery6Bar
 import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -56,7 +57,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -281,6 +281,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
 @Composable
 private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
+    // Play button: pick a logged CSV, then replay it through the mock engine.
+    val playbackCsvPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> vm.startPlayback(uri) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -294,6 +298,13 @@ private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { playbackCsvPicker.launch(arrayOf("*/*")) }) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(R.string.button_playback),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 IconButton(onClick = { showSettings = true }) {
                     Icon(
                         Icons.Filled.Settings,
@@ -358,11 +369,6 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
 
-    // Enabling mock mode opens a file picker; the chosen CSV drives the mock engine.
-    val mockCsvPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> vm.onMockCsvSelected(uri) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.text_label_settings)) },
@@ -423,23 +429,6 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     Text(
                         stringResource(R.string.text_label_reconnect),
                         modifier = Modifier.weight(1f),
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.text_label_mock_mode),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(
-                        checked = ui.mockEnabled,
-                        onCheckedChange = { checked ->
-                            if (checked) mockCsvPicker.launch(arrayOf("*/*"))
-                            else vm.setMockEnabled(false)
-                        },
                     )
                 }
             }
