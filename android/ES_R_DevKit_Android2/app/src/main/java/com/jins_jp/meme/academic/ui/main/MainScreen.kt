@@ -186,7 +186,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
             if (ui.connection == ConnectionState.ServicesReady) {
                 MeasureCard(ui, viewModel)
             }
-            if (ui.isMeasuring) {
+            if (ui.isMeasuring || emitX > 0L) {
                 bumper // ensure recomposition keys
                 val charts = listOf(
                     ChartSpec(
