@@ -61,8 +61,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -107,6 +108,7 @@ import com.jins_jp.meme.academic.ui.theme.GyroRed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 // 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
 private const val GRAPH_LEN = 150
@@ -137,10 +139,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
     val gyroX = remember { GraphBuffer(GRAPH_LEN) }
     val gyroY = remember { GraphBuffer(GRAPH_LEN) }
     val gyroZ = remember { GraphBuffer(GRAPH_LEN) }
-    var bumper by remember { mutableStateOf(0) }
+    var bumper by remember { mutableIntStateOf(0) }
     var minimizedCharts by remember { mutableStateOf(setOf<String>()) }
     // 最新プロット点の通番(= totalCount / graphSkipCount)。経過秒の換算に使う。
-    var emitX by remember { mutableStateOf(0L) }
+    var emitX by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         viewModel.graph.collect { ev ->
@@ -298,11 +300,20 @@ private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { playbackCsvPicker.launch(arrayOf("*/*")) }) {
+                // 接続中(モック=再生中/実機いずれも)は再生ボタンを無効化する。
+                val playbackEnabled = ui.connection == ConnectionState.Disconnected
+                IconButton(
+                    onClick = { playbackCsvPicker.launch(arrayOf("*/*")) },
+                    enabled = playbackEnabled,
+                ) {
                     Icon(
                         Icons.Filled.PlayArrow,
                         contentDescription = stringResource(R.string.button_playback),
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = if (playbackEnabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        },
                     )
                 }
                 IconButton(onClick = { showSettings = true }) {
@@ -603,7 +614,7 @@ private fun HoldButton(
 ) {
     val progress = remember { Animatable(0f) }
     var holding by remember { mutableStateOf(false) }
-    var hintTrigger by remember { mutableStateOf(0) }
+    var hintTrigger by remember { mutableIntStateOf(0) }
     var showHint by remember { mutableStateOf(false) }
 
     LaunchedEffect(holding, enabled) {
@@ -626,7 +637,7 @@ private fun HoldButton(
     LaunchedEffect(hintTrigger) {
         if (hintTrigger > 0) {
             showHint = true
-            delay(2000)
+            delay(2.seconds)
             showHint = false
         }
     }

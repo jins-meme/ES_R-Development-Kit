@@ -18,6 +18,10 @@ class CsvWriter(private val context: Context) {
 
     private var uri: Uri? = null
     private var pendingHeader: String? = null
+    // 本体データCSVを遅延生成するためのファイル名。最初のデータ行が来た時に初めて
+    // MediaStore へファイルを作成する。再生(再生モード)など 1 行もデータが来ない場合は
+    // ファイル自体を作らないため、ヘッダーだけの空CSVが残らない。
+    private var dataFileName: String? = null
     private val buffer: ArrayDeque<String> = ArrayDeque()
     private val flushThreshold = 100
     private var rowCount: Long = 0
@@ -30,21 +34,10 @@ class CsvWriter(private val context: Context) {
         }
         val timestamp = nameFmt.format(Date())
         val safeAddress = address.replace(":", "")
-        val fileName = "${safeAddress}_$timestamp.csv"
-
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
-            put(
-                MediaStore.Downloads.RELATIVE_PATH,
-                "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
-            )
-            put(MediaStore.Downloads.IS_PENDING, 1)
-        }
-        uri = context.contentResolver.insert(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            values,
-        )
+        // MediaStore ファイルは即時生成せず、最初のデータ行が来た時に [flush] で
+        // 遅延生成する。これにより 1 行もデータが来なければ空CSVは残らない。
+        uri = null
+        dataFileName = "${safeAddress}_$timestamp.csv"
         rowCount = 0
         buffer.clear()
         pendingHeader = buildHeader(settings)
@@ -66,11 +59,32 @@ class CsvWriter(private val context: Context) {
         }
         uri = null
         pendingHeader = null
+        dataFileName = null
+    }
+
+    /** 最初のデータ行が来た時に本体CSVを MediaStore へ遅延生成する。 */
+    private fun createDataFile() {
+        val name = dataFileName ?: return
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+            put(
+                MediaStore.Downloads.RELATIVE_PATH,
+                "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
+            )
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            values,
+        )
     }
 
     private fun flush() {
+        // データ行が一切無いときはファイルを作らない(ヘッダーだけのCSVを残さない)。
+        if (buffer.isEmpty()) return
+        if (uri == null) createDataFile()
         val u = uri ?: return
-        if (buffer.isEmpty() && pendingHeader == null) return
         val header = pendingHeader
         runCatching {
             context.contentResolver.openOutputStream(u, "wa")?.use { os ->
