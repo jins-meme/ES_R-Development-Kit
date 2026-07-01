@@ -12,6 +12,7 @@ import Observation
 import CoreBluetooth
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -24,6 +25,8 @@ final class MEMEViewModel: NSObject {
         case deviceFound
         case connected
         case measuring
+        case replayReady
+        case replaying
     }
 
     // MARK: - Static options
@@ -116,11 +119,16 @@ final class MEMEViewModel: NSObject {
     private var socket: TCPSocket?
     private var socketDatas: [[String: Any]] = []
 
+    // File Replay
+    private var replayInfo: CsvReplayInfo?
+    private var replayRowCounter: Int = 0
+
     // MARK: - Services
 
     private let chartService = ChartService()
     private let persistence = DataPersistenceService()
     private let stats = CommunicationStatsTracker()
+    private let replayService = CsvReplayService()
 
     // MARK: - Init
 
@@ -201,6 +209,10 @@ final class MEMEViewModel: NSObject {
     }
 
     func toggleConnect() {
+        if phase == .replayReady || phase == .replaying {
+            disconnectReplay()
+            return
+        }
         if connectedFlag {
             NSLog("Call : disconnectPeripheral")
             memelib.disconnectPeripheral()
@@ -208,6 +220,111 @@ final class MEMEViewModel: NSObject {
             guard !selectedDevice.isEmpty else { return }
             NSLog("Call : connectPeripheral")
             memelib.connectPeripheral(deviceName: selectedDevice)
+        }
+    }
+
+    // MARK: - File Replay actions
+
+    func chooseReplayFile() {
+        guard phase == .idle else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.level = .modalPanel
+        if let csvType = UTType(filenameExtension: "csv") {
+            panel.allowedContentTypes = [csvType]
+        }
+        guard let window = NSApp.mainWindow else { return }
+        panel.beginSheetModal(for: window) { [weak self] result in
+            guard let self else { return }
+            guard result == .OK, let url = panel.url else { return }
+            self.loadReplayFile(url: url)
+        }
+    }
+
+    private func loadReplayFile(url: URL) {
+        do {
+            let info = try CsvReplayService.parse(url: url)
+            replayInfo = info
+            selectMode = Int(info.mode) - 1
+            transSpeed = info.transMode == MEMEQuality_High ? 0 : 1
+            accelRange = Int(info.accelRange)
+            gyroRange = Int(info.gyroRange)
+            connectionStateText = "State : \(info.fileName)"
+            phase = .replayReady
+        } catch {
+            NSLog("[Replay] failed to parse CSV: %@", url.path)
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Not a valid MEME CSV file"
+            alert.informativeText = url.lastPathComponent
+            alert.runModal()
+        }
+    }
+
+    func toggleReplay() {
+        if phase == .replaying {
+            finishReplay()
+        } else {
+            startReplay()
+        }
+    }
+
+    private func startReplay() {
+        guard phase == .replayReady, let info = replayInfo else { return }
+        phase = .replaying
+        replayRowCounter = 0
+        replayService.start(rows: info.rows,
+                            transMode: info.transMode,
+                            onRow: { [weak self] data in
+            self?.ingestReplayRow(data, mode: info.mode)
+        }, onFinished: { [weak self] in
+            self?.finishReplay()
+        })
+    }
+
+    private func finishReplay() {
+        replayService.stop()
+        guard phase == .replaying else { return }
+        phase = .replayReady
+        chartService.reset()
+        chart1Plot.reset()
+        chart2Plot.reset()
+        chart3Plot.reset()
+        stats.reset()
+        successRateValue = 0; successRateText = "0.0%"
+        communicationValue = 0; communicationText = "0.0%"
+    }
+
+    private func disconnectReplay() {
+        replayService.stop()
+        replayInfo = nil
+        phase = .idle
+        connectionStateText = "State : Disconnected"
+        reset()
+    }
+
+    private func ingestReplayRow(_ data: AcademicData, mode: UInt32) {
+        displayBattLv = data.battLv
+
+        switch mode {
+        case MEMEMode_Full:
+            guard let d = data as? AcademicFullData else { return }
+            ingestForDisplay(full: d)
+        case MEMEMode_Quaternion:
+            displayCnt = data.cnt
+            return
+        default:
+            guard let d = data as? AcademicStandardData else { return }
+            ingestForDisplay(standard: d)
+        }
+
+        replayRowCounter += 1
+        let interval = transSpeed == 0 ? 4 : 2
+        if replayRowCounter % interval == 0 {
+            chartService.append(data)
+            updateChartPlots()
         }
     }
 
@@ -385,10 +502,16 @@ final class MEMEViewModel: NSObject {
     // MARK: - Phase computed convenience
 
     var showStartScan: Bool { phase == .idle }
-    var showConnect: Bool { phase == .deviceFound || phase == .connected }
+    var showFileReplay: Bool { phase == .idle }
+    var showConnect: Bool { phase == .deviceFound || phase == .connected || phase == .replayReady || phase == .replaying }
+    var connectButtonLabel: String {
+        (phase == .connected || phase == .replayReady || phase == .replaying) ? "Disconnect" : "Connect"
+    }
     var showMeasurement: Bool { phase == .connected || phase == .measuring }
     var showFreeMarking: Bool { phase == .measuring }
-    var isInputDisabled: Bool { phase == .measuring }
+    var showReplayControls: Bool { phase == .replayReady || phase == .replaying }
+    var replayButtonLabel: String { phase == .replaying ? "Stop Replay" : "Start Replay" }
+    var isInputDisabled: Bool { phase == .measuring || phase == .replayReady || phase == .replaying }
 }
 
 // =============================================================================

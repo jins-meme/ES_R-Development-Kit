@@ -73,8 +73,13 @@ private struct LeftColumnView: View {
             Divider()
 
             Group {
-                if viewModel.showStartScan {
-                    Button("Start Scan") { viewModel.startScan() }
+                HStack(spacing: 8) {
+                    if viewModel.showStartScan {
+                        Button("Start Scan") { viewModel.startScan() }
+                    }
+                    if viewModel.showFileReplay {
+                        Button("File Replay") { viewModel.chooseReplayFile() }
+                    }
                 }
                 Picker("", selection: $vm.selectedDevice) {
                     if viewModel.foundDevices.isEmpty {
@@ -86,7 +91,7 @@ private struct LeftColumnView: View {
                 .labelsHidden()
                 .disabled(viewModel.isInputDisabled)
                 if viewModel.showConnect {
-                    Button(viewModel.phase == .connected ? "Disconnect" : "Connect") {
+                    Button(viewModel.connectButtonLabel) {
                         viewModel.toggleConnect()
                     }
                 }
@@ -130,6 +135,11 @@ private struct LeftColumnView: View {
                 }
                 if viewModel.showFreeMarking {
                     Button("Free Marking") { viewModel.toggleFreeMarking() }
+                }
+                if viewModel.showReplayControls {
+                    Button(viewModel.replayButtonLabel) {
+                        viewModel.toggleReplay()
+                    }
                 }
             }
 
