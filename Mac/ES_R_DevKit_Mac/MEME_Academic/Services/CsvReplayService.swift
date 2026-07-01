@@ -15,6 +15,7 @@ enum CsvReplayError: Error {
 }
 
 struct CsvReplayInfo {
+    let url: URL
     let fileName: String
     let mode: UInt32
     let transMode: UInt32
@@ -31,6 +32,8 @@ final class CsvReplayService {
     private var rowIndex: Int = 0
     private var onRow: ((AcademicData, Int, Int) -> Void)?
     private var onFinished: (() -> Void)?
+    /// 再生間隔（Trans Speed 由来）。pause 後の resume で同じ間隔を復元するために保持する。
+    private var interval: TimeInterval = 0.01
 
     // MARK: - Parse
 
@@ -80,7 +83,8 @@ final class CsvReplayService {
         }
         guard !rows.isEmpty else { throw CsvReplayError.invalidFormat }
 
-        return CsvReplayInfo(fileName: url.lastPathComponent,
+        return CsvReplayInfo(url: url,
+                             fileName: url.lastPathComponent,
                              mode: mode,
                              transMode: transMode,
                              accelRange: accelRange,
@@ -178,6 +182,43 @@ final class CsvReplayService {
         }
     }
 
+    // MARK: - Artifact write-back
+
+    /// 再生元CSVの ARTIFACT 列（各データ行の先頭カラム）に artifacts を書き込む。
+    /// キーは0始まりのデータ行インデックス（parse が生成する rows と同じ順序）。
+    /// 既に値が入っている行は上書きする。artifacts が空なら何もしない。
+    static func applyArtifacts(url: URL, artifacts: [Int: String]) throws {
+        guard !artifacts.isEmpty else { return }
+        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
+            throw CsvReplayError.unreadable
+        }
+        // 本アプリ形式のCSVは "\n" 区切り。分割→加工→"\n"で連結して構造を保つ。
+        var lines = content.components(separatedBy: "\n")
+        guard let headerIndex = lines.firstIndex(where: { $0.hasPrefix("//ARTIFACT") }) else {
+            throw CsvReplayError.invalidFormat
+        }
+
+        let dataStart = headerIndex + 1
+        var dataRow = 0
+        for i in dataStart..<lines.count {
+            // parse と同じく空行はデータ行として数えない。
+            if lines[i].trimmingCharacters(in: .whitespaces).isEmpty { continue }
+            if let artifact = artifacts[dataRow] {
+                lines[i] = replacingFirstField(in: lines[i], with: artifact)
+            }
+            dataRow += 1
+        }
+
+        let newContent = lines.joined(separator: "\n")
+        try newContent.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// 1行の最初のカンマより前（ARTIFACT列）を value に差し替える。
+    private static func replacingFirstField(in line: String, with value: String) -> String {
+        guard let commaRange = line.range(of: ",") else { return line }
+        return value + String(line[commaRange.lowerBound...])
+    }
+
     // MARK: - Playback
 
     /// Trans Speed（100Hz/50Hz）に対応する間隔で1行ずつ onRow を呼び出す。
@@ -192,17 +233,33 @@ final class CsvReplayService {
         rowIndex = 0
         self.onRow = onRow
         self.onFinished = onFinished
-        let interval: TimeInterval = transMode == MEMEQuality_High ? 0.01 : 0.02
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tick()
-            }
-        }
+        interval = transMode == MEMEQuality_High ? 0.01 : 0.02
+        scheduleTimer()
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// 再生を一時停止する（タイマーのみ止め、再生位置・コールバックは保持）。
+    func pause() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// 一時停止中の再生を、同じ位置・同じ間隔から再開する。
+    func resume() {
+        guard timer == nil, !rows.isEmpty, rowIndex < rows.count else { return }
+        scheduleTimer()
+    }
+
+    private func scheduleTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.tick()
+            }
+        }
     }
 
     /// 再生位置を指定行へジャンプさせる（再生中のタイマーはそのまま継続）。

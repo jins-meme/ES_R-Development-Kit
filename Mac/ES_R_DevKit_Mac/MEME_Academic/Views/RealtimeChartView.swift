@@ -15,13 +15,42 @@ struct RealtimeChartView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let plot: ChartPlot
+    /// チャートがタップされたときに、対象データ行（絶対サンプル位置）を通知する。
+    var onTapRow: ((Int) -> Void)? = nil
+
+    // プロット領域の余白（描画とタップ座標→行の変換で共有する）。
+    private static let leftInset: CGFloat = 46
+    private static let rightInset: CGFloat = 8
+    private static let topInset: CGFloat = 6
+    private static let bottomInset: CGFloat = 16
 
     var body: some View {
-        Canvas(opaque: false, rendersAsynchronously: false) { context, size in
-            draw(context: context, size: size)
+        GeometryReader { geo in
+            Canvas(opaque: false, rendersAsynchronously: false) { context, size in
+                draw(context: context, size: size)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        onTapRow?(rowForTap(x: value.location.x, width: geo.size.width))
+                    }
+            )
         }
         .padding(.vertical, 4)
         .background(chartBackground)
+    }
+
+    /// タップX座標を、右詰め描画に合わせて絶対サンプル行へ変換する。
+    private func rowForTap(x: CGFloat, width: CGFloat) -> Int {
+        let plotMinX = Self.leftInset
+        let plotWidth = max(1, width - Self.leftInset - Self.rightInset)
+        let clampedX = min(max(x, plotMinX), plotMinX + plotWidth)
+        // 右端＝最新（fromRight=0）、左端＝最古（fromRight=1）。
+        let fromRight = (plotMinX + plotWidth - clampedX) / plotWidth
+        let windowSamples = max(plot.windowSamples, 1)
+        let offset = Int((fromRight * CGFloat(windowSamples)).rounded())
+        return max(0, plot.latestSampleIndex - offset)
     }
 
     // MARK: - Colors
@@ -42,14 +71,10 @@ struct RealtimeChartView: View {
     // MARK: - Drawing
 
     private func draw(context: GraphicsContext, size: CGSize) {
-        let leftInset: CGFloat = 46
-        let rightInset: CGFloat = 8
-        let topInset: CGFloat = 6
-        let bottomInset: CGFloat = 16
-        let plotRect = CGRect(x: leftInset,
-                              y: topInset,
-                              width: max(1, size.width - leftInset - rightInset),
-                              height: max(1, size.height - topInset - bottomInset))
+        let plotRect = CGRect(x: Self.leftInset,
+                              y: Self.topInset,
+                              width: max(1, size.width - Self.leftInset - Self.rightInset),
+                              height: max(1, size.height - Self.topInset - Self.bottomInset))
 
         let ySpan = max(plot.yMax - plot.yMin, 0.0001)
         func yFor(_ v: Double) -> CGFloat {

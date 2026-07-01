@@ -115,6 +115,13 @@ final class MEMEViewModel: NSObject {
     // Replay scrubbing
     var replayProgress: Double = 0 // 0...100
 
+    // Replay pause
+    var isReplayPaused: Bool = false
+
+    // Artifact tagging dialog
+    var showingArtifactDialog: Bool = false
+    var artifactInput: String = ""
+
     // MARK: - Private state
 
     private var memelib: (any MEMELibInterface)!
@@ -130,6 +137,11 @@ final class MEMEViewModel: NSObject {
     private var replayInfo: CsvReplayInfo?
     private var currentReplayIndex: Int = 0
     private var isScrubbingReplay = false
+
+    /// タップで記録した Artifact（データ行インデックス → 文字列）。停止時にCSVへ書き戻す。
+    private var pendingArtifacts: [Int: String] = [:]
+    /// Artifact ダイアログの対象データ行インデックス。
+    private var artifactTargetRow: Int = 0
 
     /// 描画スロットリング用カウンタ（appendChartSample で加算）。
     private var chartRenderCounter: Int = 0
@@ -190,6 +202,9 @@ final class MEMEViewModel: NSObject {
         socketDatas = []
         socketStatusText = "Status : "
         isFreeMarking = false
+        isReplayPaused = false
+        pendingArtifacts.removeAll()
+        showingArtifactDialog = false
         chart1Plot.reset()
         chart2Plot.reset()
         chart3Plot.reset()
@@ -259,6 +274,7 @@ final class MEMEViewModel: NSObject {
         do {
             let info = try CsvReplayService.parse(url: url)
             replayInfo = info
+            pendingArtifacts.removeAll()
             selectMode = Int(info.mode) - 1
             transSpeed = info.transMode == MEMEQuality_High ? 0 : 1
             accelRange = Int(info.accelRange)
@@ -286,6 +302,7 @@ final class MEMEViewModel: NSObject {
     private func startReplay() {
         guard phase == .replayReady, let info = replayInfo else { return }
         phase = .replaying
+        isReplayPaused = false
         chartService.reset()
         chartRenderCounter = 0
         currentReplayIndex = 0
@@ -302,7 +319,10 @@ final class MEMEViewModel: NSObject {
     private func finishReplay() {
         replayService.stop()
         guard phase == .replaying else { return }
+        // 停止時に、タップで記録した Artifact を再生元CSVへ書き戻す。
+        flushArtifacts()
         phase = .replayReady
+        isReplayPaused = false
         chartService.reset()
         chart1Plot.reset()
         chart2Plot.reset()
@@ -315,10 +335,62 @@ final class MEMEViewModel: NSObject {
 
     private func disconnectReplay() {
         replayService.stop()
+        // 再生中に切断された場合も、記録済み Artifact は書き戻す。
+        flushArtifacts()
         replayInfo = nil
         phase = .idle
         connectionStateText = "State : Disconnected"
         reset()
+    }
+
+    // MARK: - Replay pause
+
+    func toggleReplayPause() {
+        guard phase == .replaying else { return }
+        if isReplayPaused {
+            replayService.resume()
+            isReplayPaused = false
+        } else {
+            replayService.pause()
+            isReplayPaused = true
+        }
+    }
+
+    // MARK: - Artifact tagging
+
+    /// チャートタップ時に呼ぶ。再生中のみ、対象データ行を控えてダイアログを開く。
+    func chartTapped(row: Int) {
+        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
+        artifactTargetRow = min(max(row, 0), info.rows.count - 1)
+        artifactInput = ""
+        showingArtifactDialog = true
+    }
+
+    /// ダイアログOK。空なら "X"、カンマ/改行は列崩れ防止のため除去してメモリに記録（同一行は上書き）。
+    func confirmArtifact() {
+        let sanitized = artifactInput
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+        pendingArtifacts[artifactTargetRow] = sanitized.isEmpty ? "X" : sanitized
+        artifactInput = ""
+        showingArtifactDialog = false
+    }
+
+    func cancelArtifact() {
+        artifactInput = ""
+        showingArtifactDialog = false
+    }
+
+    /// 記録済み Artifact を再生元CSVの ARTIFACT 列へ書き戻す（停止/切断時）。
+    private func flushArtifacts() {
+        guard !pendingArtifacts.isEmpty, let info = replayInfo else { return }
+        do {
+            try CsvReplayService.applyArtifacts(url: info.url, artifacts: pendingArtifacts)
+        } catch {
+            NSLog("[Artifact] failed to write: %@", error.localizedDescription)
+        }
+        pendingArtifacts.removeAll()
     }
 
     private func ingestReplayRow(_ data: AcademicData, mode: UInt32, index: Int, total: Int) {
@@ -621,6 +693,8 @@ final class MEMEViewModel: NSObject {
     var showFreeMarking: Bool { phase == .measuring }
     var showReplayControls: Bool { phase == .replayReady || phase == .replaying }
     var replayButtonLabel: String { phase == .replaying ? "Stop Replay" : "Start Replay" }
+    var showReplayPause: Bool { phase == .replaying }
+    var replayPauseButtonLabel: String { isReplayPaused ? "Resume" : "Pause" }
     var isInputDisabled: Bool { phase == .measuring || phase == .replayReady || phase == .replaying }
     var showXRangeControls: Bool { phase == .measuring || phase == .replaying }
     var showReplayScrubber: Bool { phase == .replaying }

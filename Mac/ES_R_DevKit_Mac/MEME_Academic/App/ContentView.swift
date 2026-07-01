@@ -49,6 +49,11 @@ struct ContentView: View {
             SettingsView()
                 .environment(viewModel)
         }
+        .alert("Artifact", isPresented: $vm.showingArtifactDialog) {
+            TextField("Artifact", text: $vm.artifactInput, prompt: Text("x"))
+            Button("Cancel", role: .cancel) { viewModel.cancelArtifact() }
+            Button("OK") { viewModel.confirmArtifact() }
+        }
     }
 }
 
@@ -136,6 +141,11 @@ private struct LeftColumnView: View {
                 if viewModel.showReplayControls {
                     Button(viewModel.replayButtonLabel) {
                         viewModel.toggleReplay()
+                    }
+                }
+                if viewModel.showReplayPause {
+                    Button(viewModel.replayPauseButtonLabel) {
+                        viewModel.toggleReplayPause()
                     }
                 }
                 if viewModel.showXRangeControls {
@@ -270,8 +280,10 @@ private struct ChartPanelView: View {
                                eog: $eog, gyro: $gyro, accel: $accel,
                                disabled: viewModel.isInputDisabled)
                     .frame(width: 160)
-                RealtimeChartView(plot: plot)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                RealtimeChartView(plot: plot) { row in
+                    viewModel.chartTapped(row: row)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .padding(8)
