@@ -108,6 +108,13 @@ final class MEMEViewModel: NSObject {
     // Settings sheet presentation
     var showingSettings: Bool = false
 
+    // Chart X-axis range (seconds)
+    let xRangeOptions: [Int] = [3, 7, 15, 30]
+    var xRangeIndex: Int = 1 // 7秒がデフォルト
+
+    // Replay scrubbing
+    var replayProgress: Double = 0 // 0...100
+
     // MARK: - Private state
 
     private var memelib: (any MEMELibInterface)!
@@ -122,6 +129,8 @@ final class MEMEViewModel: NSObject {
     // File Replay
     private var replayInfo: CsvReplayInfo?
     private var replayRowCounter: Int = 0
+    private var currentReplayIndex: Int = 0
+    private var isScrubbingReplay = false
 
     // MARK: - Services
 
@@ -275,10 +284,12 @@ final class MEMEViewModel: NSObject {
         guard phase == .replayReady, let info = replayInfo else { return }
         phase = .replaying
         replayRowCounter = 0
+        currentReplayIndex = 0
+        replayProgress = 0
         replayService.start(rows: info.rows,
                             transMode: info.transMode,
-                            onRow: { [weak self] data in
-            self?.ingestReplayRow(data, mode: info.mode)
+                            onRow: { [weak self] data, index, total in
+            self?.ingestReplayRow(data, mode: info.mode, index: index, total: total)
         }, onFinished: { [weak self] in
             self?.finishReplay()
         })
@@ -295,6 +306,7 @@ final class MEMEViewModel: NSObject {
         stats.reset()
         successRateValue = 0; successRateText = "0.0%"
         communicationValue = 0; communicationText = "0.0%"
+        replayProgress = 0
     }
 
     private func disconnectReplay() {
@@ -305,8 +317,12 @@ final class MEMEViewModel: NSObject {
         reset()
     }
 
-    private func ingestReplayRow(_ data: AcademicData, mode: UInt32) {
+    private func ingestReplayRow(_ data: AcademicData, mode: UInt32, index: Int, total: Int) {
         displayBattLv = data.battLv
+        currentReplayIndex = index
+        if !isScrubbingReplay {
+            replayProgress = total > 1 ? Double(index) / Double(total - 1) * 100 : 0
+        }
 
         switch mode {
         case MEMEMode_Full:
@@ -326,6 +342,53 @@ final class MEMEViewModel: NSObject {
             chartService.append(data)
             updateChartPlots()
         }
+    }
+
+    // MARK: - Replay scrubbing (slider / jump)
+
+    /// スライダーの操作状態が変わったときに呼ぶ。ドラッグ終了時にシークする。
+    func replaySliderEditingChanged(_ editing: Bool) {
+        isScrubbingReplay = editing
+        if !editing {
+            seekReplay(toProgress: replayProgress)
+        }
+    }
+
+    /// >> ボタン：現在のX軸レンジ1つ分だけ再生位置を進める。
+    func replayJumpForward() {
+        jumpReplay(bySeconds: xRangeSeconds)
+    }
+
+    /// << ボタン：現在のX軸レンジ1つ分だけ再生位置を戻す。
+    func replayJumpBackward() {
+        jumpReplay(bySeconds: -xRangeSeconds)
+    }
+
+    private func jumpReplay(bySeconds seconds: Int) {
+        guard phase == .replaying, let info = replayInfo else { return }
+        let rowsPerSecond = info.transMode == MEMEQuality_High ? 100 : 50
+        seekReplay(toRow: currentReplayIndex + seconds * rowsPerSecond)
+    }
+
+    private func seekReplay(toProgress progress: Double) {
+        guard let info = replayInfo, info.rows.count > 1 else { return }
+        let clampedProgress = min(max(progress, 0), 100)
+        let index = Int((clampedProgress / 100) * Double(info.rows.count - 1))
+        seekReplay(toRow: index)
+    }
+
+    /// 再生中のシーク処理。チャートは新しい位置からの表示に作り直す。
+    private func seekReplay(toRow index: Int) {
+        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
+        let clamped = min(max(index, 0), info.rows.count - 1)
+        replayService.seek(to: clamped)
+        replayRowCounter = 0
+        currentReplayIndex = clamped
+        chartService.reset()
+        chart1Plot.reset()
+        chart2Plot.reset()
+        chart3Plot.reset()
+        replayProgress = info.rows.count > 1 ? Double(clamped) / Double(info.rows.count - 1) * 100 : 0
     }
 
     func toggleMeasurement() {
@@ -483,7 +546,26 @@ final class MEMEViewModel: NSObject {
                                  chart3Category: chart3Category,
                                  chart3Eog: chart3EogToggles,
                                  chart3Gyro: chart3GyroToggles,
-                                 chart3Accel: chart3AccelToggles)
+                                 chart3Accel: chart3AccelToggles,
+                                 xRangeSeconds: xRangeSeconds)
+    }
+
+    // MARK: - Chart X-axis range
+
+    var xRangeSeconds: Int { xRangeOptions[xRangeIndex] }
+    var canZoomInXRange: Bool { xRangeIndex > 0 }
+    var canZoomOutXRange: Bool { xRangeIndex < xRangeOptions.count - 1 }
+
+    /// + ボタン：より狭い（短い）X軸レンジへ。
+    func zoomInXRange() {
+        guard canZoomInXRange else { return }
+        xRangeIndex -= 1
+    }
+
+    /// － ボタン：より広い（長い）X軸レンジへ。
+    func zoomOutXRange() {
+        guard canZoomOutXRange else { return }
+        xRangeIndex += 1
     }
 
     // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
@@ -512,6 +594,8 @@ final class MEMEViewModel: NSObject {
     var showReplayControls: Bool { phase == .replayReady || phase == .replaying }
     var replayButtonLabel: String { phase == .replaying ? "Stop Replay" : "Start Replay" }
     var isInputDisabled: Bool { phase == .measuring || phase == .replayReady || phase == .replaying }
+    var showXRangeControls: Bool { phase == .measuring || phase == .replaying }
+    var showReplayScrubber: Bool { phase == .replaying }
 }
 
 // =============================================================================
@@ -672,6 +756,8 @@ struct ChartSeries: Identifiable {
     var id: String { name }
     let name: String
     let color: Color
+    /// values[i] を描画するX軸位置（間引き後も時間軸上の正しい位置を保つため）。
+    var xs: [Int]
     var values: [Double]
 }
 
@@ -680,6 +766,8 @@ struct ChartPlot {
     var yMax: Double
     var xInitial: Float = 0
     var xLabelStart: Int = 0
+    /// デフォルトの X軸レンジ（7秒）× 25サンプル/秒。
+    var xMax: Int = 7 * ChartService.xLongScale
     var series: [ChartSeries] = []
 
     mutating func reset() {

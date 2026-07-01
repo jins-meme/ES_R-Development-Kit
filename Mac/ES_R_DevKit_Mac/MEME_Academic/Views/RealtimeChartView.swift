@@ -15,16 +15,16 @@ struct RealtimeChartView: View {
 
     let plot: ChartPlot
 
-    private let xMax: Int = 200
-    private let xLongScale: Int = 25
+    private var xMax: Int { plot.xMax }
+    private let xLongScale: Int = ChartService.xLongScale
 
     var body: some View {
         Chart {
             ForEach(plot.series) { series in
-                ForEach(Array(series.values.enumerated()), id: \.offset) { idx, value in
+                ForEach(series.points) { point in
                     LineMark(
-                        x: .value("Index", idx),
-                        y: .value("Value", value)
+                        x: .value("Index", point.x),
+                        y: .value("Value", point.value)
                     )
                     .foregroundStyle(by: .value("Series", series.name))
                     .lineStyle(StrokeStyle(lineWidth: 1.0))
@@ -89,5 +89,17 @@ struct RealtimeChartView: View {
             "Acc Y": .green,
             "Acc Z": .blue
         ]
+    }
+
+    fileprivate struct PlotPoint: Identifiable {
+        let id: Int
+        var x: Int { id }
+        let value: Double
+    }
+}
+
+private extension ChartSeries {
+    var points: [RealtimeChartView.PlotPoint] {
+        zip(xs, values).map { RealtimeChartView.PlotPoint(id: $0, value: $1) }
     }
 }

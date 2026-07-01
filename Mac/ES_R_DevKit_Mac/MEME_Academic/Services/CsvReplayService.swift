@@ -29,7 +29,7 @@ final class CsvReplayService {
     private var timer: Timer?
     private var rows: [AcademicData] = []
     private var rowIndex: Int = 0
-    private var onRow: ((AcademicData) -> Void)?
+    private var onRow: ((AcademicData, Int, Int) -> Void)?
     private var onFinished: (() -> Void)?
 
     // MARK: - Parse
@@ -182,9 +182,10 @@ final class CsvReplayService {
 
     /// Trans Speed（100Hz/50Hz）に対応する間隔で1行ずつ onRow を呼び出す。
     /// 最終行まで再生し終えたら onFinished を呼ぶ。
+    /// onRow には再生した行に加えて、その行の絶対インデックスと全行数を渡す。
     func start(rows: [AcademicData],
               transMode: UInt32,
-              onRow: @escaping (AcademicData) -> Void,
+              onRow: @escaping (AcademicData, Int, Int) -> Void,
               onFinished: @escaping () -> Void) {
         stop()
         self.rows = rows
@@ -204,6 +205,12 @@ final class CsvReplayService {
         timer = nil
     }
 
+    /// 再生位置を指定行へジャンプさせる（再生中のタイマーはそのまま継続）。
+    func seek(to index: Int) {
+        guard !rows.isEmpty else { return }
+        rowIndex = min(max(index, 0), rows.count - 1)
+    }
+
     private func tick() {
         guard rowIndex < rows.count else {
             let finished = onFinished
@@ -214,7 +221,8 @@ final class CsvReplayService {
             return
         }
         let row = rows[rowIndex]
+        let index = rowIndex
         rowIndex += 1
-        onRow?(row)
+        onRow?(row, index, rows.count)
     }
 }

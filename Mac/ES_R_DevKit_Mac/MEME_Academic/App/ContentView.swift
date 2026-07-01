@@ -133,14 +133,28 @@ private struct LeftColumnView: View {
                         viewModel.toggleMeasurement()
                     }
                 }
-                if viewModel.showFreeMarking {
-                    Button("Free Marking") { viewModel.toggleFreeMarking() }
-                }
                 if viewModel.showReplayControls {
                     Button(viewModel.replayButtonLabel) {
                         viewModel.toggleReplay()
                     }
                 }
+                if viewModel.showXRangeControls {
+                    Button("＋") { viewModel.zoomInXRange() }
+                        .disabled(!viewModel.canZoomInXRange)
+                        .help("より狭いX軸レンジに拡大する")
+                    Button("－") { viewModel.zoomOutXRange() }
+                        .disabled(!viewModel.canZoomOutXRange)
+                        .help("より広いX軸レンジに縮小する")
+                    Text("\(viewModel.xRangeSeconds)s").foregroundStyle(.secondary).monospacedDigit()
+                }
+                if viewModel.showFreeMarking {
+                    Button("Free Marking") { viewModel.toggleFreeMarking() }
+                }
+            }
+
+            if viewModel.showReplayScrubber {
+                ReplayScrubberView()
+                    .environment(viewModel)
             }
 
             Divider()
@@ -149,6 +163,24 @@ private struct LeftColumnView: View {
                 .environment(viewModel)
 
             Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct ReplayScrubberView: View {
+    @Environment(MEMEViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+
+        VStack(alignment: .leading, spacing: 6) {
+            Slider(value: $vm.replayProgress, in: 0...100) { editing in
+                viewModel.replaySliderEditingChanged(editing)
+            }
+            HStack(spacing: 8) {
+                Button("<<") { viewModel.replayJumpBackward() }
+                Button(">>") { viewModel.replayJumpForward() }
+            }
         }
     }
 }
