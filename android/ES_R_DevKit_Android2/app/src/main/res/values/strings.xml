@@ -52,4 +52,9 @@
     <string name="eog_graph_title">EOG data</string>
     <string name="acc_graph_title">Accel data</string>
     <string name="gyro_graph_title">Gyro data</string>
+
+    <!-- フォアグラウンドサービス（計測中の常駐通知） -->
+    <string name="notification_channel_measurement">計測</string>
+    <string name="notification_measuring_title">ES_R DevKit 2 計測中</string>
+    <string name="notification_measuring_text">センサーデータを受信しています</string>
 </resources>

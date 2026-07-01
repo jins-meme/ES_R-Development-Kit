@@ -24,6 +24,7 @@ import com.jins_jp.meme.academic.data.MockCsvFormatException
 import com.jins_jp.meme.academic.data.MockCsvLoader
 import com.jins_jp.meme.academic.data.SettingsStore
 import com.jins_jp.meme.academic.data.formatRow
+import com.jins_jp.meme.academic.service.MeasurementService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -128,6 +129,13 @@ class MainViewModel(
         viewModelScope.launch { collectConnection() }
         viewModelScope.launch { collectIncoming() }
         viewModelScope.launch { collectDescriptorWritten() }
+    }
+
+    override fun onCleared() {
+        // Activity が破棄されると viewModelScope のデータパイプラインも止まるため、
+        // 常駐サービスだけを残さない（プロセスが生きていても受信処理が死ぬため）。
+        MeasurementService.stop(getApplication())
+        super.onCleared()
     }
 
     /**
@@ -267,12 +275,16 @@ class MainViewModel(
                         )
                     }
                     // Auto-reconnect only on an unexpected drop while measuring.
-                    if (wasMeasuring &&
+                    val willReconnect = wasMeasuring &&
                         _ui.value.reconnectEnabled &&
                         !_ui.value.mockEnabled &&
                         !userInitiatedDisconnect
-                    ) {
+                    if (willReconnect) {
+                        // 再接続ループは同一の計測セッションの続きなので、バックグラウンドで
+                        // 切断されてもプロセスが死なないようサービスは止めずに維持する。
                         startAutoReconnect()
+                    } else {
+                        MeasurementService.stop(getApplication())
                     }
                 }
                 else -> Unit
@@ -371,6 +383,10 @@ class MainViewModel(
             }
             if (!ui.value.mockEnabled) {
                 csv.start(addr, ui.value.settings)
+                // 実機計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
+                // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
+                // Mock 再生は BLE を使わないので不要。
+                MeasurementService.start(getApplication())
             }
 
             delay(0); sendSetMode()
@@ -397,6 +413,7 @@ class MainViewModel(
                 csv.stop()
             }
             stopCommTicker()
+            MeasurementService.stop(getApplication())
             _ui.update { it.copy(isMeasuring = false, recordingRows = 0L) }
         }
     }
@@ -472,6 +489,9 @@ class MainViewModel(
         job.cancel()
         if (repo.scanning.value) repo.stopScan()
         _ui.update { it.copy(isReconnecting = false) }
+        // 再接続を諦めた／ユーザー操作で中断した場合、計測もしていないなら
+        // 切断中に維持していたサービスをここで畳む。
+        if (!ui.value.isMeasuring) MeasurementService.stop(getApplication())
     }
 
     fun marking() {
