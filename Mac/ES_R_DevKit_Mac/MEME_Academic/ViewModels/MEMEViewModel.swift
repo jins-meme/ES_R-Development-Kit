@@ -128,9 +128,11 @@ final class MEMEViewModel: NSObject {
 
     // File Replay
     private var replayInfo: CsvReplayInfo?
-    private var replayRowCounter: Int = 0
     private var currentReplayIndex: Int = 0
     private var isScrubbingReplay = false
+
+    /// 描画スロットリング用カウンタ（appendChartSample で加算）。
+    private var chartRenderCounter: Int = 0
 
     // MARK: - Services
 
@@ -184,6 +186,7 @@ final class MEMEViewModel: NSObject {
         persistence.reset()
         stats.reset()
         chartService.reset()
+        chartRenderCounter = 0
         socketDatas = []
         socketStatusText = "Status : "
         isFreeMarking = false
@@ -283,7 +286,8 @@ final class MEMEViewModel: NSObject {
     private func startReplay() {
         guard phase == .replayReady, let info = replayInfo else { return }
         phase = .replaying
-        replayRowCounter = 0
+        chartService.reset()
+        chartRenderCounter = 0
         currentReplayIndex = 0
         replayProgress = 0
         replayService.start(rows: info.rows,
@@ -336,12 +340,7 @@ final class MEMEViewModel: NSObject {
             ingestForDisplay(standard: d)
         }
 
-        replayRowCounter += 1
-        let interval = transSpeed == 0 ? 4 : 2
-        if replayRowCounter % interval == 0 {
-            chartService.append(data)
-            updateChartPlots()
-        }
+        appendChartSample(data)
     }
 
     // MARK: - Replay scrubbing (slider / jump)
@@ -382,9 +381,10 @@ final class MEMEViewModel: NSObject {
         guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
         let clamped = min(max(index, 0), info.rows.count - 1)
         replayService.seek(to: clamped)
-        replayRowCounter = 0
+        chartRenderCounter = 0
         currentReplayIndex = clamped
-        chartService.reset()
+        // シーク先の絶対サンプル位置を引き継ぎ、時間軸ラベルがシーク後も正しく続くようにする。
+        chartService.reset(baseIndex: clamped)
         chart1Plot.reset()
         chart2Plot.reset()
         chart3Plot.reset()
@@ -531,6 +531,33 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Chart update
 
+    /// チャート描画のサンプリング周波数（Hz）。時間軸ラベル（秒 = 行数 / 周波数）に使う。
+    /// 再生中は再生ファイルの設定、計測中はデバイスの Trans Speed に従う。
+    private var chartSampleRate: Int {
+        if let info = replayInfo, phase == .replaying || phase == .replayReady {
+            return info.transMode == MEMEQuality_High ? 100 : 50
+        }
+        return memelib?.getTransMode() == MEMEQuality_High ? 100 : 50
+    }
+
+    /// 再描画を間引く周期。データはフルレートで取り込みつつ、Canvas 再描画を抑える。
+    /// （2x/3x 再生でデータ取込が速くなっても描画負荷が線形に増えないようにするため。）
+    /// 描画点数が多い30秒窓のみ10Hz、それ以外（3/7/15秒窓）は25Hzで再描画する。
+    private var chartRenderStride: Int {
+        let targetHz: Double = xRangeSeconds >= 30 ? 10 : 25
+        return max(1, Int((Double(chartSampleRate) / targetHz).rounded()))
+    }
+
+    /// 1サンプルをバッファへ追加し、スロットリング周期ごとにプロットを更新する。
+    /// ハム（50/60Hz）成分を残すため間引かず全サンプルを保持する。
+    private func appendChartSample(_ data: AcademicData) {
+        chartService.append(data)
+        chartRenderCounter += 1
+        if chartRenderCounter % chartRenderStride == 0 {
+            updateChartPlots()
+        }
+    }
+
     private func updateChartPlots() {
         chartService.updatePlots(chart1: &chart1Plot,
                                  chart1Category: chart1Category,
@@ -547,6 +574,7 @@ final class MEMEViewModel: NSObject {
                                  chart3Eog: chart3EogToggles,
                                  chart3Gyro: chart3GyroToggles,
                                  chart3Accel: chart3AccelToggles,
+                                 sampleRate: chartSampleRate,
                                  xRangeSeconds: xRangeSeconds)
     }
 
@@ -661,23 +689,13 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData) {
         ingestPacket(data: data)
         ingestForDisplay(standard: data)
-
-        let interval = memelib.getTransMode() == MEMEQuality_High ? 4 : 2
-        if stats.totalCount % interval == 0 {
-            chartService.append(data)
-            updateChartPlots()
-        }
+        appendChartSample(data)
     }
 
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData) {
         ingestPacket(data: data)
         ingestForDisplay(full: data)
-
-        let interval = memelib.getTransMode() == MEMEQuality_High ? 4 : 2
-        if stats.totalCount % interval == 0 {
-            chartService.append(data)
-            updateChartPlots()
-        }
+        appendChartSample(data)
     }
 
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData) {
@@ -756,23 +774,24 @@ struct ChartSeries: Identifiable {
     var id: String { name }
     let name: String
     let color: Color
-    /// values[i] を描画するX軸位置（間引き後も時間軸上の正しい位置を保つため）。
-    var xs: [Int]
+    /// 波形の値。X軸位置は配列内インデックス（等間隔サンプリング前提）で表す。
     var values: [Double]
 }
 
 struct ChartPlot {
     var yMin: Double
     var yMax: Double
-    var xInitial: Float = 0
-    var xLabelStart: Int = 0
-    /// デフォルトの X軸レンジ（7秒）× 25サンプル/秒。
-    var xMax: Int = 7 * ChartService.xLongScale
+    /// 表示ウィンドウの全幅（サンプル数）＝ xRangeSeconds × sampleRate。X座標の正規化に使う。
+    var windowSamples: Int = 7 * 100
+    /// 最新サンプル（＝右端）のストリーム全体での絶対サンプル位置。
+    /// 波形を右詰めで描画し、時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）を算出するために使う。
+    var latestSampleIndex: Int = 0
+    /// サンプリング周波数（Hz）。時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）算出に使う。
+    var sampleRate: Int = 100
     var series: [ChartSeries] = []
 
     mutating func reset() {
-        xInitial = 0
-        xLabelStart = 0
+        latestSampleIndex = 0
         series.removeAll()
     }
 
