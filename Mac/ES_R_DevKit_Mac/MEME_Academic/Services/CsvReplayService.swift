@@ -22,6 +22,9 @@ struct CsvReplayInfo {
     let accelRange: UInt32
     let gyroRange: UInt32
     let rows: [AcademicData]
+    /// ARTIFACT列（先頭カラム）に文字列が入っているデータ行（0始まり rows インデックス → 文字列）。
+    /// 再生中にチャート上へ表示するために使う。値が空の行は含めない。
+    let artifacts: [Int: String]
 }
 
 @MainActor
@@ -74,10 +77,16 @@ final class CsvReplayService {
         }
 
         var rows: [AcademicData] = []
+        var artifacts: [Int: String] = [:]
         for rawLine in lines[dataStartIndex...] {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
             if let row = parseRow(line, mode: mode) {
+                // ARTIFACT列（最初のカンマより前）に文字列があれば、その行インデックスで控える。
+                let artifact = String(line.prefix(while: { $0 != "," }))
+                if !artifact.isEmpty {
+                    artifacts[rows.count] = artifact
+                }
                 rows.append(row)
             }
         }
@@ -89,7 +98,8 @@ final class CsvReplayService {
                              transMode: transMode,
                              accelRange: accelRange,
                              gyroRange: gyroRange,
-                             rows: rows)
+                             rows: rows,
+                             artifacts: artifacts)
     }
 
     private static func valueAfterColon(_ line: String) -> String? {

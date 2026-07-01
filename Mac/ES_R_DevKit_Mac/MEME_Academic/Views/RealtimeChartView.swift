@@ -67,6 +67,8 @@ struct RealtimeChartView: View {
     private var labelColor: Color {
         colorScheme == .dark ? Color(white: 0.70) : Color(white: 0.35)
     }
+    /// Artifact の縦線・文字色。波形色（赤/緑/青/黄）と被らないアクセント色。
+    private var artifactColor: Color { .orange }
 
     // MARK: - Drawing
 
@@ -86,8 +88,32 @@ struct RealtimeChartView: View {
         drawYAxis(context: context, plotRect: plotRect, ySpan: ySpan, yFor: yFor)
         drawXAxis(context: context, plotRect: plotRect, windowSamples: windowSamples)
         drawSeries(context: context, plotRect: plotRect, windowSamples: windowSamples, yFor: yFor)
+        drawArtifacts(context: context, plotRect: plotRect, windowSamples: windowSamples)
 
         context.stroke(Path(plotRect), with: .color(borderColor), lineWidth: 0.5)
+    }
+
+    /// Artifact を縦線＋文字で描く。文字は Y軸上限あたり（プロット上端）に配置する。
+    /// X位置は波形と同じ右詰めロジック（右端＝最新 latestSampleIndex）で求める。
+    private func drawArtifacts(context: GraphicsContext,
+                               plotRect: CGRect,
+                               windowSamples: Int) {
+        guard !plot.artifacts.isEmpty else { return }
+        let latest = plot.latestSampleIndex
+        for artifact in plot.artifacts {
+            let x = plotRect.maxX - CGFloat(latest - artifact.sampleIndex) / CGFloat(windowSamples) * plotRect.width
+            guard x >= plotRect.minX, x <= plotRect.maxX else { continue }
+
+            var line = Path()
+            line.move(to: CGPoint(x: x, y: plotRect.minY))
+            line.addLine(to: CGPoint(x: x, y: plotRect.maxY))
+            context.stroke(line, with: .color(artifactColor.opacity(0.5)), lineWidth: 0.5)
+
+            let text = Text(artifact.text)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(artifactColor)
+            context.draw(text, at: CGPoint(x: x, y: plotRect.minY + 1), anchor: .top)
+        }
     }
 
     /// 横グリッド＋Y軸ラベル（等間隔）。

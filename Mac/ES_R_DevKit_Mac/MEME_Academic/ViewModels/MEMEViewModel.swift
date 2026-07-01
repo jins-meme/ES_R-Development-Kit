@@ -336,7 +336,8 @@ final class MEMEViewModel: NSObject {
     private func disconnectReplay() {
         replayService.stop()
         // 再生中に切断された場合も、記録済み Artifact は書き戻す。
-        flushArtifacts()
+        // replayInfo はこの後破棄するため読み直しは不要。
+        flushArtifacts(reload: false)
         replayInfo = nil
         phase = .idle
         connectionStateText = "State : Disconnected"
@@ -375,6 +376,8 @@ final class MEMEViewModel: NSObject {
         pendingArtifacts[artifactTargetRow] = sanitized.isEmpty ? "X" : sanitized
         artifactInput = ""
         showingArtifactDialog = false
+        // 一時停止中は次の tick が来ないため、付けた直後にチャートへ反映されるよう再描画する。
+        updateChartPlots()
     }
 
     func cancelArtifact() {
@@ -383,10 +386,16 @@ final class MEMEViewModel: NSObject {
     }
 
     /// 記録済み Artifact を再生元CSVの ARTIFACT 列へ書き戻す（停止/切断時）。
-    private func flushArtifacts() {
+    /// 書き戻し後、reload=true なら同じファイルを読み直して replayInfo を更新し、
+    /// 続けて Start した際に今書き込んだ Artifact がチャートへ反映されるようにする。
+    /// （切断時は replayInfo を破棄するため reload=false でよい。）
+    private func flushArtifacts(reload: Bool = true) {
         guard !pendingArtifacts.isEmpty, let info = replayInfo else { return }
         do {
             try CsvReplayService.applyArtifacts(url: info.url, artifacts: pendingArtifacts)
+            if reload, let refreshed = try? CsvReplayService.parse(url: info.url) {
+                replayInfo = refreshed
+            }
         } catch {
             NSLog("[Artifact] failed to write: %@", error.localizedDescription)
         }
@@ -452,15 +461,39 @@ final class MEMEViewModel: NSObject {
     private func seekReplay(toRow index: Int) {
         guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
         let clamped = min(max(index, 0), info.rows.count - 1)
-        replayService.seek(to: clamped)
         chartRenderCounter = 0
         currentReplayIndex = clamped
-        // シーク先の絶対サンプル位置を引き継ぎ、時間軸ラベルがシーク後も正しく続くようにする。
-        chartService.reset(baseIndex: clamped)
         chart1Plot.reset()
         chart2Plot.reset()
         chart3Plot.reset()
         replayProgress = info.rows.count > 1 ? Double(clamped) / Double(info.rows.count - 1) * 100 : 0
+
+        if isReplayPaused {
+            // 一時停止中は tick が来ないため、シーク先で終わる可視ウィンドウを静的に描画する。
+            // （そのまま reset だけすると時間0の空グラフになり、変な位置に飛んだように見える。）
+            renderPausedWindow(endingAt: clamped)
+        } else {
+            // 再生中：新しい位置から表示を作り直す（次の tick から右詰めで埋まっていく）。
+            // シーク先の絶対サンプル位置を引き継ぎ、時間軸ラベルがシーク後も正しく続くようにする。
+            replayService.seek(to: clamped)
+            chartService.reset(baseIndex: clamped)
+        }
+    }
+
+    /// 一時停止中に、指定行で終わる可視ウィンドウ（現在のX軸レンジ幅）を静的に描画する。
+    /// tick が来ない一時停止中でも、シークやX軸レンジ変更の結果を即座に反映するために使う。
+    /// 併せて、再開時に次の行から続くよう再生位置を endRow の次へ進める。
+    private func renderPausedWindow(endingAt endRow: Int) {
+        guard let info = replayInfo, !info.rows.isEmpty else { return }
+        let clamped = min(max(endRow, 0), info.rows.count - 1)
+        let windowSamples = max(1, xRangeSeconds * chartSampleRate)
+        let start = max(0, clamped - windowSamples + 1)
+        chartService.reset(baseIndex: start)
+        for i in start...clamped {
+            chartService.append(info.rows[i])
+        }
+        updateChartPlots()
+        replayService.seek(to: clamped + 1)
     }
 
     func toggleMeasurement() {
@@ -647,7 +680,17 @@ final class MEMEViewModel: NSObject {
                                  chart3Gyro: chart3GyroToggles,
                                  chart3Accel: chart3AccelToggles,
                                  sampleRate: chartSampleRate,
-                                 xRangeSeconds: xRangeSeconds)
+                                 xRangeSeconds: xRangeSeconds,
+                                 artifacts: currentReplayArtifacts())
+    }
+
+    /// 再生中に各グラフへ表示する Artifact（0始まりデータ行インデックス → 文字列）。
+    /// 再生元CSVに記録済みのものと、この再生中にタップで付けた未書き戻しのものを併せて返す。
+    /// 再生中以外は空（リアルタイム描画では表示しない）。
+    private func currentReplayArtifacts() -> [Int: String] {
+        guard phase == .replaying, let info = replayInfo else { return [:] }
+        guard !pendingArtifacts.isEmpty else { return info.artifacts }
+        return info.artifacts.merging(pendingArtifacts) { _, tapped in tapped }
     }
 
     // MARK: - Chart X-axis range
@@ -660,12 +703,21 @@ final class MEMEViewModel: NSObject {
     func zoomInXRange() {
         guard canZoomInXRange else { return }
         xRangeIndex -= 1
+        refreshPausedWindowForRangeChange()
     }
 
     /// － ボタン：より広い（長い）X軸レンジへ。
     func zoomOutXRange() {
         guard canZoomOutXRange else { return }
         xRangeIndex += 1
+        refreshPausedWindowForRangeChange()
+    }
+
+    /// 一時停止中のみ、X軸レンジ変更を現在位置の静的表示へ即反映する。
+    /// （再生中は次の tick が新しいレンジで描画するため何もしなくてよい。）
+    private func refreshPausedWindowForRangeChange() {
+        guard phase == .replaying, isReplayPaused else { return }
+        renderPausedWindow(endingAt: currentReplayIndex)
     }
 
     // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
@@ -852,6 +904,14 @@ struct ChartSeries: Identifiable {
     var values: [Double]
 }
 
+/// 再生中にチャート上へ表示する Artifact（1件）。
+struct ChartArtifact {
+    /// 対象サンプルのストリーム全体での絶対位置（＝再生元CSVのデータ行インデックス）。
+    /// 波形と同じ右詰めロジックでX座標へ変換する。
+    let sampleIndex: Int
+    let text: String
+}
+
 struct ChartPlot {
     var yMin: Double
     var yMax: Double
@@ -863,10 +923,13 @@ struct ChartPlot {
     /// サンプリング周波数（Hz）。時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）算出に使う。
     var sampleRate: Int = 100
     var series: [ChartSeries] = []
+    /// 可視ウィンドウ内に入る Artifact（再生中のみ設定。Y軸上限付近に文字列を描画する）。
+    var artifacts: [ChartArtifact] = []
 
     mutating func reset() {
         latestSampleIndex = 0
         series.removeAll()
+        artifacts.removeAll()
     }
 
     mutating func applyCategory(_ category: Int) {

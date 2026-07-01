@@ -65,7 +65,8 @@ final class ChartService {
                      chart3Gyro: GyroToggles,
                      chart3Accel: AccelToggles,
                      sampleRate: Int,
-                     xRangeSeconds: Int) {
+                     xRangeSeconds: Int,
+                     artifacts: [Int: String] = [:]) {
         let rate = max(sampleRate, 1)
         let windowSamples = max(1, xRangeSeconds * rate)
         // 直近 windowSamples 件のみ描画対象にする（波形は右詰めで、右端が最新サンプル）。
@@ -73,21 +74,41 @@ final class ChartService {
         let window = windowStart == 0 ? chartDatas : Array(chartDatas[windowStart...])
         // 最新サンプル（右端）の絶対位置。時間軸ラベルと右詰め描画の基準。
         let latestSampleIndex = baseIndex + max(chartDatas.count - 1, 0)
+        // Artifact は全チャート共通（絶対サンプル位置と可視ウィンドウにのみ依存）。一度だけ抽出する。
+        let visibleArtifacts = Self.artifactsInWindow(artifacts,
+                                                      latest: latestSampleIndex,
+                                                      windowSamples: windowSamples)
 
         updateChartPlot(&chart1, category: chart1Category,
                         eog: chart1Eog, gyro: chart1Gyro, accel: chart1Accel,
                         window: window, windowSamples: windowSamples,
-                        latestSampleIndex: latestSampleIndex, sampleRate: rate)
+                        latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        artifacts: visibleArtifacts)
 
         updateChartPlot(&chart2, category: chart2Category,
                         eog: chart2Eog, gyro: chart2Gyro, accel: chart2Accel,
                         window: window, windowSamples: windowSamples,
-                        latestSampleIndex: latestSampleIndex, sampleRate: rate)
+                        latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        artifacts: visibleArtifacts)
 
         updateChartPlot(&chart3, category: chart3Category,
                         eog: chart3Eog, gyro: chart3Gyro, accel: chart3Accel,
                         window: window, windowSamples: windowSamples,
-                        latestSampleIndex: latestSampleIndex, sampleRate: rate)
+                        latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        artifacts: visibleArtifacts)
+    }
+
+    /// 可視ウィンドウ（右端 latest、幅 windowSamples サンプル）に入る Artifact だけ抽出する。
+    private static func artifactsInWindow(_ artifacts: [Int: String],
+                                          latest: Int,
+                                          windowSamples: Int) -> [ChartArtifact] {
+        guard !artifacts.isEmpty else { return [] }
+        let leftAbs = latest - windowSamples
+        var out: [ChartArtifact] = []
+        for (index, text) in artifacts where index >= leftAbs && index <= latest {
+            out.append(ChartArtifact(sampleIndex: index, text: text))
+        }
+        return out
     }
 
     // MARK: - Private helpers
@@ -100,10 +121,12 @@ final class ChartService {
                                  window: [AcademicData],
                                  windowSamples: Int,
                                  latestSampleIndex: Int,
-                                 sampleRate: Int) {
+                                 sampleRate: Int,
+                                 artifacts: [ChartArtifact]) {
         plot.windowSamples = windowSamples
         plot.latestSampleIndex = latestSampleIndex
         plot.sampleRate = sampleRate
+        plot.artifacts = artifacts
 
         switch category {
         case 0: // EOG
