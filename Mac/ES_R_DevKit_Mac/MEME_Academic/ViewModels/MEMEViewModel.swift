@@ -118,6 +118,10 @@ final class MEMEViewModel: NSObject {
     // Replay pause
     var isReplayPaused: Bool = false
 
+    // Replay speed（x1/x2/x4/x8/x16/x32）
+    let replaySpeedOptions: [Int] = [1, 2, 4, 8, 16, 32]
+    var replaySpeedIndex: Int = 0
+
     // Artifact tagging dialog
     var showingArtifactDialog: Bool = false
     var artifactInput: String = ""
@@ -303,6 +307,7 @@ final class MEMEViewModel: NSObject {
         guard phase == .replayReady, let info = replayInfo else { return }
         phase = .replaying
         isReplayPaused = false
+        replaySpeedIndex = 0
         chartService.reset()
         chartRenderCounter = 0
         currentReplayIndex = 0
@@ -355,6 +360,21 @@ final class MEMEViewModel: NSObject {
             replayService.pause()
             isReplayPaused = true
         }
+    }
+
+    // MARK: - Replay speed
+
+    /// 現在の再生速度倍率（1/2/4/8/16）。
+    var replaySpeed: Int { replaySpeedOptions[replaySpeedIndex] }
+    /// 再生速度ボタンのラベル（例 "x2"）。
+    var replaySpeedLabel: String { "x\(replaySpeed)" }
+
+    /// 再生速度ボタン：タップするたびに x1→x2→x4→x8→x16→x32→x1 と循環する。
+    /// 描画周期は変えず、1周期で取り込むデータ量が速度倍になる。
+    func cycleReplaySpeed() {
+        guard phase == .replaying else { return }
+        replaySpeedIndex = (replaySpeedIndex + 1) % replaySpeedOptions.count
+        replayService.setSpeed(replaySpeed)
     }
 
     // MARK: - Artifact tagging
@@ -648,9 +668,13 @@ final class MEMEViewModel: NSObject {
     /// 再描画を間引く周期。データはフルレートで取り込みつつ、Canvas 再描画を抑える。
     /// （2x/3x 再生でデータ取込が速くなっても描画負荷が線形に増えないようにするため。）
     /// 描画点数が多い30秒窓のみ10Hz、それ以外（3/7/15秒窓）は25Hzで再描画する。
+    /// 再生速度に比例してストライドも伸ばすことで、速度を上げても描画周期（再描画Hz）は
+    /// x1 のときと同じままにし、1回の再描画で進むデータ量だけを増やす。
     private var chartRenderStride: Int {
         let targetHz: Double = xRangeSeconds >= 30 ? 10 : 25
-        return max(1, Int((Double(chartSampleRate) / targetHz).rounded()))
+        let base = max(1, Int((Double(chartSampleRate) / targetHz).rounded()))
+        let speed = phase == .replaying ? replaySpeed : 1
+        return base * speed
     }
 
     /// 1サンプルをバッファへ追加し、スロットリング周期ごとにプロットを更新する。

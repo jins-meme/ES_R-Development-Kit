@@ -190,6 +190,8 @@ private struct ReplayScrubberView: View {
             HStack(spacing: 8) {
                 Button("<<") { viewModel.replayJumpBackward() }
                 Button(">>") { viewModel.replayJumpForward() }
+                Button(viewModel.replaySpeedLabel) { viewModel.cycleReplaySpeed() }
+                    .help("再生速度を切り替える（x1→x2→x4→x8→x16→x32→x1）")
             }
         }
     }

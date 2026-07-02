@@ -37,6 +37,9 @@ final class CsvReplayService {
     private var onFinished: (() -> Void)?
     /// 再生間隔（Trans Speed 由来）。pause 後の resume で同じ間隔を復元するために保持する。
     private var interval: TimeInterval = 0.01
+    /// 再生速度倍率（1/2/4/8/16）。描画周期（タイマー間隔）は変えず、
+    /// 1 tick で消費する行数を speed 倍にすることで再生を速める。
+    private var speed: Int = 1
 
     // MARK: - Parse
 
@@ -244,7 +247,13 @@ final class CsvReplayService {
         self.onRow = onRow
         self.onFinished = onFinished
         interval = transMode == MEMEQuality_High ? 0.01 : 0.02
+        speed = 1
         scheduleTimer()
+    }
+
+    /// 再生速度倍率を設定する（1 未満は 1 に丸める）。再生中でも即座に反映される。
+    func setSpeed(_ speed: Int) {
+        self.speed = max(1, speed)
     }
 
     func stop() {
@@ -279,17 +288,21 @@ final class CsvReplayService {
     }
 
     private func tick() {
-        guard rowIndex < rows.count else {
-            let finished = onFinished
-            stop()
-            onRow = nil
-            onFinished = nil
-            finished?()
-            return
+        // 1 tick で speed 行を消費する。全行を onRow へ渡すのでデータは間引かれず、
+        // チャートは1周期あたり speed 倍のデータ量で右へ進む（描画周期は不変）。
+        for _ in 0..<speed {
+            guard rowIndex < rows.count else {
+                let finished = onFinished
+                stop()
+                onRow = nil
+                onFinished = nil
+                finished?()
+                return
+            }
+            let row = rows[rowIndex]
+            let index = rowIndex
+            rowIndex += 1
+            onRow?(row, index, rows.count)
         }
-        let row = rows[rowIndex]
-        let index = rowIndex
-        rowIndex += 1
-        onRow?(row, index, rows.count)
     }
 }
