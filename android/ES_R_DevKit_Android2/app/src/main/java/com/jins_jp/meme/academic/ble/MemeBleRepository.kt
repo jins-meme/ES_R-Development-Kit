@@ -14,12 +14,16 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.jins.meme.academic.util.DataEncryption
+import com.jins.meme.academic.util.LogCat
 import com.jins_jp.meme.academic.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +34,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 enum class ConnectionState { Disconnected, Connecting, Connected, ServicesReady, Disconnecting }
+
+private const val TAG = "MemeBleRepository"
 
 @SuppressLint("MissingPermission")
 class MemeBleRepository(private val context: Context) {
@@ -109,17 +115,29 @@ class MemeBleRepository(private val context: Context) {
 
     fun isBluetoothEnabled(): Boolean = mockMode || adapter?.isEnabled == true
 
+    // サービス UUID でコントローラ側マッチングさせるフィルタ。ソフト側の手動バイト解析や
+    // device.name への依存を無くし、取りこぼしを減らす（名前はスキャンレスポンスにしか
+    // 載らないことがあり、以前は名前が取れないと確定 MEME でも捨てていた）。
+    private val scanFilters = listOf(
+        ScanFilter.Builder()
+            .setServiceUuid(ParcelUuid(MemeBleConstants.SERVICE_UUID))
+            .build()
+    )
+
+    // 1 回のスキャンで確実に見つけるための設定。LOW_LATENCY で受信窓を最大化し、
+    // AGGRESSIVE＋MAX_ADVERTISEMENT で 1 パケットでも即通知させる。
+    private val scanSettings = ScanSettings.Builder()
+        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+        .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+        .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+        .build()
+
     private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val device = result.device ?: return
-            if (!hasConnectPermission()) return
-            val name = runCatching { device.name }.getOrNull() ?: return
-            val record = result.scanRecord?.bytes ?: return
-            val uuid = parseServiceUuid(record) ?: return
-            if (uuid.equals(MemeBleConstants.SERVICE_UUID.toString(), ignoreCase = true)) {
-                val address = device.address
-                _devices.update { it + address }
-            }
+        override fun onScanResult(callbackType: Int, result: ScanResult) = addScanResult(result)
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            results.forEach { addScanResult(it) }
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -127,14 +145,56 @@ class MemeBleRepository(private val context: Context) {
         }
     }
 
+    // フィルタが MEME であることを保証するので、アドレスをそのまま採用する。
+    private fun addScanResult(result: ScanResult) {
+        val address = result.device?.address ?: return
+        _devices.update { it + address }
+    }
+
     fun startScan() {
         if (mockMode) { mock.startScan(); return }
         if (!hasScanPermission() || adapter?.isEnabled != true) return
         if (_scanning.value) return
         _devices.value = emptySet()
+        // アドバタイズを待たずに、OS／他アプリが既に握っている端末を先にリストへ入れる。
+        mergeSystemDevices()
         scanner = adapter.bluetoothLeScanner ?: return
-        scanner?.startScan(scanCallback)
+        scanner?.startScan(scanFilters, scanSettings, scanCallback)
         _scanning.value = true
+    }
+
+    /**
+     * OS や他アプリが既に GATT 接続している MEME、および過去にボンディングした MEME を
+     * スキャン結果にマージする。JINS MEME SDK と同じく getConnectedDevices(GATT) を使う。
+     * 判定は「キャッシュ済みサービス UUID に [MemeBleConstants.SERVICE_UUID] を含む」を優先し、
+     * uuids が空の端末は名前パターンで補完する。
+     */
+    fun mergeSystemDevices() {
+        if (mockMode) return
+        val m = manager ?: return
+        if (!hasConnectPermission()) return
+        val candidates = buildSet {
+            addAll(runCatching { m.getConnectedDevices(BluetoothProfile.GATT) }.getOrDefault(emptyList()))
+            addAll(runCatching { adapter?.bondedDevices }.getOrNull().orEmpty())
+        }
+        val hits = mutableListOf<String>()
+        for (d in candidates) {
+            val name = runCatching { d.name }.getOrNull()
+            val isMeme = isMemeDevice(d, name)
+            // 判定が外れて拾えない時の切り分け用に候補と結果を必ず残す。
+            LogCat.d(TAG, "mergeSystemDevices: name=$name addr=${d.address} meme=$isMeme")
+            if (isMeme) hits += d.address
+        }
+        if (hits.isNotEmpty()) _devices.update { it + hits }
+    }
+
+    // BLE の GATT サービス UUID は device.uuids(SDP キャッシュ)には基本載らないため、
+    // 接続済み端末の判定は公式 SDK 同様に名前で行う。uuids は機種/OS 依存の保険。
+    private fun isMemeDevice(device: BluetoothDevice, name: String?): Boolean {
+        if (!hasConnectPermission()) return false
+        if (name != null && MemeBleConstants.DEVICE_NAME_REGEX.containsMatchIn(name)) return true
+        val serviceParcel = ParcelUuid(MemeBleConstants.SERVICE_UUID)
+        return runCatching { device.uuids }.getOrNull()?.any { it == serviceParcel } == true
     }
 
     fun stopScan() {
@@ -260,22 +320,4 @@ class MemeBleRepository(private val context: Context) {
     }
 
     fun currentAddress(): String? = currentAddress
-
-    /** Parse a 128-bit service UUID from an advertised scan record. */
-    private fun parseServiceUuid(record: ByteArray): String? {
-        if (record.size < 21) return null
-        val sb = StringBuilder()
-        for (i in 20 downTo 17) sb.append(hex2(record[i].toInt() and 0xFF))
-        sb.append('-')
-        for (i in 16 downTo 15) sb.append(hex2(record[i].toInt() and 0xFF))
-        sb.append('-')
-        for (i in 14 downTo 13) sb.append(hex2(record[i].toInt() and 0xFF))
-        sb.append('-')
-        for (i in 12 downTo 11) sb.append(hex2(record[i].toInt() and 0xFF))
-        sb.append('-')
-        for (i in 10 downTo 5) sb.append(hex2(record[i].toInt() and 0xFF))
-        return sb.toString()
-    }
-
-    private fun hex2(i: Int): String = "%02X".format(i)
 }

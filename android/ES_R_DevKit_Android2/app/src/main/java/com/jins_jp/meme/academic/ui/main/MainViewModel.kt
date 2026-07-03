@@ -52,6 +52,10 @@ private const val RECONNECT_RETRY_INTERVAL_MS = 15_000L
 private const val RECONNECT_CONNECT_TIMEOUT_MS = 15_000L
 private const val RECONNECT_NOTIFY_TIMEOUT_MS = 6_000L
 
+// スキャン窓内で 1 台も見つからなかった時に一度だけ張り直す前の小休止。
+// コントローラのスキャン窓をリセットさせるための短い間隔。
+private const val SCAN_RETRY_GAP_MS = 500L
+
 data class MainUiState(
     val scanning: Boolean = false,
     val devices: List<String> = emptyList(),
@@ -265,15 +269,23 @@ class MainViewModel(
                     // the file in that case (no-op if nothing was being written).
                     stopCommTicker()
                     if (!_ui.value.mockEnabled) csv.stop()
+                    // 切断イベント検知時は、原因(Disconnect ボタン/予期しない切断)によらず接続に
+                    // 紐づく状態をすべて初期化し、スキャン前相当の idle へ確実に戻す。
+                    // デバイス一覧・設定などの永続項目は保持する。
                     _ui.update {
                         it.copy(
                             firmwareVersion = null,
                             isMeasuring = false,
                             isStarting = false,
+                            isInitializing = false,
+                            isMarking = false,
                             recordingRows = 0L,
+                            batteryLevel = -1,
+                            successRate = 1.0,
+                            commRate = 1.0,
                         )
                     }
-                    // Auto-reconnect only on an unexpected drop while measuring.
+                    // 計測中の予期しない切断のみ、従来どおり自動再接続する(reconnect 設定 ON 時)。
                     val willReconnect = wasMeasuring &&
                         _ui.value.reconnectEnabled &&
                         !_ui.value.mockEnabled &&
@@ -283,6 +295,9 @@ class MainViewModel(
                         // 切断されてもプロセスが死なないようサービスは止めずに維持する。
                         startAutoReconnect()
                     } else {
+                        // 再接続ループが動いていない通常の切断は完全に idle へ戻す。
+                        // ループ中の一時的な切断ならループに任せ、再接続表示は消さない。
+                        if (reconnectJob == null) _ui.update { it.copy(isReconnecting = false) }
                         MeasurementService.stop(getApplication())
                     }
                 }
@@ -317,6 +332,14 @@ class MainViewModel(
             repo.startScan()
             delay(MemeBleConstants.SCAN_TIMEOUT_MS)
             repo.stopScan()
+            // スキャン窓内で 1 台も見つからなければ、一度だけ張り直す。
+            // (Android のスキャン頻度制限は 30 秒に 5 回なので 2 回は安全)
+            if (repo.devices.value.isEmpty()) {
+                delay(SCAN_RETRY_GAP_MS)
+                repo.startScan()
+                delay(MemeBleConstants.SCAN_TIMEOUT_MS)
+                repo.stopScan()
+            }
         }
     }
 

@@ -8,6 +8,15 @@ object MemeBleConstants {
     val TX_CHAR_UUID: UUID = UUID.fromString("D6F25BD2-5B54-4360-96D8-7AA62E04C7EF")
     val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
+    /**
+     * 接続済み／ボンディング済み端末を MEME と判定するためのデバイス名パターン。
+     * スキャンはサービス UUID フィルタで確実に判定できるが、既に接続済みの端末は広告を
+     * 出しておらず、かつ BLE の GATT サービス UUID は device.uuids(SDP キャッシュ)には
+     * 基本載らないため、公式 SDK 同様に「名前」で判定する。ES_R 実機名は "ESRG2_0"〜
+     * "ESRG2_5"(JINS MEME SDK の "JINSG2_[0-5]" に対応する ES_R 版)。
+     */
+    val DEVICE_NAME_REGEX = Regex("ESRG2_[0-5]$")
+
     const val SCAN_TIMEOUT_MS = 8_000L
 
     // Protocol opcodes
