@@ -592,8 +592,9 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Data → dictionary
 
-    private func dataToDictionary(_ data: AcademicData) -> [String: Any] {
-        stats.registerPacket(count: Int(data.cnt))
+    /// 最初の1パケットは前回カウンタの基準取得のみに使い、CSVには記録しない (nil を返す)。
+    private func dataToDictionary(_ data: AcademicData) -> [String: Any]? {
+        guard stats.registerPacket(count: Int(data.cnt)) else { return nil }
 
         let shouldMark = isFreeMarking
         isFreeMarking = false
@@ -854,12 +855,13 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     }
 
     private func ingestPacket(data: AcademicData) {
-        let row = dataToDictionary(data)
-        persistence.append(row)
-        saveCsv()
-        if socket?.isConnected() == true, let last = persistence.lastRow {
-            socketDatas.append(last)
-            writeSocket()
+        if let row = dataToDictionary(data) {
+            persistence.append(row)
+            saveCsv()
+            if socket?.isConnected() == true, let last = persistence.lastRow {
+                socketDatas.append(last)
+                writeSocket()
+            }
         }
         stats.bumpDataCount()
         displayBattLv = data.battLv

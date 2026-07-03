@@ -65,31 +65,31 @@ final class CommunicationStatsTracker {
     // MARK: - Per-packet update
 
     /// データ受信時に呼び出し。totalCount/errorCount/prevCount/prevTime を更新する。
-    /// 既存ロジックと完全に同じ。
-    func registerPacket(count: Int) {
-        var deff = 0
+    /// デバイスのカウンタ(12bit, 0..4095)は 0 から始まるとは限らないため、最初の
+    /// 1 個は前回カウンタの基準取得のみに使い、記録しない (false を返す)。
+    /// 2 個目以降は受信カウンタの差分を積算して NUM を単調増加させる。
+    @discardableResult
+    func registerPacket(count: Int) -> Bool {
         if prevCount < 0 {
-            deff = 0
+            prevCount = count
             prevTime = Int(Date().timeIntervalSince1970)
+            return false
+        }
+
+        let deff: Int
+        if prevCount < count {
+            deff = count - prevCount
         } else {
-            if prevCount < count {
-                deff = count - prevCount
-            } else if prevCount > count {
-                deff = 0x1000 - prevCount + count
-            }
+            deff = 0x1000 - prevCount + count
         }
         prevCount = count
         prevTime += deff * 10 * quality
 
-        if deff == 0 {
-            totalCount += deff + 1
-            errorCount += deff
-        } else {
-            totalCount += deff
-            if deff - 1 > 0 {
-                errorCount += deff - 1
-            }
+        totalCount += deff
+        if deff - 1 > 0 {
+            errorCount += deff - 1
         }
+        return true
     }
 
     /// 受信完了ごとに呼ぶ。displayCnt 更新ではなく dataCount のみ更新。
