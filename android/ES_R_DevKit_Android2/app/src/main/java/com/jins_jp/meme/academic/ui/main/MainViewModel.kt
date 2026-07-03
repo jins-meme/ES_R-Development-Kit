@@ -108,7 +108,6 @@ class MainViewModel(
     private var totalCount = 0L
     private var errorCount = 0L
     private var prevCount: Long = -1
-    private var prevTimeMs: Long = 0
     private var graphSkipCount: Long = 4
 
     // Comm-rate periodic job
@@ -373,7 +372,7 @@ class MainViewModel(
             _ui.update { it.copy(isStarting = true) }
             graphSkipCount = if (ui.value.settings.quality == MemeQuality.Hz100) 4L else 2L
             _graph.tryEmit(GraphEvent.Reset)
-            totalCount = 0; errorCount = 0; prevCount = -1; prevTimeMs = 0
+            totalCount = 0; errorCount = 0; prevCount = -1
             prevTotalLast = 0; prevTotalPrev = 0; ratioPrev = 100
 
             val addr = repo.currentAddress()
@@ -390,6 +389,8 @@ class MainViewModel(
             }
 
             delay(0); sendSetMode()
+            // 端末が実際に適用したモード/速度を読み戻して Toast で確認する。
+            delay(300); requestMode()
             delay(500); sendSetParams()
             delay(1000)
             val startCmd = ByteArray(20)
@@ -532,6 +533,7 @@ class MainViewModel(
         val data = ByteArray(20)
         data[0] = MemeBleConstants.DATA_LENGTH
         data[1] = MemeBleConstants.ADN_SET_MODE
+        // ファーム(MEMELib memeAdnSetMode)は mode=byte4, quality(transMode)=byte5 を読む。
         data[4] = ((s.mode.ordinal + 1) and 0xFF).toByte()
         data[5] = ((s.quality.ordinal + 1) and 0xFF).toByte()
         sendEncoded(data)
@@ -557,13 +559,56 @@ class MainViewModel(
 
     private fun handleIncoming(data: ByteArray) {
         LogCat.d(TAG, "recv: " + HexDump.toHexString(data))
-        if (data.size < 2) return
-        when (data[1]) {
-            MemeBleConstants.AUP_REPORT_DEV_INFO -> handleDevInfo(data)
-            MemeBleConstants.AUP_REPORT_RESP -> handleResp(data)
-            MemeBleConstants.AUP_REPORT_ACADEMIA1,
-            MemeBleConstants.AUP_REPORT_ACADEMIA2,
-            MemeBleConstants.AUP_REPORT_ACADEMIA3 -> handleAcademia(data)
+        val packets = DataParser.parse(data)
+        if (packets.isEmpty()) {
+            if (data.size >= 2) {
+                when (data[1]) {
+                    MemeBleConstants.AUP_REPORT_DEV_INFO -> handleDevInfo(data)
+                    MemeBleConstants.AUP_REPORT_MODE -> handleMode(data)
+                    MemeBleConstants.AUP_REPORT_RESP -> handleResp(data)
+                }
+            }
+            return
+        }
+
+        // DATE: 1 つの通知(パケット)は受信した日時で刻む。100Hz で 40byte(2 パケット)
+        // が届いた場合、1 行目は受信日時、2 行目は 1 行目 + 1/transmission_speed(s)。
+        val recvTimeMs = System.currentTimeMillis()
+        val intervalMs = 1000L / ui.value.settings.quality.hz // 100Hz→10ms, 50Hz→20ms
+        for ((index, packet) in packets.withIndex()) {
+            // 最初のパケットは前回カウンタの基準取得のみ。CSV にもグラフにも出さない。
+            if (!totalCountUp(packet.packetCount)) continue
+
+            if ((totalCount % graphSkipCount) == 0L) {
+                val x = totalCount / graphSkipCount
+                when (packet.type) {
+                    MemeBleConstants.AUP_REPORT_ACADEMIA1 -> {
+                        val v = packet.values
+                        _graph.tryEmit(GraphEvent.Eog(x, v[7].toFloat(), v[9].toFloat()))
+                        _graph.tryEmit(GraphEvent.Acc(x, v[0].toFloat(), v[1].toFloat(), v[2].toFloat()))
+                    }
+                    MemeBleConstants.AUP_REPORT_ACADEMIA2 -> {
+                        val v = packet.values
+                        _graph.tryEmit(GraphEvent.Eog(x, v[8].toFloat(), v[9].toFloat()))
+                        _graph.tryEmit(GraphEvent.Acc(x, v[0].toFloat(), v[1].toFloat(), v[2].toFloat()))
+                        _graph.tryEmit(GraphEvent.Gyro(x, v[3].toFloat(), v[4].toFloat(), v[5].toFloat()))
+                    }
+                    MemeBleConstants.AUP_REPORT_ACADEMIA3 -> Unit
+                }
+            }
+
+            val rowTimeMs = recvTimeMs + index * intervalMs
+            val row = formatRow(ui.value.isMarking, totalCount, rowTimeMs, packet.values)
+            if (!ui.value.mockEnabled) {
+                csv.writeRow(row)
+            }
+        }
+        _ui.update { it.copy(recordingRows = csv.recordedRows, batteryLevel = packets.last().batteryLevel.toInt()) }
+
+        // success rate from total/error
+        if (totalCount > 0) {
+            val rate = 1.0 - errorCount.toDouble() / totalCount.toDouble()
+            _ui.update { it.copy(successRate = rate.coerceIn(0.0, 1.0)) }
         }
     }
 
@@ -571,6 +616,19 @@ class MainViewModel(
         val major = (data[3].toInt() and 0xFF) shl 8 or (data[2].toInt() and 0xFF)
         val v = "%X-%d.%d.%d".format(major, data[6].toInt(), data[5].toInt(), data[4].toInt())
         _ui.update { it.copy(firmwareVersion = v) }
+    }
+
+    /**
+     * AUP_REPORT_MODE(0x83): 端末が実際に適用したモード/伝送速度を読み出した結果。
+     * mode=byte4, quality=byte5(いずれも ordinal+1)。設定が反映されたか確認できる
+     * よう Toast で表示する。
+     */
+    private fun handleMode(data: ByteArray) {
+        val modeVal = data[4].toInt() and 0xFF
+        val qualityVal = data[5].toInt() and 0xFF
+        val modeName = MemeMode.entries.getOrNull(modeVal - 1)?.display ?: "Mode $modeVal"
+        val hz = MemeQuality.entries.getOrNull(qualityVal - 1)?.display ?: "Quality $qualityVal"
+        _ui.update { it.copy(toast = "モード設定: $modeName / $hz") }
     }
 
     private fun handleResp(data: ByteArray) {
@@ -582,60 +640,34 @@ class MainViewModel(
         }
     }
 
-    private fun handleAcademia(data: ByteArray) {
-        val packet = DataParser.parse(data) ?: return
-        val q = ui.value.settings.quality.hz / 50 // 100Hz→2, 50Hz→1 → ms per sample = 10*q
-        totalCountUp(packet.packetCount, q)
-
-        if ((totalCount % graphSkipCount) == 0L) {
-            val x = totalCount / graphSkipCount
-            when (data[1]) {
-                MemeBleConstants.AUP_REPORT_ACADEMIA1 -> {
-                    val v = packet.values
-                    _graph.tryEmit(GraphEvent.Eog(x, v[7].toFloat(), v[9].toFloat()))
-                    _graph.tryEmit(GraphEvent.Acc(x, v[0].toFloat(), v[1].toFloat(), v[2].toFloat()))
-                }
-                MemeBleConstants.AUP_REPORT_ACADEMIA2 -> {
-                    val v = packet.values
-                    _graph.tryEmit(GraphEvent.Eog(x, v[8].toFloat(), v[9].toFloat()))
-                    _graph.tryEmit(GraphEvent.Acc(x, v[0].toFloat(), v[1].toFloat(), v[2].toFloat()))
-                    _graph.tryEmit(GraphEvent.Gyro(x, v[3].toFloat(), v[4].toFloat(), v[5].toFloat()))
-                }
-                MemeBleConstants.AUP_REPORT_ACADEMIA3 -> Unit
-            }
-        }
-
-        val row = formatRow(ui.value.isMarking, totalCount, prevTimeMs, packet.values)
-        if (!ui.value.mockEnabled) {
-            csv.writeRow(row)
-        }
-        _ui.update { it.copy(recordingRows = csv.recordedRows, batteryLevel = packet.batteryLevel.toInt()) }
-
-        // success rate from total/error
-        if (totalCount > 0) {
-            val rate = 1.0 - errorCount.toDouble() / totalCount.toDouble()
-            _ui.update { it.copy(successRate = rate.coerceIn(0.0, 1.0)) }
-        }
-    }
-
-    private fun totalCountUp(count: Short, quality: Int) {
-        val cnt = count.toInt() and 0xFFFF
-        var diff = 0L
+    /**
+     * NUM を更新する。記録すべきパケットなら true、最初のパケット(基準取得のみで
+     * CSV に残さない)なら false を返す。
+     *
+     * 最初のパケットのカウンタは 0 とは限らないため、1 個目は前回カウンタの初期値を
+     * 取得するためだけに使い、2 個目以降を記録する。以降は受信カウンタ(12bit,
+     * 0..4095)の差分を積算して単調増加させる。
+     *   前回のカウンタ < 今回のカウンタ … NUM += 今回 - 前回
+     *   それ以外(周回した)          … NUM += 今回 - 前回 + 4096
+     */
+    private fun totalCountUp(count: Short): Boolean {
+        val cnt = (count.toInt() and 0x0FFF).toLong()
         if (prevCount < 0) {
-            diff = 0; prevTimeMs = System.currentTimeMillis()
-        } else if (prevCount < cnt) {
-            diff = cnt - prevCount
-        } else if (prevCount > cnt) {
-            diff = 0x1000L - prevCount + cnt
+            // 最初のパケットは前回カウンタの基準取得のみに使い、CSV には記録しない。
+            prevCount = cnt
+            return false
         }
-        prevCount = cnt.toLong()
-        prevTimeMs += diff * 10L * quality
-        if (diff == 0L) {
-            totalCount += 1
+        val newNum = if (prevCount < cnt) {
+            totalCount + cnt - prevCount
         } else {
-            totalCount += diff
-            if (diff - 1 > 0) errorCount += diff - 1
+            totalCount + cnt - prevCount + 4096
         }
+        // 差分が 2 以上なら取りこぼしたサンプルぶんを誤り数として数える。
+        val step = newNum - totalCount
+        if (step > 1) errorCount += step - 1
+        totalCount = newNum
+        prevCount = cnt
+        return true
     }
 
     private fun startCommTicker() {

@@ -135,7 +135,7 @@ fun formatRow(
     timeMillisGmt: Long,
     values: IntArray,
 ): String {
-    val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SS", Locale.getDefault()).apply {
+    val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS", Locale.getDefault()).apply {
         timeZone = TimeZone.getTimeZone("GMT")
     }
     val sb = StringBuilder()

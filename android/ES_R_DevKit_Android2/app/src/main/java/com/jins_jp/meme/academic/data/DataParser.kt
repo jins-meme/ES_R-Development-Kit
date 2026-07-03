@@ -27,15 +27,23 @@ data class ParsedPacket(
  * Parses ACADEMIA1/2/3 packets following the layout used by the original Java sources.
  */
 object DataParser {
-    fun parse(data: ByteArray): ParsedPacket? {
-        if (data.size < 20) return null
-        if (data[0] != MemeBleConstants.DATA_LENGTH) return null
-        return when (val type = data[1]) {
-            MemeBleConstants.AUP_REPORT_ACADEMIA1 -> parseAcademia1(data, type)
-            MemeBleConstants.AUP_REPORT_ACADEMIA2 -> parseAcademia2(data, type)
-            MemeBleConstants.AUP_REPORT_ACADEMIA3 -> parseAcademia3(data, type)
-            else -> null
+    fun parse(data: ByteArray): List<ParsedPacket> {
+        if (data.size < 20) return emptyList()
+        val packets = mutableListOf<ParsedPacket>()
+        var offset = 0
+        while (offset + 20 <= data.size) {
+            if (data[offset] != MemeBleConstants.DATA_LENGTH) break
+            val chunk = if (offset == 0 && data.size == 20) data else data.copyOfRange(offset, offset + 20)
+            val p = when (val type = chunk[1]) {
+                MemeBleConstants.AUP_REPORT_ACADEMIA1 -> parseAcademia1(chunk, type)
+                MemeBleConstants.AUP_REPORT_ACADEMIA2 -> parseAcademia2(chunk, type)
+                MemeBleConstants.AUP_REPORT_ACADEMIA3 -> parseAcademia3(chunk, type)
+                else -> null
+            }
+            if (p != null) packets.add(p)
+            offset += 20
         }
+        return packets
     }
 
     private fun parseAcademia1(data: ByteArray, type: Byte): ParsedPacket {

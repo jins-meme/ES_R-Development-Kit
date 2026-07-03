@@ -126,6 +126,7 @@ class MockMemeBleEngine(
                 respondOk()
             }
             MemeBleConstants.ADN_SET_MODE -> {
+                // ファーム同様 mode=byte4, quality=byte5。
                 modeId = data[4].toInt() and 0xFF
                 qualityId = data[5].toInt() and 0xFF
                 respondOk()
@@ -191,7 +192,7 @@ class MockMemeBleEngine(
         packetCount = 0
         // Restart CSV playback from the first logged row on each measurement.
         csvIndex = 0
-        val periodMs = if (qualityId == 2) 20L else 10L
+        val quality = qualityId // 1=100Hz, 2=50Hz (ファームの transMode 値)
         val type = when (modeId) {
             2 -> MemeBleConstants.AUP_REPORT_ACADEMIA2
             3 -> MemeBleConstants.AUP_REPORT_ACADEMIA3
@@ -199,8 +200,16 @@ class MockMemeBleEngine(
         }
         streamJob = scope.launch {
             while (isActive) {
-                emitDataPacket(type)
-                delay(periodMs)
+                if (quality == 1 && (type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || type == MemeBleConstants.AUP_REPORT_ACADEMIA2)) {
+                    // 100Hz: 2 サンプルを 40byte(2 パケット)にまとめて送る。
+                    val p1 = createDataPacket(type)
+                    val p2 = createDataPacket(type)
+                    emit(p1 + p2)
+                } else {
+                    emit(createDataPacket(type))
+                }
+                // 50Hz: 1 sample / 20ms. 100Hz: 2 samples / 20ms.
+                delay(20L)
             }
         }
     }
@@ -210,7 +219,7 @@ class MockMemeBleEngine(
         streamJob = null
     }
 
-    private fun emitDataPacket(type: Byte) {
+    private fun createDataPacket(type: Byte): ByteArray {
         val packet = ByteArray(20)
         packet[0] = MemeBleConstants.DATA_LENGTH
         packet[1] = type
@@ -229,7 +238,7 @@ class MockMemeBleEngine(
         }
 
         packetCount = (packetCount + 1) and 0x0FFF
-        emit(packet)
+        return packet
     }
 
     /** Re-encode a CSV value row into a packet, the inverse of DataParser. */
