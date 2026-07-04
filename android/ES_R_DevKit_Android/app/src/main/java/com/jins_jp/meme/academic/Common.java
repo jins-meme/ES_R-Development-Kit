@@ -2,17 +2,17 @@
 package com.jins_jp.meme.academic;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
-import android.content.DialogInterface;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Vibrator;
-import android.preference.PreferenceManager;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -28,16 +28,11 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.math.BigDecimal;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -56,9 +51,12 @@ public class Common extends Object {
     public final int mode_ble = 2;
     int mode_setting = mode_usb;
 
+    public static final String CSV_FOLDER_NAME = "ESR Logger";
+
     public String headerString = null;
     public  ArrayList<String> msgs = new ArrayList<>();
     public long csvCount = 0;
+    private Uri csvUri = null;
 
     public Common(Context context, Activity activity, Handler handler) {
         this.context = context;
@@ -83,40 +81,6 @@ public class Common extends Object {
         //}
         //configuration = null;
         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-    }
-
-    public void makeDirectory(String local) {
-        // Scoped storage (API 29+): write to the app-private external dir under Downloads.
-        // No runtime storage permission required. Path is /Android/data/<pkg>/files/Download<local>.
-        File base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        if (base == null) {
-            Log.d("logd", "external files dir unavailable");
-            AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-            builder.setMessage(context.getString(R.string.msg_unmount_storage));
-            builder.setPositiveButton(R.string.button_dialog_ok,
-                    (dialog, which) -> activity.finish());
-            builder.setCancelable(false);
-            builder.show();
-            return;
-        }
-
-        String path = base.getAbsolutePath() + local;
-        Log.d("logd", "path : " + path);
-        PreferenceManager
-                .getDefaultSharedPreferences(context)
-                .edit().putString(context.getString(R.string.key_pref_path), path)
-                .apply();
-
-        File dir = new File(path);
-        if (!dir.exists()) {
-            if (dir.mkdirs()) {
-                Log.d("logd", "ファイル作成 成功");
-            } else {
-                Log.d("logd", "ファイル作成 失敗");
-            }
-        } else {
-            Log.d("logd", "ファイル作成 成功済み");
-        }
     }
 
     public void setViewConnect(final boolean isConnect, final String mMemeVersion) {
@@ -348,10 +312,6 @@ public class Common extends Object {
     public String createFileNew(String address) {
         Log.d("logd","createFileNew");
 
-        // get file path
-        SharedPreferences prefs = PreferenceManager
-                .getDefaultSharedPreferences(context);
-        String path = prefs.getString(context.getString(R.string.key_pref_path), "");
         // create file name
         SimpleDateFormat simpleDateFormat =
                 new SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault());
@@ -433,22 +393,28 @@ public class Common extends Object {
         csvCount = 0;
         setViewNotice(csvCount);
 
-        // write file
-//        writeFile(path, name, stringBuffer.toString());
+        // create the MediaStore entry under Downloads/ESR Logger
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Downloads.DISPLAY_NAME, name);
+        values.put(MediaStore.Downloads.MIME_TYPE, "text/csv");
+        values.put(MediaStore.Downloads.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/" + CSV_FOLDER_NAME);
+        ContentResolver resolver = context.getContentResolver();
+        csvUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (csvUri == null) {
+            Log.d("logd", "failed to create MediaStore entry");
+        }
+
         headerString = stringBuffer.toString();
         LogCat.d(TAG, "created new file");
 
         return name;
     }
 
-    public void writeFile(String path, String name, String msg) {
-//        Log.d("logd","writeFile");
-
-        File file = null;
-        FileOutputStream fos = null;
+    public void writeFile(String name, String msg) {
         BufferedWriter bw = null;
 
-        if (path == null || name == null || msg == null) {
+        if (name == null || msg == null || csvUri == null) {
             return;
         }
 
@@ -464,34 +430,16 @@ public class Common extends Object {
             headerString = null;
         }
 
-        file = new File(path + name);
-        // write file
+        // write file (append to the MediaStore entry)
         try {
-            // prepare temp file
-            fos = new FileOutputStream(file.getPath(), true);
-            bw = new BufferedWriter(new OutputStreamWriter(fos, "utf-8"));
-            // lock temp file
-            FileChannel fc = fos.getChannel();
-            FileLock fl = fc.tryLock();
-            if (fl == null) {
-                throw new RuntimeException("file lock");
-            }
-            // write file per one line
-//            bw.write(msg + "\r\n");
-//            msgs.forEach(
-//                    msg -> bw.write(msg + "\r\n");
-//            );
+            OutputStream os = context.getContentResolver().openOutputStream(csvUri, "wa");
+            bw = new BufferedWriter(new OutputStreamWriter(os, "utf-8"));
             for (String m: msgs){
                 bw.write(m + "\r\n");
             }
             msgs.clear();
 
             bw.flush();
-            // unlock temp file
-            fl.release();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            return;
         } catch (IOException e) {
             e.printStackTrace();
             return;
@@ -500,16 +448,11 @@ public class Common extends Object {
                 if (bw != null) {
                     bw.close();
                 }
-                if (fos != null) {
-                    fos.close();
-                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        fos = null;
         bw = null;
-        file = null;
         LogCat.d(TAG, "wrote the data to a file");
     }
 

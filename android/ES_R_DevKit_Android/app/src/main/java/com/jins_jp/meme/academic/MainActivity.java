@@ -8,14 +8,9 @@ import android.content.BroadcastReceiver;
 import android.content.DialogInterface;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.media.MediaScannerConnection;
-import android.media.MediaScannerConnection.OnScanCompletedListener;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.preference.PreferenceManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -85,7 +80,6 @@ abstract class MainActivity extends AppCompatActivity {
     protected ArrayAdapter<String> mDeviceAdapter;
 
     protected byte[] mReadByte = new byte[20];
-    protected final static String PATH_LOCAL = "/JINS/MEME academic/";
     protected String mMemeAddress = null;
     protected String mMemeVersion = null;
     protected String mFileName = null;
@@ -125,8 +119,6 @@ abstract class MainActivity extends AppCompatActivity {
         graphGyro = new GraphGyro(this, activity, handler);
         // fix orientation
         common.setOrientation();
-        // check storage state
-        common.makeDirectory(PATH_LOCAL);
         // set view
         mDeviceSet = Collections.synchronizedSortedSet(new TreeSet<String>());
         mDeviceAdapter = new ArrayAdapter<String>(getApplicationContext(), R.layout.list_item_1);
@@ -527,31 +519,6 @@ abstract class MainActivity extends AppCompatActivity {
                                 switch (mReadByte[2]) {
                                     case (byte) (0x00 & 0xFF): // ACK
                                         LogCat.d(TAG, "success to stop measurement");
-                                        // get file path
-                                        SharedPreferences prefs = PreferenceManager
-                                                .getDefaultSharedPreferences(getApplicationContext());
-                                        String path = prefs.getString(
-                                                getString(R.string.key_pref_path), "");
-                                        // scan file
-                                        String[] paths = {
-                                                path + mFileName
-                                        };
-                                        String[] mimeTypes = {
-                                                "text/csv"
-                                        };
-                                        try {
-                                            MediaScannerConnection.scanFile(
-                                                    getApplicationContext(), paths,
-                                                    mimeTypes,
-                                                    new OnScanCompletedListener() {
-                                                        @Override
-                                                        public void onScanCompleted(
-                                                                String path, Uri uri) {
-                                                        }
-                                                    });
-                                        } catch (Exception e) {
-                                            // ignore
-                                        }
                                         // change a flag
                                         isMeasure = false;
                                         // release file name
@@ -1097,10 +1064,7 @@ abstract class MainActivity extends AppCompatActivity {
         values = null;
 
         // write the recording data
-        SharedPreferences prefs = PreferenceManager
-                .getDefaultSharedPreferences(getApplicationContext());
-        String path = prefs.getString(getString(R.string.key_pref_path), "");
-        common.writeFile(path, mFileName, stringBuffer.toString());
+        common.writeFile(mFileName, stringBuffer.toString());
         stringBuffer = null;
         // update view
         common.setViewBattery(level);
