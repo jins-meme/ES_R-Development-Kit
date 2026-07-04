@@ -48,7 +48,8 @@ class CsvWriter(private val context: Context) {
         if (buffer.size >= flushThreshold) flush()
     }
 
-    fun stop() {
+    /** 計測終了。書き出した本体データCSVの URI を返す(共有シートに渡すため)。 */
+    fun stop(): Uri? {
         flush()
         val u = uri
         if (u != null) {
@@ -60,6 +61,7 @@ class CsvWriter(private val context: Context) {
         uri = null
         pendingHeader = null
         dataFileName = null
+        return u
     }
 
     /** 最初のデータ行が来た時に本体CSVを MediaStore へ遅延生成する。 */

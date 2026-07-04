@@ -1,5 +1,7 @@
 package com.jins_jp.meme.academic.ui.main
 
+import android.content.ClipData
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -70,6 +72,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -122,12 +125,28 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     LaunchedEffect(ui.toast) {
         ui.toast?.let {
             scope.launch { snackbarHost.showSnackbar(it) }
             viewModel.dismissToast()
         }
+    }
+
+    // 計測完了時、設定が有効なら本体データCSVを「その他のアプリと共有」で開く。
+    LaunchedEffect(ui.shareRequest) {
+        val req = ui.shareRequest ?: return@LaunchedEffect
+        viewModel.dismissShareRequest()
+        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "text/csv"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(req.uris))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = ClipData(null, arrayOf("text/csv"), ClipData.Item(req.uris.first())).apply {
+                for (u in req.uris.drop(1)) addItem(ClipData.Item(u))
+            }
+        }
+        context.startActivity(Intent.createChooser(shareIntent, null))
     }
 
     // Live graph buffers
@@ -439,6 +458,22 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     )
                     Text(
                         stringResource(R.string.text_label_reconnect),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.setOpenSharingOnComplete(!ui.openSharingOnComplete) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.openSharingOnComplete,
+                        onCheckedChange = { vm.setOpenSharingOnComplete(it) },
+                    )
+                    Text(
+                        stringResource(R.string.text_label_open_sharing_on_complete),
                         modifier = Modifier.weight(1f),
                     )
                 }

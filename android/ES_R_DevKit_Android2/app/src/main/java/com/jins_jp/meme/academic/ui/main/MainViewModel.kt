@@ -77,7 +77,13 @@ data class MainUiState(
     val bluetoothError: Boolean = false,
     val reconnectEnabled: Boolean = false,
     val isReconnecting: Boolean = false,
+    // 計測完了時に「その他のアプリと共有」を自動で開くか（モックでない実機計測のみ対象）。
+    val openSharingOnComplete: Boolean = false,
+    val shareRequest: ShareRequest? = null,
 )
+
+/** 計測完了後に共有シートへ渡す本体データCSVの URI。 */
+data class ShareRequest(val uris: List<Uri>)
 
 sealed class GraphEvent {
     data class Eog(val x: Long, val vh: Float, val vv: Float) : GraphEvent()
@@ -99,6 +105,7 @@ class MainViewModel(
             // Playback (mock) is started on demand from the Play button and is
             // never persisted: every launch begins in live-BLE mode.
             reconnectEnabled = settingsStore.loadReconnectEnabled(),
+            openSharingOnComplete = settingsStore.loadOpenSharingOnComplete(),
         )
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -369,6 +376,13 @@ class MainViewModel(
         if (!enabled) cancelAutoReconnect()
     }
 
+    fun setOpenSharingOnComplete(enabled: Boolean) {
+        settingsStore.saveOpenSharingOnComplete(enabled)
+        _ui.update { it.copy(openSharingOnComplete = enabled) }
+    }
+
+    fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }
+
     fun updateSettings(transform: (MeasurementSettings) -> MeasurementSettings) {
         _ui.update { it.copy(settings = transform(it.settings)) }
         settingsStore.save(_ui.value.settings)
@@ -433,12 +447,18 @@ class MainViewModel(
             stopCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
             stopCmd[2] = 0x00
             sendEncoded(stopCmd)
-            if (!ui.value.mockEnabled) {
-                csv.stop()
-            }
+            val dataUri = if (!ui.value.mockEnabled) csv.stop() else null
             stopCommTicker()
             MeasurementService.stop(getApplication())
-            _ui.update { it.copy(isMeasuring = false, recordingRows = 0L) }
+            _ui.update {
+                it.copy(
+                    isMeasuring = false,
+                    recordingRows = 0L,
+                    shareRequest = if (
+                        it.openSharingOnComplete && !it.mockEnabled && dataUri != null
+                    ) ShareRequest(listOf(dataUri)) else it.shareRequest,
+                )
+            }
         }
     }
 

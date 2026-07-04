@@ -27,6 +27,12 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_RECONNECT, enabled).apply()
     }
 
+    fun loadOpenSharingOnComplete(): Boolean = prefs.getBoolean(KEY_OPEN_SHARING, false)
+
+    fun saveOpenSharingOnComplete(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_OPEN_SHARING, enabled).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "measurement_settings"
         const val KEY_MODE = "mode"
@@ -34,5 +40,6 @@ class SettingsStore(context: Context) {
         const val KEY_ACC = "acc_range"
         const val KEY_GYRO = "gyro_range"
         const val KEY_RECONNECT = "reconnect_enabled"
+        const val KEY_OPEN_SHARING = "open_sharing_on_complete"
     }
 }
