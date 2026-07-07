@@ -50,7 +50,7 @@ struct ContentView: View {
                 .environment(viewModel)
         }
         .alert("Artifact", isPresented: $vm.showingArtifactDialog) {
-            TextField("Artifact", text: $vm.artifactInput, prompt: Text("x"))
+            TextField("Artifact", text: $vm.artifactInput, prompt: Text("X"))
             Button("Cancel", role: .cancel) { viewModel.cancelArtifact() }
             Button("OK") { viewModel.confirmArtifact() }
         } message: {
