@@ -250,6 +250,34 @@ final class CsvReplayService {
         return value + String(line[commaRange.lowerBound...])
     }
 
+    // MARK: - Range export
+
+    /// 再生元CSVのデータ行 [startRow, endRow]（0始まり・両端含む）だけを含むCSVを dest へ書き出す。
+    /// ヘッダー（//ARTIFACT 行まで）はそのままコピーし、データ行の内容も加工しない。
+    /// 行インデックスの数え方は applyArtifacts と同じ（ヘッダー行より後の非空行）。
+    static func exportRange(from url: URL, to dest: URL, startRow: Int, endRow: Int) throws {
+        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
+            throw CsvReplayError.unreadable
+        }
+        let lines = content.components(separatedBy: "\n")
+        guard let headerIndex = lines.firstIndex(where: { $0.hasPrefix("//ARTIFACT") }) else {
+            throw CsvReplayError.invalidFormat
+        }
+
+        var out = Array(lines[0...headerIndex])
+        var dataRow = 0
+        for i in (headerIndex + 1)..<lines.count {
+            if lines[i].trimmingCharacters(in: .whitespaces).isEmpty { continue }
+            if dataRow > endRow { break }
+            if dataRow >= startRow {
+                out.append(lines[i])
+            }
+            dataRow += 1
+        }
+
+        try (out.joined(separator: "\n") + "\n").write(to: dest, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - Playback
 
     /// Trans Speed（100Hz/50Hz）に対応する間隔で1行ずつ onRow を呼び出す。

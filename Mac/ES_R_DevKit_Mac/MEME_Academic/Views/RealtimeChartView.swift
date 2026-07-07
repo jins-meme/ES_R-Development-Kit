@@ -17,6 +17,14 @@ struct RealtimeChartView: View {
     let plot: ChartPlot
     /// チャートがタップされたときに、対象データ行（絶対サンプル位置）を通知する。
     var onTapRow: ((Int) -> Void)? = nil
+    /// ドラッグによる範囲選択が終了したときに、開始行・終了行（絶対サンプル位置、開始≦終了）を通知する。
+    var onRangeSelected: ((Int, Int) -> Void)? = nil
+    /// ドラッグによる範囲選択を受け付けるか（ファイル再生中のみ true にする）。
+    var rangeSelectionEnabled: Bool = false
+
+    /// ドラッグ中の選択範囲（開始X・現在X）。選択矩形の描画に使う。
+    @State private var dragStartX: CGFloat? = nil
+    @State private var dragCurrentX: CGFloat? = nil
 
     // プロット領域の余白（描画とタップ座標→行の変換で共有する）。
     private static let leftInset: CGFloat = 46
@@ -36,9 +44,32 @@ struct RealtimeChartView: View {
                         onTapRow?(rowForTap(x: value.location.x, width: geo.size.width))
                     }
             )
+            .gesture(rangeSelectionGesture(width: geo.size.width))
         }
         .padding(.vertical, 4)
         .background(chartBackground)
+    }
+
+    /// 範囲選択ドラッグ。minimumDistance を設けることでタップ（Artifact 付与）と共存させる。
+    /// 左端＝切り出し開始、右端＝終了。左右どちら向きのドラッグでも min/max で正規化する。
+    private func rangeSelectionGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                guard rangeSelectionEnabled else { return }
+                dragStartX = value.startLocation.x
+                dragCurrentX = value.location.x
+            }
+            .onEnded { value in
+                defer {
+                    dragStartX = nil
+                    dragCurrentX = nil
+                }
+                guard rangeSelectionEnabled, let onRangeSelected else { return }
+                let leftX = min(value.startLocation.x, value.location.x)
+                let rightX = max(value.startLocation.x, value.location.x)
+                onRangeSelected(rowForTap(x: leftX, width: width),
+                                rowForTap(x: rightX, width: width))
+            }
     }
 
     /// タップX座標を、右詰め描画に合わせて絶対サンプル行へ変換する。
@@ -69,6 +100,8 @@ struct RealtimeChartView: View {
     }
     /// Artifact の縦線・文字色。波形色（赤/緑/青/黄）と被らないアクセント色。
     private var artifactColor: Color { .orange }
+    /// 範囲選択矩形の色。波形色・Artifact 色と被らない色。
+    private var selectionColor: Color { .purple }
 
     // MARK: - Drawing
 
@@ -89,8 +122,20 @@ struct RealtimeChartView: View {
         drawXAxis(context: context, plotRect: plotRect, windowSamples: windowSamples)
         drawSeries(context: context, plotRect: plotRect, windowSamples: windowSamples, yFor: yFor)
         drawArtifacts(context: context, plotRect: plotRect, windowSamples: windowSamples)
+        drawSelection(context: context, plotRect: plotRect)
 
         context.stroke(Path(plotRect), with: .color(borderColor), lineWidth: 0.5)
+    }
+
+    /// ドラッグ中の選択範囲を半透明の矩形で描く（範囲選択が有効なときのみ）。
+    private func drawSelection(context: GraphicsContext, plotRect: CGRect) {
+        guard rangeSelectionEnabled, let startX = dragStartX, let currentX = dragCurrentX else { return }
+        let minX = max(plotRect.minX, min(startX, currentX))
+        let maxX = min(plotRect.maxX, max(startX, currentX))
+        guard maxX > minX else { return }
+        let rect = CGRect(x: minX, y: plotRect.minY, width: maxX - minX, height: plotRect.height)
+        context.fill(Path(rect), with: .color(selectionColor.opacity(0.15)))
+        context.stroke(Path(rect), with: .color(selectionColor.opacity(0.6)), lineWidth: 1)
     }
 
     /// Artifact を縦線＋文字で描く。文字は Y軸上限あたり（プロット上端）に配置する。

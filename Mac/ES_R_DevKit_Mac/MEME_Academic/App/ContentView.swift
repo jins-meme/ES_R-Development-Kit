@@ -53,6 +53,49 @@ struct ContentView: View {
             TextField("Artifact", text: $vm.artifactInput, prompt: Text("x"))
             Button("Cancel", role: .cancel) { viewModel.cancelArtifact() }
             Button("OK") { viewModel.confirmArtifact() }
+        } message: {
+            Text("Artifact will be added on stop replay")
+        }
+        .sheet(isPresented: $vm.showingCutDialog) {
+            CutFileDialogView()
+                .environment(viewModel)
+        }
+    }
+}
+
+// MARK: - Replay range cut dialog
+
+/// ドラッグ選択した区間をCSVへ切り出す際のファイル名入力ダイアログ。
+/// `.alert` はボタン押下で必ず閉じてしまうため、エラー表示を保持できるシートで実装する。
+private struct CutFileDialogView: View {
+
+    @Environment(MEMEViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Save selected range as CSV").font(.headline)
+            TextField("File name", text: $vm.cutFileNameInput)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+                .onSubmit { viewModel.confirmCutFile() }
+            if !viewModel.cutErrorMessage.isEmpty {
+                Text(viewModel.cutErrorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { viewModel.cancelCutFile() }
+                Button("OK") { viewModel.confirmCutFile() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .onChange(of: vm.cutFileNameInput) {
+            // 入力し直したら前回のエラー表示を消す。
+            viewModel.cutErrorMessage = ""
         }
     }
 }
@@ -79,11 +122,12 @@ private struct LeftColumnView: View {
 
             Group {
                 HStack(spacing: 8) {
-                    if viewModel.showStartScan {
-                        Button("Start Scan") { viewModel.startScan() }
+                    if viewModel.showScanButton {
+                        Button(viewModel.scanButtonLabel) { viewModel.toggleScan() }
                     }
                     if viewModel.showFileReplay {
                         Button("File Replay") { viewModel.chooseReplayFile() }
+                            .disabled(viewModel.isScanning)
                     }
                 }
                 Picker("", selection: $vm.selectedDevice) {
@@ -94,11 +138,12 @@ private struct LeftColumnView: View {
                     }
                 }
                 .labelsHidden()
-                .disabled(viewModel.isInputDisabled)
+                .disabled(viewModel.isDeviceSelectionDisabled)
                 if viewModel.showConnect {
                     Button(viewModel.connectButtonLabel) {
                         viewModel.toggleConnect()
                     }
+                    .disabled(viewModel.isConnecting)
                 }
                 Text(viewModel.connectionStateText).foregroundStyle(.secondary)
             }
@@ -157,7 +202,10 @@ private struct LeftColumnView: View {
                         .help("より広いX軸レンジに縮小する")
                     Text("\(viewModel.xRangeSeconds)s").foregroundStyle(.secondary).monospacedDigit()
                 }
-                if viewModel.showFreeMarking {
+            }
+
+            if viewModel.showFreeMarking {
+                HStack(spacing: 8) {
                     Button("Free Marking") { viewModel.toggleFreeMarking() }
                 }
             }
@@ -282,9 +330,14 @@ private struct ChartPanelView: View {
                                eog: $eog, gyro: $gyro, accel: $accel,
                                disabled: viewModel.isInputDisabled)
                     .frame(width: 160)
-                RealtimeChartView(plot: plot) { row in
+                RealtimeChartView(plot: plot,
+                                  onTapRow: { row in
                     viewModel.chartTapped(row: row)
-                }
+                },
+                                  onRangeSelected: { start, end in
+                    viewModel.chartRangeSelected(startRow: start, endRow: end)
+                },
+                                  rangeSelectionEnabled: viewModel.isReplayRangeSelectable)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

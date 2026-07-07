@@ -33,7 +33,7 @@ struct SettingsView: View {
                         TextField("", text: $saveFilePath)
                             .textFieldStyle(.roundedBorder)
                             .frame(minWidth: 320)
-                        Button("Browse") { browseFolder() }
+                        Button("Select") { browseFolder() }
                         Button("Open Folder") { openFolder() }
                     }
                 }

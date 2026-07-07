@@ -44,6 +44,8 @@ final class MEMEViewModel: NSObject {
     // Scan / Connect
     var foundDevices: [String] = []
     var selectedDevice: String = ""
+    var isScanning: Bool = false
+    var isConnecting: Bool = false
     var connectionStateText: String = "State : Disconnected"
     var memeVersionText: String = "MEME Version："
 
@@ -126,6 +128,11 @@ final class MEMEViewModel: NSObject {
     var showingArtifactDialog: Bool = false
     var artifactInput: String = ""
 
+    // Replay range cut dialog（チャートのドラッグ範囲をCSVへ切り出す）
+    var showingCutDialog: Bool = false
+    var cutFileNameInput: String = ""
+    var cutErrorMessage: String = ""
+
     // MARK: - Private state
 
     private var memelib: (any MEMELibInterface)!
@@ -148,6 +155,9 @@ final class MEMEViewModel: NSObject {
     private var pendingArtifacts: [Int: String] = [:]
     /// Artifact ダイアログの対象サンプル位置（絶対チャートサンプル位置）。
     private var artifactTargetRow: Int = 0
+
+    /// 切り出しダイアログの対象区間（0始まりデータ行インデックス、両端含む）。
+    private var cutRange: (start: Int, end: Int) = (0, 0)
 
     /// 描画スロットリング用カウンタ（appendChartSample で加算）。
     private var chartRenderCounter: Int = 0
@@ -211,6 +221,7 @@ final class MEMEViewModel: NSObject {
         isReplayPaused = false
         pendingArtifacts.removeAll()
         showingArtifactDialog = false
+        showingCutDialog = false
         chart1Plot.reset()
         chart2Plot.reset()
         chart3Plot.reset()
@@ -218,8 +229,17 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Scan / Connect actions
 
+    func toggleScan() {
+        if isScanning {
+            stopScan()
+        } else {
+            startScan()
+        }
+    }
+
     func startScan() {
         NSLog("Call : startScanningPeripherals")
+        isScanning = true
         connectionStateText = "State : Scanning..."
         foundDevices.removeAll()
         selectedDevice = ""
@@ -241,6 +261,16 @@ final class MEMEViewModel: NSObject {
         }
     }
 
+    func stopScan() {
+        NSLog("Call : stopScanningPeripherals")
+        memelib.stopScanningPeripherals()
+        isScanning = false
+        foundDevices.removeAll()
+        selectedDevice = ""
+        connectionStateText = "State : Disconnected"
+        phase = .idle
+    }
+
     func toggleConnect() {
         if phase == .replayReady || phase == .replaying {
             disconnectReplay()
@@ -252,6 +282,7 @@ final class MEMEViewModel: NSObject {
         } else {
             guard !selectedDevice.isEmpty else { return }
             NSLog("Call : connectPeripheral")
+            isConnecting = true
             memelib.connectPeripheral(deviceName: selectedDevice)
         }
     }
@@ -259,7 +290,16 @@ final class MEMEViewModel: NSObject {
     // MARK: - File Replay actions
 
     func chooseReplayFile() {
-        guard phase == .idle else { return }
+        // BLE 接続中は再生に入れない。
+        guard phase != .connected && phase != .measuring else { return }
+        // スキャン中なら現在のスキャンを停止してからダイアログを開く。
+        if isScanning {
+            stopScan()
+        }
+        // 既存の再生セッションがあれば破棄してからダイアログを開く。
+        if phase == .replayReady || phase == .replaying {
+            disconnectReplay()
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -448,6 +488,73 @@ final class MEMEViewModel: NSObject {
         } catch {
             NSLog("[Artifact] failed to write (live): %@", error.localizedDescription)
         }
+    }
+
+    // MARK: - Replay range cut
+
+    /// 範囲選択（ドラッグ）を受け付けるか。ファイル再生中（一時停止中を含む）のみ有効。
+    var isReplayRangeSelectable: Bool { phase == .replaying }
+
+    /// チャート上のドラッグ範囲選択が終了したときに呼ぶ。行は絶対チャートサンプル位置
+    /// （再生中はデータ行インデックスと一致）。区間を控えて保存ダイアログを開く。
+    func chartRangeSelected(startRow: Int, endRow: Int) {
+        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
+        let maxRow = info.rows.count - 1
+        let start = min(max(min(startRow, endRow), 0), maxRow)
+        let end = min(max(max(startRow, endRow), 0), maxRow)
+        guard start < end else { return }
+        cutRange = (start, end)
+        cutFileNameInput = Self.defaultCutFileName(for: info.url)
+        cutErrorMessage = ""
+        showingCutDialog = true
+    }
+
+    /// 切り出し先のデフォルトファイル名。"current.csv" → "current_1.csv"、
+    /// それが既にあれば "current_2.csv" … と存在しない名前までインクリメントする。
+    private static func defaultCutFileName(for url: URL) -> String {
+        let base = url.deletingPathExtension().lastPathComponent
+        let dir = url.deletingLastPathComponent()
+        var n = 1
+        while FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(base)_\(n).csv").path) {
+            n += 1
+        }
+        return "\(base)_\(n).csv"
+    }
+
+    /// 切り出しダイアログOK。再生元CSVと同じフォルダへ、控えた区間のデータ行だけを書き出す。
+    /// 同名ファイルが既にある場合はダイアログ内へエラーを表示し、保存もダイアログを閉じることもしない。
+    func confirmCutFile() {
+        guard let info = replayInfo else {
+            showingCutDialog = false
+            return
+        }
+        var name = cutFileNameInput.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, !name.contains("/") else {
+            cutErrorMessage = "Invalid file name."
+            return
+        }
+        if !name.lowercased().hasSuffix(".csv") {
+            name += ".csv"
+        }
+        let dest = info.url.deletingLastPathComponent().appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: dest.path) {
+            cutErrorMessage = "File already exists."
+            return
+        }
+        do {
+            try CsvReplayService.exportRange(from: info.url,
+                                             to: dest,
+                                             startRow: cutRange.start,
+                                             endRow: cutRange.end)
+            showingCutDialog = false
+        } catch {
+            NSLog("[Cut] failed to write: %@", error.localizedDescription)
+            cutErrorMessage = "Failed to save file."
+        }
+    }
+
+    func cancelCutFile() {
+        showingCutDialog = false
     }
 
     private func ingestReplayRow(_ data: AcademicData, mode: UInt32, index: Int, total: Int) {
@@ -799,8 +906,13 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Phase computed convenience
 
-    var showStartScan: Bool { phase == .idle }
-    var showFileReplay: Bool { phase == .idle }
+    var showScanButton: Bool { phase == .idle || phase == .deviceFound }
+    var scanButtonLabel: String { isScanning ? "Stop Scan" : "Start Scan" }
+    // BLE デバイス接続中（接続完了 or 計測中）以外は常に表示する。
+    var showFileReplay: Bool { phase != .connected && phase != .measuring }
+    // スキャン中はデバイス選択（(no device) 表示）を触らせない。
+    // デバイスが見つかったら選択できるようにする。
+    var isDeviceSelectionDisabled: Bool { isInputDisabled || (isScanning && phase != .deviceFound) }
     var showConnect: Bool { phase == .deviceFound || phase == .connected || phase == .replayReady || phase == .replaying }
     var connectButtonLabel: String {
         (phase == .connected || phase == .replayReady || phase == .replaying) ? "Disconnect" : "Connect"
@@ -854,13 +966,20 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         } else {
             NSLog("memePeripheralFoundDelegate %d", result)
             memelib.stopScanningPeripherals()
+            isScanning = false
             connectionStateText = "State : Scan timeout. Tap Start Scan to retry."
         }
     }
 
     func memePeripheralConnectedDelegate(result: UInt32) {
         NSLog("memePeripheralConnectedDelegate : %d", result)
+        isConnecting = false
+        guard result == MEMELIB_OK else {
+            connectionStateText = "State : Connect failed"
+            return
+        }
         connectedFlag = true
+        isScanning = false
         connectionStateText = "State : Connected"
         memeVersionText = "MEME Version：\(memelib.memeVersion.major).\(memelib.memeVersion.minor).\(memelib.memeVersion.revision)"
         phase = .connected
@@ -870,6 +989,8 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     func memePeripheralDisconnectedDelegate(result: UInt32) {
         NSLog("memePeripheralDisconnectedDelegate : %d", result)
         connectedFlag = false
+        isConnecting = false
+        isScanning = false
         connectionStateText = "State : Disconnected"
         foundDevices.removeAll()
         selectedDevice = ""
