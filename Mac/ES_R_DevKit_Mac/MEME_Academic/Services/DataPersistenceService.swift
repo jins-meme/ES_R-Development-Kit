@@ -34,6 +34,13 @@ final class DataPersistenceService {
 
     var lastRow: [String: Any]? { pendingCsvRows.last }
 
+    /// 現在書き出し中のCSVファイルURL。まだ1件も書き出していなければ nil。
+    /// 計測停止時に、タップで付けた Artifact を確定済みファイルへ書き戻すために使う。
+    var savedFileURL: URL? {
+        guard let path = csvManager.saveFilePath, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
     // MARK: - Save trigger
 
     /// バッファ件数が閾値を超える or force=true のとき書き出す。

@@ -142,9 +142,11 @@ final class MEMEViewModel: NSObject {
     private var currentReplayIndex: Int = 0
     private var isScrubbingReplay = false
 
-    /// タップで記録した Artifact（データ行インデックス → 文字列）。停止時にCSVへ書き戻す。
+    /// タップで記録した Artifact（絶対チャートサンプル位置 → 文字列）。停止時にCSVへ書き戻す。
+    /// 再生中はサンプル位置＝データ行インデックス。計測中は先頭パケットを1件落とすため
+    /// データ行インデックス＝サンプル位置−1（書き戻し時に変換する。flushLiveArtifacts 参照）。
     private var pendingArtifacts: [Int: String] = [:]
-    /// Artifact ダイアログの対象データ行インデックス。
+    /// Artifact ダイアログの対象サンプル位置（絶対チャートサンプル位置）。
     private var artifactTargetRow: Int = 0
 
     /// 描画スロットリング用カウンタ（appendChartSample で加算）。
@@ -379,10 +381,19 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Artifact tagging
 
-    /// チャートタップ時に呼ぶ。再生中のみ、対象データ行を控えてダイアログを開く。
+    /// チャートタップ時に呼ぶ。再生中／計測中のどちらでも、対象サンプルを控えてダイアログを開く。
+    /// row は絶対チャートサンプル位置（右詰め描画の右端＝最新）。
     func chartTapped(row: Int) {
-        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
-        artifactTargetRow = min(max(row, 0), info.rows.count - 1)
+        switch phase {
+        case .replaying:
+            guard let info = replayInfo, !info.rows.isEmpty else { return }
+            artifactTargetRow = min(max(row, 0), info.rows.count - 1)
+        case .measuring:
+            // 計測中はストリームが開いており上限が無いため下限のみクランプする。
+            artifactTargetRow = max(row, 0)
+        default:
+            return
+        }
         artifactInput = ""
         showingArtifactDialog = true
     }
@@ -420,6 +431,23 @@ final class MEMEViewModel: NSObject {
             NSLog("[Artifact] failed to write: %@", error.localizedDescription)
         }
         pendingArtifacts.removeAll()
+    }
+
+    /// 計測中にタップで付けた Artifact を、保存済みCSVの ARTIFACT 列へ書き戻す（停止時）。
+    /// pendingArtifacts のキーは絶対チャートサンプル位置。CSVは先頭パケットを1件落とすため、
+    /// データ行インデックス = サンプル位置 − 1（サンプル0はCSVに無いので除外する）。
+    private func flushLiveArtifacts() {
+        defer { pendingArtifacts.removeAll() }
+        guard !pendingArtifacts.isEmpty, let url = persistence.savedFileURL else { return }
+        var rowKeyed: [Int: String] = [:]
+        for (sampleIndex, text) in pendingArtifacts where sampleIndex >= 1 {
+            rowKeyed[sampleIndex - 1] = text
+        }
+        do {
+            try CsvReplayService.applyArtifacts(url: url, artifacts: rowKeyed)
+        } catch {
+            NSLog("[Artifact] failed to write (live): %@", error.localizedDescription)
+        }
     }
 
     private func ingestReplayRow(_ data: AcademicData, mode: UInt32, index: Int, total: Int) {
@@ -552,6 +580,9 @@ final class MEMEViewModel: NSObject {
             self.phase = .connected
 
             self.flushCsv()
+            // 確定したCSVファイルへ、計測中にタップで付けた Artifact を書き戻す。
+            // （保存ダイアログでファイルを移動する前に、元パスへ書き込んでおく。）
+            self.flushLiveArtifacts()
 
             if UserSetting.getShowSaveFileDialog() {
                 self.persistence.presentSaveDialog()
@@ -706,16 +737,24 @@ final class MEMEViewModel: NSObject {
                                  chart3Accel: chart3AccelToggles,
                                  sampleRate: chartSampleRate,
                                  xRangeSeconds: xRangeSeconds,
-                                 artifacts: currentReplayArtifacts())
+                                 artifacts: currentChartArtifacts())
     }
 
-    /// 再生中に各グラフへ表示する Artifact（0始まりデータ行インデックス → 文字列）。
-    /// 再生元CSVに記録済みのものと、この再生中にタップで付けた未書き戻しのものを併せて返す。
-    /// 再生中以外は空（リアルタイム描画では表示しない）。
-    private func currentReplayArtifacts() -> [Int: String] {
-        guard phase == .replaying, let info = replayInfo else { return [:] }
-        guard !pendingArtifacts.isEmpty else { return info.artifacts }
-        return info.artifacts.merging(pendingArtifacts) { _, tapped in tapped }
+    /// 各グラフへ表示する Artifact（キー＝絶対チャートサンプル位置 → 文字列）。
+    /// 再生中：再生元CSVに記録済みのものと、この再生中にタップで付けた未書き戻しのものを併せて返す。
+    /// 計測中：タップで付けた未書き戻しのものを返す（停止時にCSVへ書き戻す）。
+    /// それ以外は空。
+    private func currentChartArtifacts() -> [Int: String] {
+        switch phase {
+        case .replaying:
+            guard let info = replayInfo else { return [:] }
+            guard !pendingArtifacts.isEmpty else { return info.artifacts }
+            return info.artifacts.merging(pendingArtifacts) { _, tapped in tapped }
+        case .measuring:
+            return pendingArtifacts
+        default:
+            return [:]
+        }
     }
 
     // MARK: - Chart X-axis range
