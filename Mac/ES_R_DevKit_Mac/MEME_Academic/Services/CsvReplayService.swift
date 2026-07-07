@@ -51,6 +51,7 @@ final class CsvReplayService {
 
         var modeStr: String?
         var transStr: String?
+        var qualityStr: String?
         var accelStr: String?
         var gyroStr: String?
         var dataStartIndex: Int?
@@ -63,11 +64,19 @@ final class CsvReplayService {
                 modeStr = valueAfterColon(line)
             } else if line.hasPrefix("// Transmission speed") {
                 transStr = valueAfterColon(line)
-            } else if line.hasPrefix("// Acceleration sensor's range") {
+            } else if line.hasPrefix("// Data quality") {
+                // 旧タイプCSVでは Transmission speed の代わりに Data quality (High/Standard) を出力する。
+                qualityStr = valueAfterColon(line)
+            } else if line.hasPrefix("// Acceleration sensor's range") || line.hasPrefix("// Accelerometer sensor's range") {
+                // 表記揺れ: Acceleration / Accelerometer
                 accelStr = valueAfterColon(line)
             } else if line.hasPrefix("// Gyroscope sensor's range") {
                 gyroStr = valueAfterColon(line)
             }
+        }
+
+        if transStr == nil, let qualityStr {
+            transStr = transSpeedStr(fromQuality: qualityStr)
         }
 
         guard let dataStartIndex,
@@ -124,6 +133,15 @@ final class CsvReplayService {
         switch s {
         case "100Hz": return MEMEQuality_High
         case "50Hz": return MEMEQuality_Low
+        default: return nil
+        }
+    }
+
+    /// 旧タイプCSVの "Data quality" (High/Standard) を Transmission speed 相当の文字列に変換する。
+    private static func transSpeedStr(fromQuality s: String) -> String? {
+        switch s {
+        case "High": return "100Hz"
+        case "Standard": return "50Hz"
         default: return nil
         }
     }
