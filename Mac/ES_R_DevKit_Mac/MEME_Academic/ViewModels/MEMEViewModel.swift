@@ -316,6 +316,28 @@ final class MEMEViewModel: NSObject {
         }
     }
 
+    /// Finder の「このアプリで開く」など、外部から渡されたCSVを File Replay として読み込む。
+    /// 成功すれば .replayReady（Start measurement 可能）、形式が違えば loadReplayFile がエラーダイアログを出す。
+    func openReplayFile(url: URL) {
+        // BLE 接続中／計測中は再生に入れない。
+        guard phase != .connected && phase != .measuring else {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Cannot open file while connected"
+            alert.informativeText = "Disconnect the BLE device before opening a CSV for replay."
+            alert.runModal()
+            return
+        }
+        // スキャン中なら停止し、既存の再生セッションがあれば破棄してから読み込む。
+        if isScanning {
+            stopScan()
+        }
+        if phase == .replayReady || phase == .replaying {
+            disconnectReplay()
+        }
+        loadReplayFile(url: url)
+    }
+
     private func loadReplayFile(url: URL) {
         do {
             let info = try CsvReplayService.parse(url: url)
