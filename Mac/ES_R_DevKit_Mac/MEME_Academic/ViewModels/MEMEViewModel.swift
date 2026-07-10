@@ -213,8 +213,6 @@ final class MEMEViewModel: NSObject {
     private func reset() {
         persistence.reset()
         stats.reset()
-        chartService.reset()
-        chartRenderCounter = 0
         socketDatas = []
         socketStatusText = "Status : "
         isFreeMarking = false
@@ -222,6 +220,14 @@ final class MEMEViewModel: NSObject {
         pendingArtifacts.removeAll()
         showingArtifactDialog = false
         showingCutDialog = false
+    }
+
+    /// グラフ（描画バッファ・スロットルカウンタ・各プロット）をクリアする。
+    /// Stop Measurement / Record（再生停止）時ではなく、
+    /// 次の計測／ファイル再生が始まるタイミングで呼ぶ。
+    private func clearChart() {
+        chartService.reset()
+        chartRenderCounter = 0
         chart1Plot.reset()
         chart2Plot.reset()
         chart3Plot.reset()
@@ -349,6 +355,8 @@ final class MEMEViewModel: NSObject {
             gyroRange = Int(info.gyroRange)
             connectionStateText = "State : \(info.fileName)"
             phase = .replayReady
+            // ファイルを読み込んだら自動で再生を開始する（Start Replay ボタンは廃止）。
+            startReplay()
         } catch {
             NSLog("[Replay] failed to parse CSV: %@", url.path)
             let alert = NSAlert()
@@ -372,17 +380,16 @@ final class MEMEViewModel: NSObject {
         phase = .replaying
         isReplayPaused = false
         replaySpeedIndex = 0
-        chartService.reset()
-        chartRenderCounter = 0
-        currentReplayIndex = 0
-        replayProgress = 0
         replayService.start(rows: info.rows,
                             transMode: info.transMode,
                             onRow: { [weak self] data, index, total in
             self?.ingestReplayRow(data, mode: info.mode, index: index, total: total)
         }, onFinished: { [weak self] in
-            self?.finishReplay()
+            self?.pauseReplayAtEnd()
         })
+        // ウィンドウ幅（例: 7s なら 7s 分）のデータを先読みしてグラフを満たした状態から再生を始める。
+        // fillReplayWindow が描画バッファを作り直すため、前回のグラフはここでクリアされる。
+        fillReplayWindow(endingAt: xRangeSeconds * chartSampleRate - 1)
     }
 
     private func finishReplay() {
@@ -392,18 +399,25 @@ final class MEMEViewModel: NSObject {
         flushArtifacts()
         phase = .replayReady
         isReplayPaused = false
-        chartService.reset()
-        chart1Plot.reset()
-        chart2Plot.reset()
-        chart3Plot.reset()
+        // グラフはリセットしない（Record／停止時は残し、次の計測・再生開始時にクリアする）。
         stats.reset()
         successRateValue = 0; successRateText = "0.0%"
         communicationValue = 0; communicationText = "0.0%"
         replayProgress = 0
     }
 
+    /// 再生が最後まで到達したときに呼ぶ。Start Replay 状態には戻さず、末尾位置で一時停止した状態にする。
+    /// これにより末尾でも Record（グラフを残して停止）や << でのシークが行える。
+    private func pauseReplayAtEnd() {
+        guard phase == .replaying else { return }
+        isReplayPaused = true
+        // スロットルで最後の描画更新が漏れることがあるため、末尾サンプルまで確実に反映する。
+        updateChartPlots()
+    }
+
     private func disconnectReplay() {
-        replayService.stop()
+        // 再生セッションを完全に終える。保持していた1ファイル分の行データもここで解放する。
+        replayService.clear()
         // 再生中に切断された場合も、記録済み Artifact は書き戻す。
         // replayInfo はこの後破棄するため読み直しは不要。
         flushArtifacts(reload: false)
@@ -418,8 +432,10 @@ final class MEMEViewModel: NSObject {
     func toggleReplayPause() {
         guard phase == .replaying else { return }
         if isReplayPaused {
-            replayService.resume()
-            isReplayPaused = false
+            // 末尾で一時停止中は再開する行が無いため、resume が失敗したら一時停止のままにする。
+            if replayService.resume() {
+                isReplayPaused = false
+            }
         } else {
             replayService.pause()
             isReplayPaused = true
@@ -611,14 +627,18 @@ final class MEMEViewModel: NSObject {
         }
     }
 
-    /// >> ボタン：現在のX軸レンジ1つ分だけ再生位置を進める。
+    /// << / >> の移動量（秒）。ウィンドウ幅から 2 秒引いた分だけ移動し、
+    /// 前後のウィンドウが 2 秒重なって連続して見えるようにする。
+    private var replayJumpSeconds: Int { max(1, xRangeSeconds - 2) }
+
+    /// >> ボタン：ウィンドウ幅−2秒分だけ再生位置を進める。
     func replayJumpForward() {
-        jumpReplay(bySeconds: xRangeSeconds)
+        jumpReplay(bySeconds: replayJumpSeconds)
     }
 
-    /// << ボタン：現在のX軸レンジ1つ分だけ再生位置を戻す。
+    /// << ボタン：ウィンドウ幅−2秒分だけ再生位置を戻す。
     func replayJumpBackward() {
-        jumpReplay(bySeconds: -xRangeSeconds)
+        jumpReplay(bySeconds: -replayJumpSeconds)
     }
 
     private func jumpReplay(bySeconds seconds: Int) {
@@ -634,37 +654,32 @@ final class MEMEViewModel: NSObject {
         seekReplay(toRow: index)
     }
 
-    /// 再生中のシーク処理。チャートは新しい位置からの表示に作り直す。
+    /// 再生中のシーク処理。一時停止中・再生中どちらも、シーク先で終わるウィンドウ幅分の
+    /// データを先読みしてグラフを満たしてから、続き（シーク先の次の行）を読み込む。
+    /// これにより << / >> ジャンプ後も右端から徐々に埋めるのではなく、
+    /// 最初からウィンドウ幅を満たした状態で描画を再開する。
     private func seekReplay(toRow index: Int) {
         guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
-        let clamped = min(max(index, 0), info.rows.count - 1)
-        chartRenderCounter = 0
-        currentReplayIndex = clamped
-        chart1Plot.reset()
-        chart2Plot.reset()
-        chart3Plot.reset()
-        replayProgress = info.rows.count > 1 ? Double(clamped) / Double(info.rows.count - 1) * 100 : 0
-
-        if isReplayPaused {
-            // 一時停止中は tick が来ないため、シーク先で終わる可視ウィンドウを静的に描画する。
-            // （そのまま reset だけすると時間0の空グラフになり、変な位置に飛んだように見える。）
-            renderPausedWindow(endingAt: clamped)
-        } else {
-            // 再生中：新しい位置から表示を作り直す（次の tick から右詰めで埋まっていく）。
-            // シーク先の絶対サンプル位置を引き継ぎ、時間軸ラベルがシーク後も正しく続くようにする。
-            replayService.seek(to: clamped)
-            chartService.reset(baseIndex: clamped)
-        }
+        fillReplayWindow(endingAt: min(max(index, 0), info.rows.count - 1))
     }
 
-    /// 一時停止中に、指定行で終わる可視ウィンドウ（現在のX軸レンジ幅）を静的に描画する。
-    /// tick が来ない一時停止中でも、シークやX軸レンジ変更の結果を即座に反映するために使う。
-    /// 併せて、再開時に次の行から続くよう再生位置を endRow の次へ進める。
-    private func renderPausedWindow(endingAt endRow: Int) {
+    /// 指定行 endRow で終わるウィンドウ幅（現在のX軸レンジ）分のデータを先読みしてグラフを満たし、
+    /// 続きを endRow の次の行から読み込めるよう再生位置を進める。
+    /// 再生中なら次の tick から、一時停止中なら Resume 後に、endRow+1 以降が右端へ流れていく。
+    /// 再生開始時・シーク（<< / >> ・スライダー）時・一時停止中のX軸レンジ変更時に、
+    /// 右端から徐々に埋めるのではなく、最初からウィンドウ幅を満たした状態で描画を（再）開始するために使う。
+    private func fillReplayWindow(endingAt endRow: Int) {
         guard let info = replayInfo, !info.rows.isEmpty else { return }
-        let clamped = min(max(endRow, 0), info.rows.count - 1)
         let windowSamples = max(1, xRangeSeconds * chartSampleRate)
+        // 右端（＝再生位置）はウィンドウ幅−1 行より手前へは戻さない。
+        // これより手前へ戻すと窓が [0…endRow] の部分窓になり、左端が負の時刻（−ウィンドウ長）に
+        // なってしまう。先頭付近では常に先頭ウィンドウ [0 … windowSamples−1] を表示し、左端を 0s にする。
+        let minEnd = min(windowSamples - 1, info.rows.count - 1)
+        let clamped = min(max(endRow, minEnd), info.rows.count - 1)
         let start = max(0, clamped - windowSamples + 1)
+        chartRenderCounter = 0
+        currentReplayIndex = clamped
+        replayProgress = info.rows.count > 1 ? Double(clamped) / Double(info.rows.count - 1) * 100 : 0
         chartService.reset(baseIndex: start)
         for i in start...clamped {
             chartService.append(info.rows[i])
@@ -682,6 +697,8 @@ final class MEMEViewModel: NSObject {
     }
 
     private func startMeasurement() {
+        // 次の計測開始時に前回のグラフ（前回計測／再生の残り）をクリアする。
+        clearChart()
         stats.startMeasurement(quality: transSpeed + 1)
 
         memelib.setSelectMode(UInt32(selectMode + 1))
@@ -910,7 +927,7 @@ final class MEMEViewModel: NSObject {
     /// （再生中は次の tick が新しいレンジで描画するため何もしなくてよい。）
     private func refreshPausedWindowForRangeChange() {
         guard phase == .replaying, isReplayPaused else { return }
-        renderPausedWindow(endingAt: currentReplayIndex)
+        fillReplayWindow(endingAt: currentReplayIndex)
     }
 
     // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
@@ -941,8 +958,9 @@ final class MEMEViewModel: NSObject {
     }
     var showMeasurement: Bool { phase == .connected || phase == .measuring }
     var showFreeMarking: Bool { phase == .measuring }
-    var showReplayControls: Bool { phase == .replayReady || phase == .replaying }
-    var replayButtonLabel: String { phase == .replaying ? "Stop Replay" : "Start Replay" }
+    // 再生中のみ Record ボタンを表示する（Start Replay は廃止し、読み込み時に自動再生する）。
+    var showReplayControls: Bool { phase == .replaying }
+    var replayButtonLabel: String { "Record" }
     var showReplayPause: Bool { phase == .replaying }
     var replayPauseButtonLabel: String { isReplayPaused ? "Resume" : "Pause" }
     var isInputDisabled: Bool { phase == .measuring || phase == .replayReady || phase == .replaying }

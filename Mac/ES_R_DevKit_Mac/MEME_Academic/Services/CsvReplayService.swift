@@ -307,6 +307,17 @@ final class CsvReplayService {
         timer = nil
     }
 
+    /// 再生を終了し、保持している行データ（1ファイル分の全サンプル）とコールバックも解放する。
+    /// pause()/stop() と違い rows も破棄するため再開はできない（BLE 接続へ戻る等、
+    /// 再生セッションを完全に終える時に呼ぶ。次回は start() からやり直す）。
+    func clear() {
+        stop()
+        rows = []
+        rowIndex = 0
+        onRow = nil
+        onFinished = nil
+    }
+
     /// 再生を一時停止する（タイマーのみ止め、再生位置・コールバックは保持）。
     func pause() {
         timer?.invalidate()
@@ -314,9 +325,12 @@ final class CsvReplayService {
     }
 
     /// 一時停止中の再生を、同じ位置・同じ間隔から再開する。
-    func resume() {
-        guard timer == nil, !rows.isEmpty, rowIndex < rows.count else { return }
+    /// 末尾に到達済み（再開すべき行が無い）などで再開できなかった場合は false を返す。
+    @discardableResult
+    func resume() -> Bool {
+        guard timer == nil, !rows.isEmpty, rowIndex < rows.count else { return false }
         scheduleTimer()
+        return true
     }
 
     private func scheduleTimer() {
@@ -338,11 +352,10 @@ final class CsvReplayService {
         // チャートは1周期あたり speed 倍のデータ量で右へ進む（描画周期は不変）。
         for _ in 0..<speed {
             guard rowIndex < rows.count else {
-                let finished = onFinished
+                // 末尾に到達したらタイマーだけ止めて onFinished を通知する。
+                // rows とコールバックは保持し、末尾で << して戻った後に Resume で続きを再生できるようにする。
                 stop()
-                onRow = nil
-                onFinished = nil
-                finished?()
+                onFinished?()
                 return
             }
             let row = rows[rowIndex]

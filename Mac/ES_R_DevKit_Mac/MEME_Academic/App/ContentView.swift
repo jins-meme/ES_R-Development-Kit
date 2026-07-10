@@ -54,7 +54,7 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { viewModel.cancelArtifact() }
             Button("OK") { viewModel.confirmArtifact() }
         } message: {
-            Text("Artifact will be added on 'Stop Replay' timing")
+            Text("Artifact will be added on 'Record' timing")
         }
         .sheet(isPresented: $vm.showingCutDialog) {
             CutFileDialogView()

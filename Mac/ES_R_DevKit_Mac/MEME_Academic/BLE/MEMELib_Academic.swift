@@ -364,6 +364,9 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
         guard !recvData.isEmpty else { return }
         let cnt = recvData.count - 1
         let data = recvData[cnt]
+        // 最新パケットのみ処理し、受信バッファは都度クリアする。
+        // （従来は append するだけで recvData が無制限に増え続け、計測中にメモリを消費し続けていた。）
+        recvData.removeAll(keepingCapacity: true)
 
         var buff = [UInt8](repeating: 0, count: PACKET_LENGTH)
         let len = min(data.count, PACKET_LENGTH)
