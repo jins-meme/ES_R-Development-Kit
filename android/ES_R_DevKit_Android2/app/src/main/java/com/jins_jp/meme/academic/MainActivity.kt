@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.jins_jp.meme.academic.ui.main.MainScreen
-import com.jins_jp.meme.academic.ui.theme.ESRDevKit2Theme
+import com.jins_jp.meme.core.theme.ESRTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         enableBluetoothIfNeeded()
 
         setContent {
-            ESRDevKit2Theme {
+            ESRTheme {
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()

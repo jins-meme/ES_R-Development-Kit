@@ -8,23 +8,23 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.jins.meme.academic.util.HexDump
 import com.jins.meme.academic.util.LogCat
-import com.jins_jp.meme.academic.App
-import com.jins_jp.meme.academic.ble.ConnectionState
-import com.jins_jp.meme.academic.ble.MemeBleConstants
-import com.jins_jp.meme.academic.ble.MemeBleRepository
-import com.jins_jp.meme.academic.ble.MockMemeBleEngine
-import com.jins_jp.meme.academic.data.AccRange
-import com.jins_jp.meme.academic.data.CsvWriter
-import com.jins_jp.meme.academic.data.DataParser
-import com.jins_jp.meme.academic.data.GyroRange
-import com.jins_jp.meme.academic.data.MeasurementSettings
-import com.jins_jp.meme.academic.data.MemeMode
-import com.jins_jp.meme.academic.data.MemeQuality
-import com.jins_jp.meme.academic.data.MockCsvFormatException
-import com.jins_jp.meme.academic.data.MockCsvLoader
-import com.jins_jp.meme.academic.data.SettingsStore
-import com.jins_jp.meme.academic.data.formatRow
-import com.jins_jp.meme.academic.service.MeasurementService
+import com.jins_jp.meme.core.App
+import com.jins_jp.meme.core.ble.ConnectionState
+import com.jins_jp.meme.core.ble.MemeBleConstants
+import com.jins_jp.meme.core.ble.MemeBleRepository
+import com.jins_jp.meme.core.ble.MockMemeBleEngine
+import com.jins_jp.meme.core.data.AccRange
+import com.jins_jp.meme.core.data.CsvWriter
+import com.jins_jp.meme.core.data.DataParser
+import com.jins_jp.meme.core.data.GyroRange
+import com.jins_jp.meme.core.data.MeasurementSettings
+import com.jins_jp.meme.core.data.MemeMode
+import com.jins_jp.meme.core.data.MemeQuality
+import com.jins_jp.meme.core.data.MockCsvFormatException
+import com.jins_jp.meme.core.data.MockCsvLoader
+import com.jins_jp.meme.core.data.SettingsStore
+import com.jins_jp.meme.core.data.formatRow
+import com.jins_jp.meme.core.service.MeasurementService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -447,7 +447,7 @@ class MainViewModel(
             stopCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
             stopCmd[2] = 0x00
             sendEncoded(stopCmd)
-            val dataUri = if (!ui.value.mockEnabled) csv.stop() else null
+            val dataUri = if (!ui.value.mockEnabled) csv.stop().dataUri else null
             stopCommTicker()
             MeasurementService.stop(getApplication())
             _ui.update {

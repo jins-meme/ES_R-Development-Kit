@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.ble
+package com.jins_jp.meme.core.ble
 
 import java.util.UUID
 

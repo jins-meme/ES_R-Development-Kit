@@ -1,6 +1,6 @@
-package com.jins_jp.meme.academic.data
+package com.jins_jp.meme.core.data
 
-import com.jins_jp.meme.academic.ble.MemeBleConstants
+import com.jins_jp.meme.core.ble.MemeBleConstants
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 

@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.ui.theme
+package com.jins_jp.meme.core.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +22,7 @@ private val DarkScheme = darkColorScheme(
 )
 
 @Composable
-fun ESRDevKit2Theme(
+fun ESRTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

@@ -93,21 +93,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jins_jp.meme.academic.BuildConfig
 import com.jins_jp.meme.academic.R
-import com.jins_jp.meme.academic.ble.ConnectionState
-import com.jins_jp.meme.academic.data.AccRange
-import com.jins_jp.meme.academic.data.GyroRange
-import com.jins_jp.meme.academic.data.MemeMode
-import com.jins_jp.meme.academic.data.MemeQuality
-import com.jins_jp.meme.academic.ui.graph.LineSeries
-import com.jins_jp.meme.academic.ui.graph.LiveLineChart
-import com.jins_jp.meme.academic.ui.theme.AccBlue
-import com.jins_jp.meme.academic.ui.theme.AccGreen
-import com.jins_jp.meme.academic.ui.theme.AccRed
-import com.jins_jp.meme.academic.ui.theme.EogBlue
-import com.jins_jp.meme.academic.ui.theme.EogRed
-import com.jins_jp.meme.academic.ui.theme.GyroBlue
-import com.jins_jp.meme.academic.ui.theme.GyroGreen
-import com.jins_jp.meme.academic.ui.theme.GyroRed
+import com.jins_jp.meme.core.ble.ConnectionState
+import com.jins_jp.meme.core.data.AccRange
+import com.jins_jp.meme.core.data.GyroRange
+import com.jins_jp.meme.core.data.MemeMode
+import com.jins_jp.meme.core.data.MemeQuality
+import com.jins_jp.meme.core.chart.GraphBuffer
+import com.jins_jp.meme.core.chart.LineSeries
+import com.jins_jp.meme.core.chart.LiveLineChart
+import com.jins_jp.meme.core.theme.AccBlue
+import com.jins_jp.meme.core.theme.AccGreen
+import com.jins_jp.meme.core.theme.AccRed
+import com.jins_jp.meme.core.theme.EogBlue
+import com.jins_jp.meme.core.theme.EogRed
+import com.jins_jp.meme.core.theme.GyroBlue
+import com.jins_jp.meme.core.theme.GyroGreen
+import com.jins_jp.meme.core.theme.GyroRed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -212,8 +213,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                         key = "eog",
                         title = stringResource(R.string.eog_graph_title),
                         series = listOf(
-                            LineSeries(EogBlue, eogVv.snapshotY(), "Vv"),
-                            LineSeries(EogRed, eogVh.snapshotY(), "Vh"),
+                            LineSeries(EogBlue, eogVv.snapshotY(), label = "Vv"),
+                            LineSeries(EogRed, eogVh.snapshotY(), label = "Vh"),
                         ),
                         yMin = -400f, yMax = 400f,
                     ),
@@ -221,9 +222,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                         key = "acc",
                         title = stringResource(R.string.acc_graph_title),
                         series = listOf(
-                            LineSeries(AccBlue, accX.snapshotY(), "X"),
-                            LineSeries(AccGreen, accY.snapshotY(), "Y"),
-                            LineSeries(AccRed, accZ.snapshotY(), "Z"),
+                            LineSeries(AccBlue, accX.snapshotY(), label = "X"),
+                            LineSeries(AccGreen, accY.snapshotY(), label = "Y"),
+                            LineSeries(AccRed, accZ.snapshotY(), label = "Z"),
                         ),
                         yMin = -35000f, yMax = 35000f,
                     ),
@@ -231,9 +232,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
                         key = "gyro",
                         title = stringResource(R.string.gyro_graph_title),
                         series = listOf(
-                            LineSeries(GyroBlue, gyroX.snapshotY(), "X"),
-                            LineSeries(GyroGreen, gyroY.snapshotY(), "Y"),
-                            LineSeries(GyroRed, gyroZ.snapshotY(), "Z"),
+                            LineSeries(GyroBlue, gyroX.snapshotY(), label = "X"),
+                            LineSeries(GyroGreen, gyroY.snapshotY(), label = "Y"),
+                            LineSeries(GyroRed, gyroZ.snapshotY(), label = "Z"),
                         ),
                         yMin = -35000f, yMax = 35000f,
                     ),

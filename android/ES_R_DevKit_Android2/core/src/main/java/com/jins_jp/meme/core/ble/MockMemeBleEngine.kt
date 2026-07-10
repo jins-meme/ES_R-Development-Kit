@@ -1,7 +1,7 @@
-package com.jins_jp.meme.academic.ble
+package com.jins_jp.meme.core.ble
 
 import com.jins.meme.academic.util.DataEncryption
-import com.jins_jp.meme.academic.data.MockCsvData
+import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
