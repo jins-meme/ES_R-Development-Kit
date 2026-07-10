@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.jins_jp.meme.academic.ui.main.MainScreen
 import com.jins_jp.meme.core.theme.ESRTheme
+import com.jins_jp.meme.core.ui.main.MainScreen
 
 class MainActivity : ComponentActivity() {
 

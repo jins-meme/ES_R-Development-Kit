@@ -1,5 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 共有 MainScreen の文言。アプリ側 strings.xml の同名リソースで override できる。 -->
+    <string name="text_label_connect_meme">Connect to MEME device</string>
+    <string name="text_label_measure">Measure</string>
+    <string name="text_label_status">Status:</string>
+    <string name="text_state_disconnect">Disconnect</string>
+    <string name="text_state_reconnecting">Reconnecting…</string>
+    <string name="text_label_set_mode">Select mode</string>
+    <string name="text_label_set_quality">Transmission speed</string>
+    <string name="text_label_set_acceleration">Accelerometer range</string>
+    <string name="text_label_set_gyroacope">Gyroscope range</string>
+    <string name="text_label_settings">Settings</string>
+    <string name="button_playback">Playback (replay logged CSV)</string>
+    <string name="text_label_auto_connect">Auto-connect when discovered</string>
+    <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>
+    <string name="text_label_open_sharing_on_complete">Open sharing when measurement is complete</string>
+    <string name="mock_error_title">Playback CSV load error</string>
+    <string name="bluetooth_error_title">Bluetooth error</string>
+    <string name="bluetooth_error_text">Bluetooth is off. Please turn it on from the settings.</string>
+    <string name="text_label_starting">Starting…</string>
+
+    <string name="button_scan_device">Scan device</string>
+    <string name="button_connect">Connect</string>
+    <string name="button_disconnect">Disconnect</string>
+    <string name="button_initialize">Initialize</string>
+    <string name="button_measurement_start">Start Measurement</string>
+    <string name="button_measurement_stop">Stop Measurement</string>
+    <string name="hint_hold_to_start">Hold to Start</string>
+    <string name="hint_hold_to_stop">Hold to Stop</string>
+    <string name="button_free_marking">Free Marking</string>
+    <string name="button_dialog_ok">OK</string>
+
+    <string name="eog_graph_title">EOG data</string>
+    <string name="acc_graph_title">Accel data</string>
+    <string name="gyro_graph_title">Gyro data</string>
+
     <!-- フォアグラウンドサービス（計測中の常駐通知） -->
     <string name="notification_channel_measurement">計測</string>
     <string name="notification_measuring_title">計測中</string>

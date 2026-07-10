@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.ui.main
+package com.jins_jp.meme.core.ui.main
 
 import android.content.ClipData
 import android.content.Intent
@@ -12,10 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +56,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -65,7 +66,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,51 +91,31 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jins_jp.meme.academic.BuildConfig
-import com.jins_jp.meme.academic.R
+import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.data.AccRange
 import com.jins_jp.meme.core.data.GyroRange
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
-import com.jins_jp.meme.core.chart.GraphBuffer
-import com.jins_jp.meme.core.chart.LineSeries
-import com.jins_jp.meme.core.chart.LiveLineChart
-import com.jins_jp.meme.core.theme.AccBlue
-import com.jins_jp.meme.core.theme.AccGreen
-import com.jins_jp.meme.core.theme.AccRed
-import com.jins_jp.meme.core.theme.EogBlue
-import com.jins_jp.meme.core.theme.EogRed
-import com.jins_jp.meme.core.theme.GyroBlue
-import com.jins_jp.meme.core.theme.GyroGreen
-import com.jins_jp.meme.core.theme.GyroRed
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
-// 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
-private const val GRAPH_LEN = 150
-
-// プロット点のレート(Hz)。経過時間の換算に使う（GRAPH_LEN / PLOT_HZ = 6秒の可視窓）。
-private const val PLOT_HZ = 25
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory)) {
+fun MainScreen(
+    viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory),
+    showAutoConnectSetting: Boolean = false,
+    charts: @Composable ColumnScope.(MainUiState) -> Unit = { ui -> SensorChartsPane(viewModel, ui) },
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    LaunchedEffect(ui.toast) {
-        ui.toast?.let {
-            scope.launch { snackbarHost.showSnackbar(it) }
-            viewModel.dismissToast()
-        }
-    }
-
-    // 計測完了時、設定が有効なら本体データCSVを「その他のアプリと共有」で開く。
+    // 計測完了時、設定が有効なら本体データCSV・分類CSVを「その他のアプリと共有」で開く。
     LaunchedEffect(ui.shareRequest) {
         val req = ui.shareRequest ?: return@LaunchedEffect
         viewModel.dismissShareRequest()
@@ -150,41 +130,16 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
         context.startActivity(Intent.createChooser(shareIntent, null))
     }
 
-    // Live graph buffers
-    val eogVh = remember { GraphBuffer(GRAPH_LEN) }
-    val eogVv = remember { GraphBuffer(GRAPH_LEN) }
-    val accX = remember { GraphBuffer(GRAPH_LEN) }
-    val accY = remember { GraphBuffer(GRAPH_LEN) }
-    val accZ = remember { GraphBuffer(GRAPH_LEN) }
-    val gyroX = remember { GraphBuffer(GRAPH_LEN) }
-    val gyroY = remember { GraphBuffer(GRAPH_LEN) }
-    val gyroZ = remember { GraphBuffer(GRAPH_LEN) }
-    var bumper by remember { mutableIntStateOf(0) }
-    var minimizedCharts by remember { mutableStateOf(setOf<String>()) }
-    // 最新プロット点の通番(= totalCount / graphSkipCount)。経過秒の換算に使う。
-    var emitX by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(Unit) {
-        viewModel.graph.collect { ev ->
-            when (ev) {
-                GraphEvent.Reset -> {
-                    eogVh.clear(); eogVv.clear()
-                    accX.clear(); accY.clear(); accZ.clear()
-                    gyroX.clear(); gyroY.clear(); gyroZ.clear()
-                    emitX = 0L
-                }
-                is GraphEvent.Eog -> {
-                    eogVh.add(ev.vh); eogVv.add(ev.vv)
-                    emitX = ev.x
-                }
-                is GraphEvent.Acc -> {
-                    accX.add(ev.x1); accY.add(ev.y); accZ.add(ev.z)
-                }
-                is GraphEvent.Gyro -> {
-                    gyroX.add(ev.x1); gyroY.add(ev.y); gyroZ.add(ev.z)
-                }
-            }
-            bumper++
+    // Toast(Snackbar) は後勝ちで即時表示する。短時間に連続でタップしても、
+    // 直前の表示をキャンセルして最新のメッセージにすぐ差し替える（順番待ちで遅延しない）。
+    var toastJob by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(ui.toast) {
+        val msg = ui.toast ?: return@LaunchedEffect
+        viewModel.dismissToast()
+        toastJob?.cancel()
+        toastJob = scope.launch {
+            snackbarHost.currentSnackbarData?.dismiss()
+            snackbarHost.showSnackbar(msg, duration = SnackbarDuration.Short)
         }
     }
 
@@ -201,74 +156,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (!ui.isMeasuring) {
-                ConnectCard(ui, viewModel)
+                ConnectCard(ui, viewModel, showAutoConnectSetting)
             }
             if (ui.connection == ConnectionState.ServicesReady) {
                 MeasureCard(ui, viewModel)
             }
-            if (ui.isMeasuring || emitX > 0L) {
-                bumper // ensure recomposition keys
-                val charts = listOf(
-                    ChartSpec(
-                        key = "eog",
-                        title = stringResource(R.string.eog_graph_title),
-                        series = listOf(
-                            LineSeries(EogBlue, eogVv.snapshotY(), label = "Vv"),
-                            LineSeries(EogRed, eogVh.snapshotY(), label = "Vh"),
-                        ),
-                        yMin = -400f, yMax = 400f,
-                    ),
-                    ChartSpec(
-                        key = "acc",
-                        title = stringResource(R.string.acc_graph_title),
-                        series = listOf(
-                            LineSeries(AccBlue, accX.snapshotY(), label = "X"),
-                            LineSeries(AccGreen, accY.snapshotY(), label = "Y"),
-                            LineSeries(AccRed, accZ.snapshotY(), label = "Z"),
-                        ),
-                        yMin = -35000f, yMax = 35000f,
-                    ),
-                    ChartSpec(
-                        key = "gyro",
-                        title = stringResource(R.string.gyro_graph_title),
-                        series = listOf(
-                            LineSeries(GyroBlue, gyroX.snapshotY(), label = "X"),
-                            LineSeries(GyroGreen, gyroY.snapshotY(), label = "Y"),
-                            LineSeries(GyroRed, gyroZ.snapshotY(), label = "Z"),
-                        ),
-                        yMin = -35000f, yMax = 35000f,
-                    ),
-                )
-                charts.forEach { spec ->
-                    if (spec.key !in minimizedCharts) {
-                        LiveLineChart(
-                            title = spec.title,
-                            series = spec.series,
-                            yMin = spec.yMin,
-                            yMax = spec.yMax,
-                            onMinimize = { minimizedCharts = minimizedCharts + spec.key },
-                            // 経過時間(理論値): 右端=最新点の経過秒、1点=1/PLOT_HZ 秒。
-                            xRightSeconds = emitX / PLOT_HZ.toFloat(),
-                            xSecondsPerPoint = 1f / PLOT_HZ,
-                        )
-                    }
-                }
-                if (minimizedCharts.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        charts.filter { it.key in minimizedCharts }.forEach { spec ->
-                            MinimizedChartChip(
-                                title = spec.title,
-                                onClick = { minimizedCharts = minimizedCharts - spec.key },
-                            )
-                        }
-                    }
-                }
-            }
+            charts(ui)
         }
     }
 
@@ -301,7 +194,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModel.Fact
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
+private fun ConnectCard(ui: MainUiState, vm: MainViewModel, showAutoConnectSetting: Boolean) {
     var showSettings by remember { mutableStateOf(false) }
     // Play button: pick a logged CSV, then replay it through the mock engine.
     val playbackCsvPicker = rememberLauncherForActivityResult(
@@ -389,13 +282,23 @@ private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     }
 
     if (showSettings) {
-        SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
+        SettingsDialog(
+            ui = ui,
+            vm = vm,
+            showAutoConnectSetting = showAutoConnectSetting,
+            onDismiss = { showSettings = false },
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> Unit) {
+private fun SettingsDialog(
+    ui: MainUiState,
+    vm: MainViewModel,
+    showAutoConnectSetting: Boolean,
+    onDismiss: () -> Unit,
+) {
     val canEditSettings = !ui.isMeasuring
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
@@ -447,6 +350,24 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                     enabled = canEditSettings,
                 ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
 
+                if (showAutoConnectSetting) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { vm.setAutoConnect(!ui.autoConnect) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = ui.autoConnect,
+                            onCheckedChange = vm::setAutoConnect,
+                        )
+                        Text(
+                            stringResource(R.string.text_label_auto_connect),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -485,8 +406,17 @@ private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> 
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                // BuildConfig は core から参照できないため、PackageManager から表示名/バージョンを取得する。
+                val context = LocalContext.current
+                val appLabel = remember {
+                    context.applicationInfo.loadLabel(context.packageManager).toString()
+                }
+                val versionText = remember {
+                    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                    "${info.versionName}.${info.longVersionCode}"
+                }
                 Text(
-                    "${stringResource(R.string.app_name)} version ${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",
+                    "$appLabel version $versionText",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -812,16 +742,8 @@ private fun BatteryIcon(level: Int) {
 }
 
 /** A minimized chart, rendered as a tappable title chip that restores the chart. */
-private data class ChartSpec(
-    val key: String,
-    val title: String,
-    val series: List<LineSeries>,
-    val yMin: Float,
-    val yMax: Float,
-)
-
 @Composable
-private fun MinimizedChartChip(title: String, onClick: () -> Unit) {
+fun MinimizedChartChip(title: String, onClick: () -> Unit) {
     AssistChip(
         onClick = onClick,
         label = { Text(title) },
