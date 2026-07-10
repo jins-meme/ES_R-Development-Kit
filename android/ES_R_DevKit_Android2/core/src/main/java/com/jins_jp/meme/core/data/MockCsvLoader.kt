@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.data
+package com.jins_jp.meme.core.data
 
 import java.io.BufferedReader
 import java.io.InputStream
@@ -16,7 +16,7 @@ class MockCsvFormatException(message: String) : Exception(message)
 /**
  * Parses a CSV previously written by [CsvWriter]. The `//` comment header carries
  * the measurement settings; the remaining lines are data rows whose value columns
- * (everything after ARTIFACT,NUM,DATE) are kept verbatim so [com.jins_jp.meme.academic.ble.MockMemeBleEngine]
+ * (everything after ARTIFACT,NUM,DATE) are kept verbatim so [com.jins_jp.meme.core.ble.MockMemeBleEngine]
  * can re-encode them into BLE packets.
  */
 object MockCsvLoader {

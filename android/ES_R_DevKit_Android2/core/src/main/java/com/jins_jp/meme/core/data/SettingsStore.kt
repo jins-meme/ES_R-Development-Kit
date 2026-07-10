@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.data
+package com.jins_jp.meme.core.data
 
 import android.content.Context
 
@@ -21,6 +21,12 @@ class SettingsStore(context: Context) {
             .apply()
     }
 
+    fun loadAutoConnect(): Boolean = prefs.getBoolean(KEY_AUTO_CONNECT, false)
+
+    fun saveAutoConnect(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_CONNECT, enabled).apply()
+    }
+
     fun loadReconnectEnabled(): Boolean = prefs.getBoolean(KEY_RECONNECT, false)
 
     fun saveReconnectEnabled(enabled: Boolean) {
@@ -39,6 +45,7 @@ class SettingsStore(context: Context) {
         const val KEY_QUALITY = "quality"
         const val KEY_ACC = "acc_range"
         const val KEY_GYRO = "gyro_range"
+        const val KEY_AUTO_CONNECT = "auto_connect"
         const val KEY_RECONNECT = "reconnect_enabled"
         const val KEY_OPEN_SHARING = "open_sharing_on_complete"
     }

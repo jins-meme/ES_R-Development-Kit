@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.ui.main
+package com.jins_jp.meme.core.chart
 
 /**
  * Fixed-size, zero-filled ring buffer for the live graph.

@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.service
+package com.jins_jp.meme.core.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,8 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.jins_jp.meme.academic.MainActivity
-import com.jins_jp.meme.academic.R
+import com.jins_jp.meme.core.R
 
 /**
  * 計測中にプロセスと CPU を生かし続けるためのフォアグラウンドサービス。
@@ -22,10 +21,10 @@ import com.jins_jp.meme.academic.R
  *   - 常駐通知付きの Foreground Service（type=connectedDevice）でプロセスを保護し、
  *   - PARTIAL_WAKE_LOCK で画面 OFF 中も CPU を回して GATT コールバックを届かせる。
  *
- * BLE 接続そのものは [com.jins_jp.meme.academic.App] スコープの
- * [com.jins_jp.meme.academic.ble.MemeBleRepository] が保持しており、このサービスは
+ * BLE 接続そのものは [com.jins_jp.meme.core.App] スコープの
+ * [com.jins_jp.meme.core.ble.MemeBleRepository] が保持しており、このサービスは
  * 「プロセスを生かす」ことだけを担う。開始／停止は計測ライフサイクルに合わせて
- * [MainViewModel][com.jins_jp.meme.academic.ui.main.MainViewModel] から [start]/[stop] で制御する。
+ * アプリ側の ViewModel から [start]/[stop] で制御する。
  */
 class MeasurementService : Service() {
 
@@ -62,14 +61,11 @@ class MeasurementService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val open = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_IMMUTABLE,
-        )
+        // core はアプリの Activity を知らないため、通知タップはランチャーインテントで開く。
+        val open = packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
+            launch.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE)
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_measuring_title))
             .setContentText(getString(R.string.notification_measuring_text))

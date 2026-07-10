@@ -1,7 +1,7 @@
-package com.jins_jp.meme.academic
+package com.jins_jp.meme.core
 
 import android.app.Application
-import com.jins_jp.meme.academic.ble.MemeBleRepository
+import com.jins_jp.meme.core.ble.MemeBleRepository
 
 class App : Application() {
     val bleRepository: MemeBleRepository by lazy { MemeBleRepository(this) }

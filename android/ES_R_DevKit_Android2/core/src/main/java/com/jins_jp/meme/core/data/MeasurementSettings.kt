@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.data
+package com.jins_jp.meme.core.data
 
 enum class MemeMode(val display: String) {
     Standard("Standard"),

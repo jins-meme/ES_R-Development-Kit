@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- フォアグラウンドサービス（計測中の常駐通知） -->
+    <string name="notification_channel_measurement">計測</string>
+    <string name="notification_measuring_title">計測中</string>
+    <string name="notification_measuring_text">センサーデータを受信しています</string>
+</resources>

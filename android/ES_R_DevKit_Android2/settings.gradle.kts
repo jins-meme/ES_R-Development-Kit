@@ -14,6 +14,7 @@ pluginManagement {
 
 plugins {
     id("com.android.application") version "9.2.1" apply false
+    id("com.android.library") version "9.2.1" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.10" apply false
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
@@ -28,3 +29,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "ES_R_DevKit_Android2"
 include(":app")
+
+include(":core")

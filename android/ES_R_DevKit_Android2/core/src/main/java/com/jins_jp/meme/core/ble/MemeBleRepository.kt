@@ -1,4 +1,4 @@
-package com.jins_jp.meme.academic.ble
+package com.jins_jp.meme.core.ble
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -24,7 +24,7 @@ import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.jins.meme.academic.util.DataEncryption
 import com.jins.meme.academic.util.LogCat
-import com.jins_jp.meme.academic.data.MockCsvData
+import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
