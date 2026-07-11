@@ -107,7 +107,6 @@ import kotlin.time.Duration.Companion.seconds
 @Composable
 fun MainScreen(
     viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory),
-    showAutoConnectSetting: Boolean = false,
     charts: @Composable ColumnScope.(MainUiState) -> Unit = { ui -> SensorChartsPane(viewModel, ui) },
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -156,7 +155,7 @@ fun MainScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (!ui.isMeasuring) {
-                ConnectCard(ui, viewModel, showAutoConnectSetting)
+                ConnectCard(ui, viewModel)
             }
             if (ui.connection == ConnectionState.ServicesReady) {
                 MeasureCard(ui, viewModel)
@@ -194,7 +193,7 @@ fun MainScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConnectCard(ui: MainUiState, vm: MainViewModel, showAutoConnectSetting: Boolean) {
+private fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     // Play button: pick a logged CSV, then replay it through the mock engine.
     val playbackCsvPicker = rememberLauncherForActivityResult(
@@ -282,23 +281,13 @@ private fun ConnectCard(ui: MainUiState, vm: MainViewModel, showAutoConnectSetti
     }
 
     if (showSettings) {
-        SettingsDialog(
-            ui = ui,
-            vm = vm,
-            showAutoConnectSetting = showAutoConnectSetting,
-            onDismiss = { showSettings = false },
-        )
+        SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsDialog(
-    ui: MainUiState,
-    vm: MainViewModel,
-    showAutoConnectSetting: Boolean,
-    onDismiss: () -> Unit,
-) {
+private fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> Unit) {
     val canEditSettings = !ui.isMeasuring
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
@@ -350,22 +339,20 @@ private fun SettingsDialog(
                     enabled = canEditSettings,
                 ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
 
-                if (showAutoConnectSetting) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { vm.setAutoConnect(!ui.autoConnect) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = ui.autoConnect,
-                            onCheckedChange = vm::setAutoConnect,
-                        )
-                        Text(
-                            stringResource(R.string.text_label_auto_connect),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.setAutoConnect(!ui.autoConnect) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.autoConnect,
+                        onCheckedChange = vm::setAutoConnect,
+                    )
+                    Text(
+                        stringResource(R.string.text_label_auto_connect),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
 
                 Row(
