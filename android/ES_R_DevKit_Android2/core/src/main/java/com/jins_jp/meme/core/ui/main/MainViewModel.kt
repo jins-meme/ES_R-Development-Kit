@@ -14,43 +14,28 @@ import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.ble.MemeBleConstants
 import com.jins_jp.meme.core.ble.MemeBleRepository
 import com.jins_jp.meme.core.ble.MemeCommands
-import com.jins_jp.meme.core.ble.MockMemeBleEngine
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
 import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
-import com.jins_jp.meme.core.data.MockCsvFormatException
-import com.jins_jp.meme.core.data.MockCsvLoader
 import com.jins_jp.meme.core.data.SampleCounter
 import com.jins_jp.meme.core.data.SettingsStore
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.plugin.AlgoPlugin
 import com.jins_jp.meme.core.service.MeasurementService
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "MainViewModel"
-
-// Auto-reconnect tuning. The retry window is comfortably longer than
-// SCAN_TIMEOUT_MS (8s) so each scan attempt has time to auto-stop before the
-// next retry, matching the "scan stops once within the window" assumption.
-private const val RECONNECT_RETRY_INTERVAL_MS = 15_000L
-private const val RECONNECT_CONNECT_TIMEOUT_MS = 15_000L
-private const val RECONNECT_NOTIFY_TIMEOUT_MS = 6_000L
 
 // スキャン窓内で 1 台も見つからなかった時に一度だけ張り直す前の小休止。
 // コントローラのスキャン窓をリセットさせるための短い間隔。
@@ -135,11 +120,25 @@ class MainViewModel(
     // 自動接続：1スキャンにつき一度だけ発火（再接続ループを防ぐ）
     private var autoConnectAttempted = false
 
-    // 切断時の自動再接続。lastDeviceAddress は切断時に BLE コールバックが
-    // currentAddress をクリアした後も同一デバイスを再スキャンするため保持する。
-    private var reconnectJob: Job? = null
-    private var lastDeviceAddress: String? = null
-    private var userInitiatedDisconnect = false
+    // 計測中の予期しない切断からの自動再接続と、CSV 再生（mock）モードの出入り。
+    private val reconnect = ReconnectController(
+        scope = viewModelScope,
+        repo = repo,
+        ui = _ui,
+        onSuppressAutoConnect = { autoConnectAttempted = true },
+        restartMeasurement = ::startMeasurement,
+        stopMeasurementService = { MeasurementService.stop(getApplication()) },
+    )
+    private val playback = PlaybackController(
+        application = application,
+        scope = viewModelScope,
+        repo = repo,
+        settingsStore = settingsStore,
+        ui = _ui,
+        reconnect = reconnect,
+        onSuppressAutoConnect = { autoConnectAttempted = true },
+        stopMeasurement = ::stopMeasurement,
+    )
 
     // Comm-rate periodic job
     private var commTickerJob: Job? = null
@@ -173,7 +172,7 @@ class MainViewModel(
         if (ui.value.reconnectEnabled == enabled) return
         settingsStore.saveReconnectEnabled(enabled)
         _ui.update { it.copy(reconnectEnabled = enabled) }
-        if (!enabled) cancelAutoReconnect()
+        if (!enabled) reconnect.cancel()
     }
 
     fun setOpenSharingOnComplete(enabled: Boolean) {
@@ -185,100 +184,10 @@ class MainViewModel(
     fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }
 
     /**
-     * Play-button entry point. Opens the CSV chosen in the file dialog and, when
-     * it is a valid logger CSV, enters playback (mock) mode: load the rows into
-     * the mock engine, reflect/persist the CSV's measurement settings, then
-     * emulate Scan device → Connect against the mock device (see
-     * [startPlaybackScanConnect]). On failure surface the reason via
-     * [MainUiState.mockError] and leave the current mode untouched. A null uri
-     * means the user cancelled the dialog.
-     *
-     * Playback is invoked fresh on every Play tap, so this always re-enters mock
-     * mode from a clean state even if a previous playback is still running.
+     * Play-button entry point（詳細は [PlaybackController.start]）。CSV を検証して
+     * 再生（mock）モードへ入り、mock デバイスへのスキャン→接続をエミュレートする。
      */
-    fun startPlayback(uri: Uri?) {
-        if (uri == null) return
-        viewModelScope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val app = getApplication<Application>()
-                    val stream = app.contentResolver.openInputStream(uri)
-                        ?: throw MockCsvFormatException("ファイルを開けませんでした。")
-                    stream.use { MockCsvLoader.parse(it) }
-                }
-            }
-            result.onSuccess { data ->
-                cancelAutoReconnect()
-                if (_ui.value.isMeasuring) stopMeasurement()
-                // Force a clean (re-)entry into mock mode even when a previous
-                // playback was already running, so each Play starts from scratch.
-                if (repo.mockMode) repo.mockMode = false
-                repo.mockMode = true
-                repo.loadMockCsv(data)
-                settingsStore.save(data.settings)
-                _ui.update {
-                    it.copy(
-                        mockEnabled = true,
-                        settings = data.settings,
-                        isInitializing = false,
-                        firmwareVersion = null,
-                        mockError = null,
-                        toast = "再生データを読み込みました（${data.rows.size} 行）",
-                    )
-                }
-                startPlaybackScanConnect()
-            }.onFailure { e ->
-                _ui.update {
-                    it.copy(
-                        mockError = (e as? MockCsvFormatException)?.message
-                            ?: "CSVの読み込みに失敗しました。",
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Playback one-shot: emulate the Scan device button against the mock engine,
-     * then auto-connect to the mock device as soon as it is advertised. Mirrors
-     * the manual Scan → Connect flow so the rest of the app sees an ordinary
-     * connection coming up.
-     */
-    private fun startPlaybackScanConnect() {
-        // Suppress the discovery-driven auto-connect so it does not race us.
-        autoConnectAttempted = true
-        viewModelScope.launch {
-            repo.startScan()
-            val found = withTimeoutOrNull(MemeBleConstants.SCAN_TIMEOUT_MS) {
-                repo.devices.first { MockMemeBleEngine.MOCK_ADDRESS in it }
-            } != null
-            repo.stopScan()
-            if (!found) return@launch
-            userInitiatedDisconnect = false
-            lastDeviceAddress = MockMemeBleEngine.MOCK_ADDRESS
-            _ui.update {
-                it.copy(
-                    selectedDeviceIndex =
-                        it.devices.indexOf(MockMemeBleEngine.MOCK_ADDRESS).coerceAtLeast(0),
-                )
-            }
-            repo.connect(MockMemeBleEngine.MOCK_ADDRESS)
-        }
-    }
-
-    /** Leave playback mode and return to the initial live-BLE state. */
-    private fun exitPlayback() {
-        cancelAutoReconnect()
-        if (_ui.value.isMeasuring) stopMeasurement()
-        repo.mockMode = false
-        _ui.update {
-            it.copy(
-                mockEnabled = false,
-                isInitializing = false,
-                firmwareVersion = null,
-            )
-        }
-    }
+    fun startPlayback(uri: Uri?) = playback.start(uri)
 
     fun dismissMockError() { _ui.update { it.copy(mockError = null) } }
 
@@ -305,8 +214,7 @@ class MainViewModel(
         if (st.connection != ConnectionState.Disconnected) return
         val address = st.devices.firstOrNull() ?: return
         autoConnectAttempted = true
-        userInitiatedDisconnect = false
-        lastDeviceAddress = address
+        reconnect.noteConnectIntent(address)
         _ui.update { it.copy(selectedDeviceIndex = 0) }
         repo.connect(address)
     }
@@ -348,15 +256,15 @@ class MainViewModel(
                     val willReconnect = wasMeasuring &&
                         _ui.value.reconnectEnabled &&
                         !_ui.value.mockEnabled &&
-                        !userInitiatedDisconnect
+                        !reconnect.userInitiatedDisconnect
                     if (willReconnect) {
                         // 再接続ループは同一の計測セッションの続きなので、バックグラウンドで
                         // 切断されてもプロセスが死なないようサービスは止めずに維持する。
-                        startAutoReconnect()
+                        reconnect.start()
                     } else {
                         // 再接続ループが動いていない通常の切断は完全に idle へ戻す。
                         // ループ中の一時的な切断ならループに任せ、再接続表示は消さない。
-                        if (reconnectJob == null) _ui.update { it.copy(isReconnecting = false) }
+                        if (!reconnect.isRunning) _ui.update { it.copy(isReconnecting = false) }
                         MeasurementService.stop(getApplication())
                     }
                 }
@@ -381,7 +289,7 @@ class MainViewModel(
 
     fun startScan() {
         // A manual scan overrides any auto-reconnect in progress.
-        cancelAutoReconnect()
+        reconnect.cancel()
         if (!repo.hasScanPermission()) return
         if (!repo.isBluetoothEnabled()) {
             _ui.update { it.copy(bluetoothError = true) }
@@ -409,16 +317,15 @@ class MainViewModel(
         val st = ui.value
         if (st.connection != ConnectionState.Disconnected && st.connection != ConnectionState.Disconnecting) {
             // Mark the disconnect as deliberate so it does not trigger reconnect.
-            userInitiatedDisconnect = true
-            cancelAutoReconnect()
+            reconnect.noteUserDisconnect()
+            reconnect.cancel()
             // Disconnecting from playback returns to the initial live-BLE state.
-            if (st.mockEnabled) exitPlayback() else repo.disconnect()
+            if (st.mockEnabled) playback.exit() else repo.disconnect()
         } else {
             // A manual connect overrides any auto-reconnect in progress.
-            cancelAutoReconnect()
+            reconnect.cancel()
             val address = st.devices.getOrNull(st.selectedDeviceIndex) ?: return
-            userInitiatedDisconnect = false
-            lastDeviceAddress = address
+            reconnect.noteConnectIntent(address)
             repo.connect(address)
         }
     }
@@ -496,83 +403,6 @@ class MainViewModel(
                 )
             }
         }
-    }
-
-    /* ---- Auto-reconnect ---- */
-
-    /**
-     * Re-scan for the last connected device and, once found, reconnect and
-     * restart measurement (with a fresh CSV file). Retries every
-     * [RECONNECT_RETRY_INTERVAL_MS] until it succeeds or is cancelled by a
-     * manual scan/connect or by turning the setting off.
-     */
-    private fun startAutoReconnect() {
-        val addr = lastDeviceAddress ?: return
-        reconnectJob?.cancel()
-        autoConnectAttempted = true
-        reconnectJob = viewModelScope.launch {
-            _ui.update { it.copy(isReconnecting = true) }
-            try {
-                while (isActive) {
-                    // The previous scan should have auto-stopped within the window;
-                    // stop it defensively in case it is still running before rescanning.
-                    if (repo.scanning.value) repo.stopScan()
-                    repo.startScan()
-                    // Auto-stop the scan after the normal timeout, well inside the window.
-                    val stopper = launch {
-                        delay(MemeBleConstants.SCAN_TIMEOUT_MS)
-                        repo.stopScan()
-                    }
-                    val found = withTimeoutOrNull(RECONNECT_RETRY_INTERVAL_MS) {
-                        repo.devices.first { addr in it }
-                    } != null
-                    stopper.cancel()
-                    if (found) {
-                        repo.stopScan()
-                        if (reconnectAndRestart(addr)) break
-                    }
-                    // else: window elapsed without the device; loop and retry.
-                }
-            } finally {
-                if (repo.scanning.value) repo.stopScan()
-                _ui.update { it.copy(isReconnecting = false) }
-            }
-        }
-    }
-
-    /**
-     * Connect to [addr], wait for services and notifications to come up the same
-     * way the normal connect flow does, then start a fresh measurement. Returns
-     * true once measurement has been (re)started.
-     */
-    private suspend fun reconnectAndRestart(addr: String): Boolean {
-        userInitiatedDisconnect = false
-        lastDeviceAddress = addr
-        if (!repo.connect(addr)) return false
-        val ready = withTimeoutOrNull(RECONNECT_CONNECT_TIMEOUT_MS) {
-            repo.connection.first { it == ConnectionState.ServicesReady }
-        } != null
-        if (!ready) { repo.disconnect(); return false }
-        // collectConnection enables notifications ~1.5s after ServicesReady;
-        // wait for that to complete before streaming data.
-        val notified = withTimeoutOrNull(RECONNECT_NOTIFY_TIMEOUT_MS) {
-            repo.descriptorWritten.first()
-        } != null
-        if (!notified) { repo.disconnect(); return false }
-        delay(500)
-        startMeasurement()
-        return true
-    }
-
-    private fun cancelAutoReconnect() {
-        val job = reconnectJob ?: return
-        reconnectJob = null
-        job.cancel()
-        if (repo.scanning.value) repo.stopScan()
-        _ui.update { it.copy(isReconnecting = false) }
-        // 再接続を諦めた／ユーザー操作で中断した場合、計測もしていないなら
-        // 切断中に維持していたサービスをここで畳む。
-        if (!ui.value.isMeasuring) MeasurementService.stop(getApplication())
     }
 
     fun marking() {
