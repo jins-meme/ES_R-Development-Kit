@@ -13,6 +13,7 @@ import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.ble.MemeBleConstants
 import com.jins_jp.meme.core.ble.MemeBleRepository
+import com.jins_jp.meme.core.ble.MemeCommands
 import com.jins_jp.meme.core.ble.MockMemeBleEngine
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
@@ -21,6 +22,7 @@ import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
 import com.jins_jp.meme.core.data.MockCsvFormatException
 import com.jins_jp.meme.core.data.MockCsvLoader
+import com.jins_jp.meme.core.data.SampleCounter
 import com.jins_jp.meme.core.data.SettingsStore
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.plugin.AlgoPlugin
@@ -121,10 +123,8 @@ class MainViewModel(
 
     private val csv = CsvWriter(application)
 
-    // Sample / timing book-keeping (mirrors the original totalCountUp logic)
-    private var totalCount = 0L
-    private var errorCount = 0L
-    private var prevCount: Long = -1
+    // Sample / timing book-keeping
+    private val counter = SampleCounter()
     private var prevTimeMs: Long = 0
     private var graphSkipCount: Long = 4
 
@@ -143,8 +143,6 @@ class MainViewModel(
 
     // Comm-rate periodic job
     private var commTickerJob: Job? = null
-    private var prevTotalPrev: Long = 0
-    private var ratioPrev: Long = 100
 
     init {
         val emitter: (Any) -> Unit = { payload -> _graph.tryEmit(GraphEvent.Custom(payload)) }
@@ -433,11 +431,7 @@ class MainViewModel(
     fun initialize() {
         viewModelScope.launch {
             _ui.update { it.copy(isInitializing = true) }
-            val data = ByteArray(20)
-            data[0] = MemeBleConstants.DATA_LENGTH
-            data[1] = MemeBleConstants.ADN_CLR_PARAMS
-            data[2] = 0xFF.toByte()
-            sendEncoded(data)
+            sendEncoded(MemeCommands.clearParams())
             // Wait for ACK in collectIncoming
         }
     }
@@ -452,8 +446,8 @@ class MainViewModel(
             graphSkipCount = if (ui.value.settings.quality == MemeQuality.Hz100) 4L else 2L
             _graph.tryEmit(GraphEvent.Reset)
             plotCount = 0
-            totalCount = 0; errorCount = 0; prevCount = -1; prevTimeMs = 0
-            prevTotalPrev = 0; ratioPrev = 100
+            counter.reset()
+            prevTimeMs = 0
 
             val addr = repo.currentAddress()
             if (addr == null) {
@@ -477,11 +471,7 @@ class MainViewModel(
             delay(300); requestMode()
             delay(500); sendSetParams()
             delay(1000)
-            val startCmd = ByteArray(20)
-            startCmd[0] = MemeBleConstants.DATA_LENGTH
-            startCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
-            startCmd[2] = 0x01
-            sendEncoded(startCmd)
+            sendEncoded(MemeCommands.startStop(true))
             _ui.update { it.copy(isMeasuring = true, isStarting = false, recordingRows = 0L) }
             startCommTicker()
         }
@@ -489,11 +479,7 @@ class MainViewModel(
 
     private fun stopMeasurement() {
         viewModelScope.launch {
-            val stopCmd = ByteArray(20)
-            stopCmd[0] = MemeBleConstants.DATA_LENGTH
-            stopCmd[1] = MemeBleConstants.ADN_START_STOP_SEND
-            stopCmd[2] = 0x00
-            sendEncoded(stopCmd)
+            sendEncoded(MemeCommands.startStop(false))
             // 未確定の検出結果（1 秒未満の区間など）をプラグインが書き切ってから閉じる。
             for (p in plugins) p.onMeasurementStop(csv)
             val stopResult = csv.stop()
@@ -605,7 +591,7 @@ class MainViewModel(
         if (!ui.value.isMeasuring) return
         val f = fraction.coerceIn(0f, 1f)
         val samplesBack = ((1f - f) * (visiblePoints - 1) * graphSkipCount).toLong()
-        val markNum = (totalCount - samplesBack).coerceAtLeast(0L)
+        val markNum = (counter.totalCount - samplesBack).coerceAtLeast(0L)
         csv.writeLabel(markNum)
         _ui.update { it.copy(toast = "マーク NUM=$markNum") }
     }
@@ -614,41 +600,13 @@ class MainViewModel(
 
     /* ---- Protocol helpers ---- */
 
-    private fun requestDeviceInfo() {
-        val data = ByteArray(20)
-        data[0] = MemeBleConstants.DATA_LENGTH
-        data[1] = MemeBleConstants.ADN_GET_DEV_INFO
-        sendEncoded(data)
-    }
+    private fun requestDeviceInfo() = sendEncoded(MemeCommands.getDeviceInfo())
 
-    private fun requestMode() {
-        val data = ByteArray(20)
-        data[0] = MemeBleConstants.DATA_LENGTH
-        data[1] = MemeBleConstants.ADN_GET_MODE
-        sendEncoded(data)
-    }
+    private fun requestMode() = sendEncoded(MemeCommands.getMode())
 
-    private fun sendSetMode() {
-        val s = ui.value.settings
-        val data = ByteArray(20)
-        data[0] = MemeBleConstants.DATA_LENGTH
-        data[1] = MemeBleConstants.ADN_SET_MODE
-        // ファーム(MEMELib memeAdnSetMode)は mode=byte4, quality(transMode)=byte5 を読む。
-        data[4] = ((s.mode.ordinal + 1) and 0xFF).toByte()
-        data[5] = ((s.quality.ordinal + 1) and 0xFF).toByte()
-        sendEncoded(data)
-    }
+    private fun sendSetMode() = sendEncoded(MemeCommands.setMode(ui.value.settings))
 
-    private fun sendSetParams() {
-        val s = ui.value.settings
-        val data = ByteArray(20)
-        data[0] = MemeBleConstants.DATA_LENGTH
-        data[1] = MemeBleConstants.ADN_SET_6AXIS_PARAMS
-        val gyroIdx = if (s.mode == MemeMode.Quaternion) 3 else s.gyroRange.ordinal
-        data[2] = (s.accRange.ordinal and 0xFF).toByte()
-        data[3] = (gyroIdx and 0xFF).toByte()
-        sendEncoded(data)
-    }
+    private fun sendSetParams() = sendEncoded(MemeCommands.set6AxisParams(ui.value.settings))
 
     private fun sendEncoded(data: ByteArray) {
         LogCat.d(TAG, "send: " + HexDump.toHexString(data))
@@ -678,15 +636,15 @@ class MainViewModel(
         val intervalMs = 1000L / ui.value.settings.quality.hz // 100Hz→10ms, 50Hz→20ms
         for ((index, packet) in packets.withIndex()) {
             // 最初のパケットは前回カウンタの基準取得のみに使い、記録・検出しない。
-            if (!totalCountUp(packet.packetCount)) continue
+            if (!counter.countUp(packet.packetCount)) continue
             prevTimeMs = recvTimeMs + index * intervalMs
 
             // 全サンプル（間引き前）をプラグインへ渡す。検出器はプロットより
             // 高い分解能で回し、確定結果だけを GraphEvent.Custom で発行させる。
-            for (p in plugins) p.onSample(packet.type, packet.values, totalCount, prevTimeMs, csv)
+            for (p in plugins) p.onSample(packet.type, packet.values, counter.totalCount, prevTimeMs, csv)
 
-            if ((totalCount % graphSkipCount) == 0L) {
-                val x = totalCount / graphSkipCount
+            if ((counter.totalCount % graphSkipCount) == 0L) {
+                val x = counter.totalCount / graphSkipCount
                 when (packet.type) {
                     MemeBleConstants.AUP_REPORT_ACADEMIA1 -> {
                         val v = packet.values
@@ -714,7 +672,7 @@ class MainViewModel(
             }
 
             if (!ui.value.mockEnabled) {
-                val row = formatRow(ui.value.isMarking, totalCount, prevTimeMs, packet.values)
+                val row = formatRow(ui.value.isMarking, counter.totalCount, prevTimeMs, packet.values)
                 csv.writeRow(row)
             }
         }
@@ -727,9 +685,8 @@ class MainViewModel(
         }
 
         // success rate from total/error
-        if (totalCount > 0) {
-            val rate = 1.0 - errorCount.toDouble() / totalCount.toDouble()
-            _ui.update { it.copy(successRate = rate.coerceIn(0.0, 1.0)) }
+        if (counter.totalCount > 0) {
+            _ui.update { it.copy(successRate = counter.successRate) }
         }
     }
 
@@ -761,50 +718,13 @@ class MainViewModel(
         }
     }
 
-    /**
-     * NUM を更新する。記録すべきパケットなら true、最初のパケット(基準取得のみで
-     * CSV に残さない)なら false を返す。
-     *
-     * 最初のパケットのカウンタは 0 とは限らないため、1 個目は前回カウンタの初期値を
-     * 取得するためだけに使い、2 個目以降を記録する。以降は受信カウンタ(12bit,
-     * 0..4095)の差分を積算して単調増加させる。
-     *   前回のカウンタ < 今回のカウンタ … NUM += 今回 - 前回
-     *   それ以外(周回した)          … NUM += 今回 - 前回 + 4096
-     */
-    private fun totalCountUp(count: Short): Boolean {
-        val cnt = (count.toInt() and 0x0FFF).toLong()
-        if (prevCount < 0) {
-            // 最初のパケットは前回カウンタの基準取得のみに使い、CSV には記録しない。
-            prevCount = cnt
-            return false
-        }
-        val newNum = if (prevCount < cnt) {
-            totalCount + cnt - prevCount
-        } else {
-            totalCount + cnt - prevCount + 4096
-        }
-        // 差分が 2 以上なら取りこぼしたサンプルぶんを誤り数として数える。
-        val step = newNum - totalCount
-        if (step > 1) errorCount += step - 1
-        totalCount = newNum
-        prevCount = cnt
-        return true
-    }
-
     private fun startCommTicker() {
         commTickerJob?.cancel()
         commTickerJob = viewModelScope.launch {
             delay(200)
             while (true) {
-                val s = ui.value
-                val period = 400L / (((s.settings.quality.ordinal + 1) and 0xFF) * 10L)
-                val count = totalCount - prevTotalPrev
-                val ratioLast = if (period == 0L) 0L
-                else ((count.toDouble() / period.toDouble()) * 100.0).toLong()
-                val ratio = (ratioLast + ratioPrev) / 2
-                prevTotalPrev += count
-                ratioPrev = ratioLast
-                _ui.update { it.copy(commRate = (ratio.coerceIn(0, 100)).toDouble() / 100.0) }
+                val rate = counter.commRateTick(ui.value.settings.quality)
+                _ui.update { it.copy(commRate = rate) }
                 delay(400)
             }
         }
