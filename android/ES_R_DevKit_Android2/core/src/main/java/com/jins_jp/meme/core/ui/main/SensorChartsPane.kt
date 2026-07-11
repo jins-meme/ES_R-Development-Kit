@@ -20,14 +20,7 @@ import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.chart.GraphBuffer
 import com.jins_jp.meme.core.chart.LineSeries
 import com.jins_jp.meme.core.chart.LiveLineChart
-import com.jins_jp.meme.core.theme.AccBlue
-import com.jins_jp.meme.core.theme.AccGreen
-import com.jins_jp.meme.core.theme.AccRed
-import com.jins_jp.meme.core.theme.EogBlue
-import com.jins_jp.meme.core.theme.EogRed
-import com.jins_jp.meme.core.theme.GyroBlue
-import com.jins_jp.meme.core.theme.GyroGreen
-import com.jins_jp.meme.core.theme.GyroRed
+import com.jins_jp.meme.core.theme.chartSeriesColors
 
 // 6 seconds at the 25 Hz plot rate (100 Hz ÷ 4 = 50 Hz ÷ 2 = 25 Hz).
 private const val GRAPH_LEN = 150
@@ -83,13 +76,15 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
 
     if (ui.isMeasuring || emitX > 0L) {
         bumper // ensure recomposition keys
+        // ダークモードでは暗い背景に埋もれない明るい系列色を使う。
+        val colors = chartSeriesColors()
         val charts = listOf(
             ChartSpec(
                 key = "eog",
                 title = stringResource(R.string.eog_graph_title),
                 series = listOf(
-                    LineSeries(EogBlue, eogVv.snapshotY(), label = "Vv"),
-                    LineSeries(EogRed, eogVh.snapshotY(), label = "Vh"),
+                    LineSeries(colors.eogBlue, eogVv.snapshotY(), label = "Vv"),
+                    LineSeries(colors.eogRed, eogVh.snapshotY(), label = "Vh"),
                 ),
                 yMin = -400f, yMax = 400f,
             ),
@@ -97,9 +92,9 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                 key = "acc",
                 title = stringResource(R.string.acc_graph_title),
                 series = listOf(
-                    LineSeries(AccBlue, accX.snapshotY(), label = "X"),
-                    LineSeries(AccGreen, accY.snapshotY(), label = "Y"),
-                    LineSeries(AccRed, accZ.snapshotY(), label = "Z"),
+                    LineSeries(colors.accBlue, accX.snapshotY(), label = "X"),
+                    LineSeries(colors.accGreen, accY.snapshotY(), label = "Y"),
+                    LineSeries(colors.accRed, accZ.snapshotY(), label = "Z"),
                 ),
                 yMin = -35000f, yMax = 35000f,
             ),
@@ -107,9 +102,9 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                 key = "gyro",
                 title = stringResource(R.string.gyro_graph_title),
                 series = listOf(
-                    LineSeries(GyroBlue, gyroX.snapshotY(), label = "X"),
-                    LineSeries(GyroGreen, gyroY.snapshotY(), label = "Y"),
-                    LineSeries(GyroRed, gyroZ.snapshotY(), label = "Z"),
+                    LineSeries(colors.gyroBlue, gyroX.snapshotY(), label = "X"),
+                    LineSeries(colors.gyroGreen, gyroY.snapshotY(), label = "Y"),
+                    LineSeries(colors.gyroRed, gyroZ.snapshotY(), label = "Z"),
                 ),
                 yMin = -35000f, yMax = 35000f,
             ),

@@ -1,5 +1,8 @@
 package com.jins_jp.meme.core.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 val MemeRed = Color(0xFFD00D2B)
@@ -24,3 +27,33 @@ val AccRedBright = Color(0xFFE57373)
 val GyroBlueBright = Color(0xFF64B5F6)
 val GyroGreenBright = Color(0xFF81C784)
 val GyroRedBright = Color(0xFFE57373)
+
+/** チャート系列色。ライト/ダークで切り替えるため [chartSeriesColors] 経由で取得する。 */
+@Immutable
+data class ChartSeriesColors(
+    val eogBlue: Color,
+    val eogRed: Color,
+    val accBlue: Color,
+    val accGreen: Color,
+    val accRed: Color,
+    val gyroBlue: Color,
+    val gyroGreen: Color,
+    val gyroRed: Color,
+)
+
+/** 現在のテーマに応じた系列色。ダークでは暗い背景に埋もれない明るい色(*Bright)を返す。 */
+@Composable
+fun chartSeriesColors(dark: Boolean = isSystemInDarkTheme()): ChartSeriesColors =
+    if (dark) {
+        ChartSeriesColors(
+            eogBlue = EogBlueBright, eogRed = EogRedBright,
+            accBlue = AccBlueBright, accGreen = AccGreenBright, accRed = AccRedBright,
+            gyroBlue = GyroBlueBright, gyroGreen = GyroGreenBright, gyroRed = GyroRedBright,
+        )
+    } else {
+        ChartSeriesColors(
+            eogBlue = EogBlue, eogRed = EogRed,
+            accBlue = AccBlue, accGreen = AccGreen, accRed = AccRed,
+            gyroBlue = GyroBlue, gyroGreen = GyroGreen, gyroRed = GyroRed,
+        )
+    }
