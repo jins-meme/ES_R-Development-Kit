@@ -1,13 +1,13 @@
 package com.jins_jp.meme.core.ui.main
 
-import android.app.Application
 import android.net.Uri
+import com.jins_jp.meme.core.ble.MemeBleClient
 import com.jins_jp.meme.core.ble.MemeBleConstants
-import com.jins_jp.meme.core.ble.MemeBleRepository
 import com.jins_jp.meme.core.ble.MockMemeBleEngine
+import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MockCsvFormatException
 import com.jins_jp.meme.core.data.MockCsvLoader
-import com.jins_jp.meme.core.data.SettingsStore
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,21 +16,25 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.InputStream
 
 /**
  * CSV 再生（mock）モードへの出入りを担うコントローラ。[MainViewModel] からの
  * 抽出で、UI 状態は [ui]（mockEnabled/mockError/settings など）へ直接反映する。
  */
 internal class PlaybackController(
-    private val application: Application,
     private val scope: CoroutineScope,
-    private val repo: MemeBleRepository,
-    private val settingsStore: SettingsStore,
+    private val repo: MemeBleClient,
     private val ui: MutableStateFlow<MainUiState>,
     private val reconnect: ReconnectController,
     // 再生のスキャン→接続エミュレーションと発見イベント駆動の自動接続が競合しないよう抑止する。
     private val onSuppressAutoConnect: () -> Unit,
     private val stopMeasurement: () -> Unit,
+    // ContentResolver（ファイルダイアログの URI を開く）と SettingsStore（CSV の
+    // 計測設定の永続化）への依存はラムダで注入し、ユニットテストで差し替え可能にする。
+    private val openInput: (Uri) -> InputStream?,
+    private val saveSettings: (MeasurementSettings) -> Unit,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /**
      * Play-button entry point. Opens the CSV chosen in the file dialog and, when
@@ -48,8 +52,8 @@ internal class PlaybackController(
         if (uri == null) return
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val stream = application.contentResolver.openInputStream(uri)
+                withContext(ioDispatcher) {
+                    val stream = openInput(uri)
                         ?: throw MockCsvFormatException("ファイルを開けませんでした。")
                     stream.use { MockCsvLoader.parse(it) }
                 }
@@ -62,7 +66,7 @@ internal class PlaybackController(
                 if (repo.mockMode) repo.mockMode = false
                 repo.mockMode = true
                 repo.loadMockCsv(data)
-                settingsStore.save(data.settings)
+                saveSettings(data.settings)
                 ui.update {
                     it.copy(
                         mockEnabled = true,

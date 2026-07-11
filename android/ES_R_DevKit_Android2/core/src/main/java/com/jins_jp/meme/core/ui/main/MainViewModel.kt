@@ -130,14 +130,14 @@ class MainViewModel(
         stopMeasurementService = { MeasurementService.stop(getApplication()) },
     )
     private val playback = PlaybackController(
-        application = application,
         scope = viewModelScope,
         repo = repo,
-        settingsStore = settingsStore,
         ui = _ui,
         reconnect = reconnect,
         onSuppressAutoConnect = { autoConnectAttempted = true },
         stopMeasurement = ::stopMeasurement,
+        openInput = { uri -> application.contentResolver.openInputStream(uri) },
+        saveSettings = settingsStore::save,
     )
 
     // Comm-rate periodic job

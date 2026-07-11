@@ -38,26 +38,26 @@ enum class ConnectionState { Disconnected, Connecting, Connected, ServicesReady,
 private const val TAG = "MemeBleRepository"
 
 @SuppressLint("MissingPermission")
-class MemeBleRepository(private val context: Context) {
+class MemeBleRepository(private val context: Context) : MemeBleClient {
 
     private val manager: BluetoothManager? =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val adapter: BluetoothAdapter? = manager?.adapter
 
     private val _scanning = MutableStateFlow(false)
-    val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
+    override val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
 
     private val _devices = MutableStateFlow<Set<String>>(emptySet())
-    val devices: StateFlow<Set<String>> = _devices.asStateFlow()
+    override val devices: StateFlow<Set<String>> = _devices.asStateFlow()
 
     private val _connection = MutableStateFlow(ConnectionState.Disconnected)
-    val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
+    override val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
     private val _incoming = MutableSharedFlow<ByteArray>(extraBufferCapacity = 256)
     val incoming: SharedFlow<ByteArray> = _incoming.asSharedFlow()
 
     private val _descriptorWritten = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
-    val descriptorWritten: SharedFlow<Unit> = _descriptorWritten.asSharedFlow()
+    override val descriptorWritten: SharedFlow<Unit> = _descriptorWritten.asSharedFlow()
 
     private var gatt: BluetoothGatt? = null
     private var scanner: BluetoothLeScanner? = null
@@ -77,7 +77,7 @@ class MemeBleRepository(private val context: Context) {
      * existing connection (real or mock) closed so the next scan/connect
      * cycle starts from a clean state.
      */
-    var mockMode: Boolean = false
+    override var mockMode: Boolean = false
         set(value) {
             if (field == value) return
             field = value
@@ -95,7 +95,7 @@ class MemeBleRepository(private val context: Context) {
         }
 
     /** Hand the mock engine logged rows to replay instead of synthetic data. */
-    fun loadMockCsv(data: MockCsvData) = mock.loadCsv(data)
+    override fun loadMockCsv(data: MockCsvData) = mock.loadCsv(data)
 
     fun hasConnectPermission(): Boolean {
         if (mockMode) return true
@@ -151,7 +151,7 @@ class MemeBleRepository(private val context: Context) {
         _devices.update { it + address }
     }
 
-    fun startScan() {
+    override fun startScan() {
         if (mockMode) { mock.startScan(); return }
         if (!hasScanPermission() || adapter?.isEnabled != true) return
         if (_scanning.value) return
@@ -197,7 +197,7 @@ class MemeBleRepository(private val context: Context) {
         return runCatching { device.uuids }.getOrNull()?.any { it == serviceParcel } == true
     }
 
-    fun stopScan() {
+    override fun stopScan() {
         if (mockMode) { mock.stopScan(); return }
         if (!hasScanPermission()) return
         scanner?.stopScan(scanCallback)
@@ -256,7 +256,7 @@ class MemeBleRepository(private val context: Context) {
         }
     }
 
-    fun connect(address: String): Boolean {
+    override fun connect(address: String): Boolean {
         if (mockMode) {
             currentAddress = address
             return mock.connect(address)
@@ -299,7 +299,7 @@ class MemeBleRepository(private val context: Context) {
         }
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         if (mockMode) { mock.disconnect(); return }
         gatt?.disconnect()
     }

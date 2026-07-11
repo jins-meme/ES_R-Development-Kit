@@ -56,4 +56,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    // PlaybackController.start(uri) へ渡す android.net.Uri のインスタンス生成にのみ使う。
+    testImplementation("org.mockito:mockito-core:5.14.2")
 }

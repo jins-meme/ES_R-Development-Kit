@@ -1,8 +1,8 @@
 package com.jins_jp.meme.core.ui.main
 
 import com.jins_jp.meme.core.ble.ConnectionState
+import com.jins_jp.meme.core.ble.MemeBleClient
 import com.jins_jp.meme.core.ble.MemeBleConstants
-import com.jins_jp.meme.core.ble.MemeBleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,7 +27,7 @@ private const val RECONNECT_NOTIFY_TIMEOUT_MS = 6_000L
  */
 internal class ReconnectController(
     private val scope: CoroutineScope,
-    private val repo: MemeBleRepository,
+    private val repo: MemeBleClient,
     private val ui: MutableStateFlow<MainUiState>,
     // 再接続ループ中に発見イベント駆動の自動接続が競合しないよう抑止する。
     private val onSuppressAutoConnect: () -> Unit,
