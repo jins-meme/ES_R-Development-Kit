@@ -88,6 +88,8 @@ class ReconnectControllerTest {
         assertEquals(1, restartCount)
         assertFalse(ui.value.isReconnecting)
         assertEquals(0, repo.disconnectCount)
+        // 成功してループが終わったら「動作中」ではない。
+        assertFalse(c.isRunning)
     }
 
     @Test

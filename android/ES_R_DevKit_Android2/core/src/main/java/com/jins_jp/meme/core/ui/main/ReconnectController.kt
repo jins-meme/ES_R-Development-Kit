@@ -46,8 +46,8 @@ internal class ReconnectController(
     var userInitiatedDisconnect = false
         private set
 
-    /** 再接続ループが動作中か（cancel されるまで true。UI の表示判定に使う）。 */
-    val isRunning: Boolean get() = reconnectJob != null
+    /** 再接続ループが動作中か（再接続成功・リトライ断念・cancel で false。UI の表示判定に使う）。 */
+    val isRunning: Boolean get() = reconnectJob?.isActive == true
 
     /** 接続を試みる直前に呼ぶ。再接続対象のアドレスを覚え、意図しない切断として扱う。 */
     fun noteConnectIntent(address: String) {
