@@ -5,6 +5,8 @@ import com.jins_jp.meme.core.ble.MemeBleClient
 import com.jins_jp.meme.core.ble.MemeBleConstants
 import com.jins_jp.meme.core.ble.MockMemeBleEngine
 import com.jins_jp.meme.core.data.MeasurementSettings
+import com.jins_jp.meme.core.data.MemeMode
+import com.jins_jp.meme.core.data.MemeQuality
 import com.jins_jp.meme.core.data.MockCsvFormatException
 import com.jins_jp.meme.core.data.MockCsvLoader
 import kotlinx.coroutines.CoroutineDispatcher
@@ -75,6 +77,13 @@ internal class PlaybackController(
                 sourceUri = uri
                 repo.loadMockCsv(data)
                 saveSettings(data.settings)
+                // ソースCSVの ARTIFACT 付き行をチャートの縦線イベントへ（行番号→秒換算。
+                // レート規則は MockMemeBleEngine.sampleRateHz と同じ）。
+                val rate = if (
+                    data.settings.quality == MemeQuality.Hz100 &&
+                    data.settings.mode != MemeMode.Quaternion
+                ) 100.0 else 50.0
+                val events = data.artifacts.map { ArtifactEvent(it.rowNumber / rate, it.text) }
                 ui.update {
                     it.copy(
                         mockEnabled = true,
@@ -83,6 +92,7 @@ internal class PlaybackController(
                         isInitializing = false,
                         firmwareVersion = null,
                         mockError = null,
+                        artifactEvents = events,
                         toast = "再生データを読み込みました（${data.rows.size} 行）",
                     )
                 }
@@ -136,6 +146,7 @@ internal class PlaybackController(
                 isPlaybackPaused = false,
                 isInitializing = false,
                 firmwareVersion = null,
+                artifactEvents = emptyList(),
             )
         }
     }

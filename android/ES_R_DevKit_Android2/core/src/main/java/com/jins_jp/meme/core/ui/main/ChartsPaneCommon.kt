@@ -10,9 +10,34 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.jins_jp.meme.core.chart.ChartEventLine
 import com.jins_jp.meme.core.chart.GraphBuffer
 import com.jins_jp.meme.core.chart.LineSeries
+
+/** ARTIFACT イベントライン色（オレンジ）。ライト/ダーク両テーマで視認できる。 */
+val ArtifactLineColor = Color(0xFFFF9800)
+
+/**
+ * 可視窓に入る [ArtifactEvent] をチャートのイベントライン（オレンジ縦線＋文字）へ
+ * 変換する。[rightSeconds] はチャート右端の秒（X 軸表示 xRightSeconds と同じ値）、
+ * [windowSeconds] は可視窓の幅（(プロット点数-1)/プロットHz）。全チャートで X 軸を
+ * 共有しているので、ペインは 1 回計算して各チャートへ同じリストを渡せばよい。
+ */
+fun artifactEventLines(
+    events: List<ArtifactEvent>,
+    rightSeconds: Float,
+    windowSeconds: Float,
+): List<ChartEventLine> {
+    if (events.isEmpty() || windowSeconds <= 0f) return emptyList()
+    val lines = ArrayList<ChartEventLine>()
+    for (e in events) {
+        val f = 1f - (rightSeconds - e.sec.toFloat()) / windowSeconds
+        if (f in 0f..1f) lines.add(ChartEventLine(f, e.text, ArtifactLineColor))
+    }
+    return lines
+}
 
 /** 1 チャート分の宣言（タイトル・系列・Y レンジ）。ペイン実装が列挙して描く。 */
 data class ChartSpec(

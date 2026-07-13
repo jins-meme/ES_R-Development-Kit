@@ -124,6 +124,19 @@ data class ChartTextLabel(
     val fontSizeSp: Float = 11f,
 )
 
+/**
+ * グラフ全高の縦線＋脇の回転テキストで示すイベントライン（ARTIFACT ラベルなど）。
+ *
+ * @param xFraction 0..1 のグラフ横位置（0=左端の最古点, 1=右端の最新点）。
+ * @param text 縦線の脇に描く文字（下から上へ読む）。空なら線のみ。
+ * @param color 線・文字の色。
+ */
+data class ChartEventLine(
+    val xFraction: Float,
+    val text: String,
+    val color: Color,
+)
+
 /** チャート下部に出す凡例の 1 項目（色帯の状態凡例など）。 */
 data class LegendEntry(val color: Color, val label: String)
 
@@ -150,6 +163,8 @@ fun LiveLineChart(
     markers: List<ChartMarker> = emptyList(),
     // 汎用文字ラベル（横書き=上端の段違い / 回転=yFraction 基点）。
     textLabels: List<ChartTextLabel> = emptyList(),
+    // イベントライン（ARTIFACT ラベルなど）: 全高の縦線＋脇の回転テキスト。
+    eventLines: List<ChartEventLine> = emptyList(),
     // 色帯。[bandValue] が非 null のとき、その左軸 y 値の高さに区間を色分けして描く。
     bandSegments: List<ChartBandSegment> = emptyList(),
     bandValue: Float? = null,
@@ -305,6 +320,26 @@ fun LiveLineChart(
                     // 文字ラベル（横書き=上端の段違い / 回転=yFraction 基点）。
                     if (textLabels.isNotEmpty()) {
                         for (l in textLabels) drawTextLabel(l, textMeasurer)
+                    }
+                    // イベントライン: 全高の縦線＋脇に下から上へ読む回転テキスト。
+                    if (eventLines.isNotEmpty()) {
+                        for (e in eventLines) {
+                            val x = (e.xFraction * w).coerceIn(0f, w)
+                            drawLine(e.color, Offset(x, 0f), Offset(x, h), strokeWidth = 2f)
+                            if (e.text.isNotEmpty()) {
+                                drawTextLabel(
+                                    ChartTextLabel(
+                                        xFraction = e.xFraction,
+                                        text = e.text,
+                                        color = e.color,
+                                        rotated = true,
+                                        yFraction = 0.97f,
+                                        bold = true,
+                                    ),
+                                    textMeasurer,
+                                )
+                            }
+                        }
                     }
                     // 色帯（区間ごとに色分け）。[bandValue] の左軸 y へ描く。
                     // レンジ外（チャート下端より下）なら端に張り付けて全幅見えるようにクランプする。

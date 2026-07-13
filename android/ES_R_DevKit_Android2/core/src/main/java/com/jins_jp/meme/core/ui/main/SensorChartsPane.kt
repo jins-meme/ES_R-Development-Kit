@@ -72,6 +72,16 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                 yMin = -35000f, yMax = 35000f,
             ),
         )
+        // X 軸右端の秒: 再生モードでは CSV ソース位置（<< / >> で戻る・進むが数字に
+        // 表れる）。実機計測では経過時間(理論値)。全チャートで共有する。
+        val rightSeconds = if (ui.mockEnabled) ui.replayPositionSec.toFloat()
+        else buffers.latestX / PLOT_HZ.toFloat()
+        // ARTIFACT イベント（タップラベル/再生CSVのARTIFACT列）のオレンジ縦線。
+        val eventLines = artifactEventLines(
+            events = ui.artifactEvents,
+            rightSeconds = rightSeconds,
+            windowSeconds = (GRAPH_LEN - 1) / PLOT_HZ.toFloat(),
+        )
         charts.forEach { spec ->
             if (spec.key !in minimizedCharts) {
                 LiveLineChart(
@@ -82,10 +92,8 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                     onMinimize = { minimizedCharts = minimizedCharts + spec.key },
                     // どのチャートでもタップでラベル入力ダイアログを開ける。
                     onTapFraction = { f -> viewModel.markTap(f, GRAPH_LEN) },
-                    // X 軸右端の秒: 再生モードでは CSV ソース位置（<< / >> で戻る・進むが
-                    // 数字に表れる）。実機計測では経過時間(理論値)。1点=1/PLOT_HZ 秒。
-                    xRightSeconds = if (ui.mockEnabled) ui.replayPositionSec.toFloat()
-                    else buffers.latestX / PLOT_HZ.toFloat(),
+                    eventLines = eventLines,
+                    xRightSeconds = rightSeconds,
                     xSecondsPerPoint = 1f / PLOT_HZ,
                 )
             }

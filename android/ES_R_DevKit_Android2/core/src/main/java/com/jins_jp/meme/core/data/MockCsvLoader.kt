@@ -8,7 +8,13 @@ import java.io.InputStreamReader
 data class MockCsvData(
     val settings: MeasurementSettings,
     val rows: List<IntArray>,
+    // ARTIFACT 列が非空の行（タップラベル/Free Marking の "X"）。再生中にチャートへ
+    // 縦線イベントとして重ね描きする。[MockCsvArtifact.rowNumber] は 1 始まり。
+    val artifacts: List<MockCsvArtifact> = emptyList(),
 )
+
+/** 再生CSVの ARTIFACT 付き行 1 つ。[rowNumber] はデータ行番号(1 始まり ≒ NUM)。 */
+data class MockCsvArtifact(val rowNumber: Int, val text: String)
 
 /** Thrown when a selected file is not a valid logger CSV. */
 class MockCsvFormatException(message: String) : Exception(message)
@@ -35,6 +41,7 @@ object MockCsvLoader {
         var accRange: AccRange? = null
         var gyroRange: GyroRange? = null
         val rows = ArrayList<IntArray>()
+        val artifacts = ArrayList<MockCsvArtifact>()
 
         BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
             reader.forEachLine { raw ->
@@ -62,6 +69,8 @@ object MockCsvLoader {
                     parts[i + 3].trim().toIntOrNull()
                         ?: throw MockCsvFormatException("数値に変換できない列があります: \"${parts[i + 3]}\"")
                 }
+                val artifact = parts[0].trim()
+                if (artifact.isNotEmpty()) artifacts.add(MockCsvArtifact(rows.size + 1, artifact))
                 rows.add(values)
             }
         }
@@ -81,6 +90,7 @@ object MockCsvLoader {
                 gyroRange = gyroRange ?: GyroRange.Dps250,
             ),
             rows = rows,
+            artifacts = artifacts,
         )
     }
 

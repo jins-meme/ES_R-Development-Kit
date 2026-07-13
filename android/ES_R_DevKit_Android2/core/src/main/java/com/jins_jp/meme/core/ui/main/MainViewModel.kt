@@ -76,7 +76,14 @@ data class MainUiState(
     val shareRequest: ShareRequest? = null,
     // チャートタップで開くラベル入力ダイアログ。null なら非表示。
     val labelDialog: LabelPrompt? = null,
+    // 全チャートへオレンジの縦線＋文字で重ね描きする ARTIFACT イベント。
+    // 再生ではソースCSVの ARTIFACT 列由来＋このセッションで確定したラベル、
+    // 実機計測ではこのセッションで確定したラベル。
+    val artifactEvents: List<ArtifactEvent> = emptyList(),
 )
+
+/** チャートに縦線で示す ARTIFACT イベント。[sec] はデータ先頭からの経過秒。 */
+data class ArtifactEvent(val sec: Double, val text: String)
 
 /** 計測完了後に共有シートへ渡す CSV（本体データ＋サイドカーのうち存在するもの）の URI。 */
 data class ShareRequest(val uris: List<Uri>)
@@ -401,6 +408,9 @@ class MainViewModel(
                 return@launch
             }
             if (!ui.value.mockEnabled) {
+                // 実機計測は新しいセッション＝前回のイベント表示をクリアする。
+                // 再生はソースCSV由来のイベントを Start/Stop をまたいで表示し続ける。
+                _ui.update { it.copy(artifactEvents = emptyList()) }
                 csv.start(addr, ui.value.settings)
                 // 実機計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
                 // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
@@ -499,7 +509,11 @@ class MainViewModel(
         val prompt = ui.value.labelDialog ?: return
         val text = input.replace(Regex("[,\r\n]"), " ").trim().ifEmpty { "X" }
         tapLabels += LabelMerger.Entry(prompt.num, text)
-        _ui.update { it.copy(labelDialog = null) }
+        // 確定した瞬間からチャートに縦線イベントとして表示する。秒換算はチャートの
+        // X 軸と同じ基準（実機=NUM/受信Hz、再生=行番号/行消費レート）。
+        val hz = if (ui.value.mockEnabled) replaySampleRateHz() else ui.value.settings.quality.hz
+        val event = ArtifactEvent(prompt.num.toDouble() / hz, text)
+        _ui.update { it.copy(labelDialog = null, artifactEvents = it.artifactEvents + event) }
     }
 
     fun dismissLabelDialog() { _ui.update { it.copy(labelDialog = null) } }
