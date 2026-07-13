@@ -9,8 +9,10 @@ object LabelMerger {
 
     /**
      * ラベル 1 件。[key] は実機計測ではサンプル通し番号(NUM 列の値)、CSV 再生では
-     * ソースCSVのデータ行番号(0 始まり)。再生はシークで受信累計とソース位置が
-     * ずれるため、NUM ではなく行番号で対応付ける。
+     * ソースCSVのデータ行番号(1 始まり)。再生はシークで受信累計とソース位置が
+     * ずれるため NUM 列ではなく行番号で対応付けるが、1 始まりに揃えることで
+     * 取りこぼしの無いCSV(NUM が 1,2,3,…)ではダイアログに表示した NUM と
+     * ラベルが載る行の NUM 列が一致する。
      */
     data class Entry(val key: Long, val text: String)
 
@@ -24,7 +26,8 @@ object LabelMerger {
         if (labels.isEmpty()) return lines
         val sorted = labels.sortedBy { it.key }
         var next = 0
-        var rowIndex = 0L
+        // データ行番号は 1 始まり（[Entry.key] の再生時の座標系と同じ）。
+        var rowNumber = 1L
         val out = ArrayList<String>(lines.size)
         for (line in lines) {
             val trimmed = line.trim()
@@ -35,14 +38,14 @@ object LabelMerger {
             }
             val key: Long
             if (byRowIndex) {
-                key = rowIndex
+                key = rowNumber
             } else {
                 // データ行は ARTIFACT,NUM,DATE,... — NUM は 2 列目。
                 val num = trimmed.split(',').getOrNull(1)?.trim()?.toLongOrNull()
                 if (num == null) { out.add(line); continue }
                 key = num
             }
-            rowIndex++
+            rowNumber++
             val texts = ArrayList<String>(1)
             while (next < sorted.size && sorted[next].key <= key) {
                 texts.add(sorted[next].text)

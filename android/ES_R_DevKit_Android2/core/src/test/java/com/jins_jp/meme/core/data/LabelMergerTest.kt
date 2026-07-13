@@ -5,7 +5,7 @@ import org.junit.Test
 
 /**
  * [LabelMerger] の検証: タップラベルをデータCSVの ARTIFACT 列へ統合する。
- * 実機計測は NUM(2 列目)、再生はデータ行番号(0 始まり)で対応付ける。
+ * 実機計測は NUM(2 列目)、再生はデータ行番号(1 始まり)で対応付ける。
  */
 class LabelMergerTest {
 
@@ -42,14 +42,28 @@ class LabelMergerTest {
     }
 
     @Test
-    fun mergesByRowIndexForReplay() {
+    fun mergesByRowNumberForReplay() {
+        // 再生の行番号は 1 始まり: key=1 は 1 行目、key=3 は 3 行目に載る。
         val lines = header + listOf(row("", 100), row("", 101), row("", 102))
         val out = LabelMerger.merge(
             lines,
-            listOf(LabelMerger.Entry(0, "a"), LabelMerger.Entry(2, "b")),
+            listOf(LabelMerger.Entry(1, "a"), LabelMerger.Entry(3, "b")),
             byRowIndex = true,
         )
         assertEquals(header + listOf(row("a", 100), row("", 101), row("b", 102)), out)
+    }
+
+    @Test
+    fun replayRowNumberMatchesNumColumnOfGaplessCsv() {
+        // ダイアログに「マーク NUM=2」と出たラベル(key=2)は、取りこぼしの無い
+        // CSV(NUM=1,2,3,…)では NUM=2 の行に載る（1 行後ろへずれない）。
+        val lines = header + listOf(row("", 1), row("", 2), row("", 3))
+        val out = LabelMerger.merge(
+            lines,
+            listOf(LabelMerger.Entry(2, "jump")),
+            byRowIndex = true,
+        )
+        assertEquals(header + listOf(row("", 1), row("jump", 2), row("", 3)), out)
     }
 
     @Test

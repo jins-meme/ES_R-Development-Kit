@@ -83,7 +83,7 @@ data class ShareRequest(val uris: List<Uri>)
 
 /**
  * チャートタップで開くラベル入力ダイアログの状態。[num] は実機計測ではサンプル
- * 通し番号(NUM)、CSV 再生ではソースCSVのデータ行番号(0 始まり)。
+ * 通し番号(NUM)、CSV 再生ではソースCSVのデータ行番号(1 始まり ≒ NUM 列の値)。
  */
 data class LabelPrompt(val num: Long)
 
@@ -474,7 +474,9 @@ class MainViewModel(
     /**
      * グラフ上のタップ位置（0..1 の横位置と可視プロット点数）をサンプル位置へ換算し、
      * ラベル入力ダイアログを開く。実機計測は NUM（受信サンプル通し番号）、再生は
-     * シークで NUM とソース位置がずれるためソースCSVのデータ行番号を基準にする。
+     * シークで NUM とソース位置がずれるためソースCSVのデータ行番号(1 始まり)を
+     * 基準にする（replayPositionSec×レート = 消費済み行数 = 最後に再生した行の
+     * 1 始まり行番号。取りこぼしの無いCSVでは NUM 列の値と一致する）。
      */
     fun markTap(fraction: Float, visiblePoints: Int) {
         if (!ui.value.isMeasuring) return
