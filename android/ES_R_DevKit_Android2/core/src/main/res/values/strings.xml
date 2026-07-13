@@ -26,9 +26,15 @@
     <string name="button_initialize">Initialize</string>
     <string name="button_measurement_start">Start Measurement</string>
     <string name="button_measurement_stop">Stop Measurement</string>
+    <string name="button_replay_start">Start Replay</string>
+    <string name="button_replay_stop">Stop Replay</string>
     <string name="hint_hold_to_start">Hold to Start</string>
     <string name="hint_hold_to_stop">Hold to Stop</string>
     <string name="button_free_marking">Free Marking</string>
+    <string name="button_replay_rewind">&lt;&lt;</string>
+    <string name="button_replay_pause">Pause</string>
+    <string name="button_replay_resume">Resume</string>
+    <string name="button_replay_forward">&gt;&gt;</string>
     <string name="button_dialog_ok">OK</string>
 
     <string name="eog_graph_title">EOG data</string>

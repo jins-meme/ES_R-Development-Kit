@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,11 +29,15 @@ class MockMemeBleEngine(
     private val connection: MutableStateFlow<ConnectionState>,
     private val incoming: MutableSharedFlow<ByteArray>,
     private val descriptorWritten: MutableSharedFlow<Unit>,
+    private val playbackPosition: MutableStateFlow<PlaybackPosition>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var address: String? = null
     private var streamJob: Job? = null
+    // 論理的な再生状態。seek の再描画中も streamJob とは独立に「再生中か」を保持し、
+    // 再描画完了後に送出を続けるかどうかの判断に使う（UI スレッドと scope を跨ぐため volatile）。
+    @Volatile private var playing = false
     private var packetCount = 0
     // 1=Standard/100Hz defaults match the device factory state.
     private var modeId = 1
@@ -40,14 +46,27 @@ class MockMemeBleEngine(
     private var gyroRangeId = 0
 
     // Logged data loaded from a CSV; when present the stream replays these rows
-    // instead of generating synthetic sine waves.
-    private var csvRows: List<IntArray>? = null
-    private var csvIndex = 0
+    // instead of generating synthetic sine waves. seek() が UI スレッドから書き換えるため volatile。
+    @Volatile private var csvRows: List<IntArray>? = null
+    @Volatile private var csvIndex = 0
 
     /** Replace the synthetic generator with rows parsed from a logger CSV. */
     fun loadCsv(data: MockCsvData) {
         csvRows = data.rows
         csvIndex = 0
+        publishPosition()
+    }
+
+    /**
+     * 現在の再生位置（csvIndex 換算の秒）を [playbackPosition] へ反映する。チャートの
+     * X 軸と位置表示はこれを購読する。受信累計ベースの経過秒はシークのバースト再送で
+     * 必ず前進してしまい「<< が進んで見える」ため、ソース位置を UI の基準にする。
+     */
+    private fun publishPosition() {
+        val rows = csvRows
+        val rate = sampleRateHz().toDouble()
+        playbackPosition.value = if (rows == null || rows.isEmpty()) PlaybackPosition()
+        else PlaybackPosition(csvIndex / rate, rows.size / rate)
     }
 
     fun startScan() {
@@ -113,6 +132,7 @@ class MockMemeBleEngine(
         packetCount = 0
         csvRows = null
         csvIndex = 0
+        playbackPosition.value = PlaybackPosition()
     }
 
     private fun handleCommand(data: ByteArray) {
@@ -188,38 +208,148 @@ class MockMemeBleEngine(
     }
 
     private fun startStream() {
-        stopStream()
-        packetCount = 0
-        // Restart CSV playback from the first logged row on each measurement.
-        csvIndex = 0
-        val quality = qualityId // 1=100Hz, 2=50Hz (ファームの transMode 値)
-        val type = when (modeId) {
-            2 -> MemeBleConstants.AUP_REPORT_ACADEMIA2
-            3 -> MemeBleConstants.AUP_REPORT_ACADEMIA3
-            else -> MemeBleConstants.AUP_REPORT_ACADEMIA1
+        playing = true
+        transition {
+            packetCount = 0
+            // Restart CSV playback from the first logged row on each measurement.
+            csvIndex = 0
+            publishPosition()
+            streamLoop()
         }
+    }
+
+    /** Suspend CSV playback in place (Pause); [csvIndex] is left untouched. */
+    fun pause() = stopStream()
+
+    /** Continue CSV playback from wherever it was paused (Resume). No-op if not paused/loaded. */
+    fun resume() {
+        if (playing || csvRows == null) return
+        playing = true
+        transition { streamLoop() }
+    }
+
+    /**
+     * Jump the CSV playback position by [deltaSeconds] (negative rewinds), clamped to the
+     * available rows. The charts are append-only rolling windows, so moving the read
+     * position alone would be invisible; after the jump the samples leading up to the new
+     * position are burst-replayed so the visible window redraws there instantly. Works
+     * while paused too (the redraw runs, then playback stays paused — `playing` は変えない).
+     */
+    fun seek(deltaSeconds: Double) {
+        val rows = csvRows ?: return
+        if (rows.isEmpty()) return
+        transition {
+            val rate = sampleRateHz()
+            val target = (csvIndex + (deltaSeconds * rate).toInt()).coerceIn(0, rows.size - 1)
+            val redrawRows = (REDRAW_WINDOW_SECONDS * rate).coerceAtMost(target)
+            csvIndex = target
+            publishPosition()
+            replayWindow(rows, target - redrawRows, target)
+            if (playing) streamLoop()
+        }
+    }
+
+    /**
+     * ストリーム系ジョブ（ループ／シーク再描画）の直列な差し替え。前ジョブの cancel
+     * 完了を join で待ってから次を実行することで、旧ループの最終イテレーションと
+     * 新ジョブの packetCount 更新・送出が交錯してカウンタが逆行（SampleCounter が
+     * 偽の 12bit 折り返しと誤認して +4096 サンプル飛ぶ）するのを防ぐ。
+     */
+    @Synchronized
+    private fun transition(block: suspend () -> Unit) {
+        val old = streamJob
         streamJob = scope.launch {
-            while (isActive) {
-                if (quality == 1 && (type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || type == MemeBleConstants.AUP_REPORT_ACADEMIA2)) {
-                    // 100Hz: 2 サンプルを 40byte(2 パケット)にまとめて送る。
-                    val p1 = createDataPacket(type)
-                    val p2 = createDataPacket(type)
-                    emit(p1 + p2)
-                } else {
-                    emit(createDataPacket(type))
-                }
-                // 50Hz: 1 sample / 20ms. 100Hz: 2 samples / 20ms.
-                delay(20L)
+            old?.cancelAndJoin()
+            block()
+        }
+    }
+
+    /** CSV 行の消費レート(行/秒)。100Hz(A1/A2, quality=1)のみ 100、それ以外は 50。 */
+    private fun sampleRateHz(): Int {
+        val type = reportType()
+        val is100Hz = qualityId == 1 &&
+            (type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || type == MemeBleConstants.AUP_REPORT_ACADEMIA2)
+        return if (is100Hz) 100 else 50
+    }
+
+    private fun reportType(): Byte = when (modeId) {
+        2 -> MemeBleConstants.AUP_REPORT_ACADEMIA2
+        3 -> MemeBleConstants.AUP_REPORT_ACADEMIA3
+        else -> MemeBleConstants.AUP_REPORT_ACADEMIA1
+    }
+
+    private suspend fun streamLoop() {
+        val quality = qualityId // 1=100Hz, 2=50Hz (ファームの transMode 値)
+        val type = reportType()
+        while (currentCoroutineContext().isActive) {
+            if (quality == 1 && (type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || type == MemeBleConstants.AUP_REPORT_ACADEMIA2)) {
+                // 100Hz: 2 サンプルを 40byte(2 パケット)にまとめて送る。
+                val p1 = createDataPacket(type)
+                val p2 = createDataPacket(type)
+                emit(p1 + p2)
+            } else {
+                emit(createDataPacket(type))
+            }
+            publishPosition()
+            // 50Hz: 1 sample / 20ms. 100Hz: 2 samples / 20ms.
+            delay(20L)
+        }
+    }
+
+    /**
+     * [from]..<[until] の行を待ち時間なしで一括送出し、シーク先までの可視窓を描き直す。
+     * 通常送出と同じパケット形状（100Hz は 2 サンプル 40byte）なので、受信側からは
+     * 高速に届いた連続ストリームに見え、NUM・プロット通番・マーカー座標系は途切れない。
+     * suspend な emit で送るため、受信側バッファ(256)を溢れさせず取りこぼさない。
+     */
+    private suspend fun replayWindow(rows: List<IntArray>, from: Int, until: Int) {
+        val quality = qualityId
+        val type = reportType()
+        var i = from
+        while (i < until) {
+            if (quality == 1 &&
+                (type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || type == MemeBleConstants.AUP_REPORT_ACADEMIA2) &&
+                i + 1 < until
+            ) {
+                incoming.emit(packetForRow(type, rows[i]) + packetForRow(type, rows[i + 1]))
+                i += 2
+            } else {
+                incoming.emit(packetForRow(type, rows[i]))
+                i += 1
             }
         }
     }
 
+    @Synchronized
     private fun stopStream() {
+        playing = false
+        // 参照は残す：次の transition が前ジョブの終了を join できるようにする。
         streamJob?.cancel()
-        streamJob = null
     }
 
     private fun createDataPacket(type: Byte): ByteArray {
+        val rows = csvRows
+        if (rows != null && rows.isNotEmpty()) {
+            // Replay one logged row, looping back to the start once exhausted.
+            val packet = packetForRow(type, rows[csvIndex])
+            csvIndex = (csvIndex + 1) % rows.size
+            return packet
+        }
+        val packet = newPacket(type)
+        encodeSynthetic(packet, type, packetCount.toDouble() * 0.01)
+        packetCount = (packetCount + 1) and 0x0FFF
+        return packet
+    }
+
+    /** 指定した CSV 行 1 つをパケット化する（[csvIndex] は進めない）。 */
+    private fun packetForRow(type: Byte, row: IntArray): ByteArray {
+        val packet = newPacket(type)
+        encodeRow(packet, type, row)
+        packetCount = (packetCount + 1) and 0x0FFF
+        return packet
+    }
+
+    private fun newPacket(type: Byte): ByteArray {
         val packet = ByteArray(20)
         packet[0] = MemeBleConstants.DATA_LENGTH
         packet[1] = type
@@ -227,17 +357,6 @@ class MockMemeBleEngine(
         val head = (packetCount and 0x0FFF) or ((BATTERY_LEVEL and 0x0F) shl 12)
         packet[2] = (head and 0xFF).toByte()
         packet[3] = ((head ushr 8) and 0xFF).toByte()
-
-        val rows = csvRows
-        if (rows != null && rows.isNotEmpty()) {
-            // Replay one logged row, looping back to the start once exhausted.
-            encodeRow(packet, type, rows[csvIndex])
-            csvIndex = (csvIndex + 1) % rows.size
-        } else {
-            encodeSynthetic(packet, type, packetCount.toDouble() * 0.01)
-        }
-
-        packetCount = (packetCount + 1) and 0x0FFF
         return packet
     }
 
@@ -308,5 +427,9 @@ class MockMemeBleEngine(
     companion object {
         const val MOCK_ADDRESS = "MO:CK:00:00:00:01"
         private const val BATTERY_LEVEL = 5
+
+        // seek 時に描き直す秒数。チャートの可視窓（GRAPH_LEN=150 点 ÷ 25Hz = 6 秒）に合わせ、
+        // ジャンプ直後に窓全体が新しい位置の波形で埋まるようにする。
+        private const val REDRAW_WINDOW_SECONDS = 6
     }
 }

@@ -186,6 +186,71 @@ class PlaybackControllerTest {
         assertFalse(repo.mockMode)
     }
 
+    @Test
+    fun pauseFreezesPlaybackWhileMeasuring() = runTest {
+        val c = newController()
+        c.start(uri)
+        advanceUntilIdle()
+        ui.update { it.copy(isMeasuring = true) }
+
+        c.pause()
+        assertEquals(1, repo.pausePlaybackCount)
+        assertTrue(ui.value.isPlaybackPaused)
+
+        // A second Pause while already paused does not re-trigger the repo call.
+        c.pause()
+        assertEquals(1, repo.pausePlaybackCount)
+    }
+
+    @Test
+    fun pauseOutsidePlaybackOrWhileNotMeasuringIsNoOp() = runTest {
+        newController().pause()
+        assertEquals(0, repo.pausePlaybackCount)
+        assertFalse(ui.value.isPlaybackPaused)
+    }
+
+    @Test
+    fun resumeContinuesPlaybackFromPause() = runTest {
+        val c = newController()
+        c.start(uri)
+        advanceUntilIdle()
+        ui.update { it.copy(isMeasuring = true) }
+        c.pause()
+
+        c.resume()
+        assertEquals(1, repo.resumePlaybackCount)
+        assertFalse(ui.value.isPlaybackPaused)
+    }
+
+    @Test
+    fun resumeWithoutPauseIsNoOp() = runTest {
+        val c = newController()
+        c.start(uri)
+        advanceUntilIdle()
+        ui.update { it.copy(isMeasuring = true) }
+
+        c.resume()
+        assertEquals(0, repo.resumePlaybackCount)
+    }
+
+    @Test
+    fun seekForwardsDeltaWhileMeasuring() = runTest {
+        val c = newController()
+        c.start(uri)
+        advanceUntilIdle()
+        ui.update { it.copy(isMeasuring = true) }
+
+        c.seek(-5.0)
+        c.seek(5.0)
+        assertEquals(listOf(-5.0, 5.0), repo.seekPlaybackCalls)
+    }
+
+    @Test
+    fun seekOutsidePlaybackOrWhileNotMeasuringIsNoOp() = runTest {
+        newController().seek(5.0)
+        assertTrue(repo.seekPlaybackCalls.isEmpty())
+    }
+
     private companion object {
         /** CsvWriter が出力する形式の最小 CSV（Standard は値 11 列）。 */
         val VALID_CSV = """

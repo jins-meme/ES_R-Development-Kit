@@ -58,6 +58,10 @@ data class MainUiState(
     val commRate: Double = 1.0,
     val toast: String? = null,
     val mockEnabled: Boolean = false,
+    val isPlaybackPaused: Boolean = false,
+    // CSV 再生の現在位置/総時間（秒）。再生モード中のチャート X 軸と位置表示に使う。
+    val replayPositionSec: Double = 0.0,
+    val replayDurationSec: Double = 0.0,
     val mockError: String? = null,
     val bluetoothError: Boolean = false,
     val autoConnect: Boolean = false,
@@ -151,6 +155,13 @@ class MainViewModel(
         viewModelScope.launch { collectConnection() }
         viewModelScope.launch { collectIncoming() }
         viewModelScope.launch { collectDescriptorWritten() }
+        viewModelScope.launch { collectPlaybackPosition() }
+    }
+
+    private suspend fun collectPlaybackPosition() {
+        repo.playbackPosition.collect { p ->
+            _ui.update { it.copy(replayPositionSec = p.positionSec, replayDurationSec = p.durationSec) }
+        }
     }
 
     override fun onCleared() {
@@ -188,6 +199,13 @@ class MainViewModel(
      * 再生（mock）モードへ入り、mock デバイスへのスキャン→接続をエミュレートする。
      */
     fun startPlayback(uri: Uri?) = playback.start(uri)
+
+    /** Pause/Resume ボタン（詳細は [PlaybackController.pause]/[PlaybackController.resume]）。 */
+    fun pausePlayback() = playback.pause()
+    fun resumePlayback() = playback.resume()
+
+    /** << / >> ボタン。[deltaSeconds] が負なら巻き戻し、正なら早送り。 */
+    fun seekPlayback(deltaSeconds: Double) = playback.seek(deltaSeconds)
 
     fun dismissMockError() { _ui.update { it.copy(mockError = null) } }
 
@@ -379,7 +397,14 @@ class MainViewModel(
             delay(500); sendSetParams()
             delay(1000)
             sendEncoded(MemeCommands.startStop(true))
-            _ui.update { it.copy(isMeasuring = true, isStarting = false, recordingRows = 0L) }
+            _ui.update {
+                it.copy(
+                    isMeasuring = true,
+                    isStarting = false,
+                    recordingRows = 0L,
+                    isPlaybackPaused = false,
+                )
+            }
             startCommTicker()
         }
     }
@@ -397,6 +422,7 @@ class MainViewModel(
                 it.copy(
                     isMeasuring = false,
                     recordingRows = 0L,
+                    isPlaybackPaused = false,
                     shareRequest = if (
                         it.openSharingOnComplete && !it.mockEnabled && shareUris.isNotEmpty()
                     ) ShareRequest(shareUris) else it.shareRequest,

@@ -80,8 +80,10 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                     yMin = spec.yMin,
                     yMax = spec.yMax,
                     onMinimize = { minimizedCharts = minimizedCharts + spec.key },
-                    // 経過時間(理論値): 右端=最新点の経過秒、1点=1/PLOT_HZ 秒。
-                    xRightSeconds = buffers.latestX / PLOT_HZ.toFloat(),
+                    // X 軸右端の秒: 再生モードでは CSV ソース位置（<< / >> で戻る・進むが
+                    // 数字に表れる）。実機計測では経過時間(理論値)。1点=1/PLOT_HZ 秒。
+                    xRightSeconds = if (ui.mockEnabled) ui.replayPositionSec.toFloat()
+                    else buffers.latestX / PLOT_HZ.toFloat(),
                     xSecondsPerPoint = 1f / PLOT_HZ,
                 )
             }

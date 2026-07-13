@@ -3,6 +3,7 @@ package com.jins_jp.meme.core.ui.main
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.ble.MemeBleClient
 import com.jins_jp.meme.core.ble.MockMemeBleEngine
+import com.jins_jp.meme.core.ble.PlaybackPosition
 import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ internal class FakeMemeBleClient : MemeBleClient {
     override val devices = MutableStateFlow<Set<String>>(emptySet())
     override val connection = MutableStateFlow(ConnectionState.Disconnected)
     override val descriptorWritten = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    override val playbackPosition = MutableStateFlow(PlaybackPosition())
 
     /** mockMode 代入の履歴（再突入時の false→true 強制を検証するため）。 */
     val mockModeSets = mutableListOf<Boolean>()
@@ -69,5 +71,20 @@ internal class FakeMemeBleClient : MemeBleClient {
     override fun disconnect() {
         disconnectCount++
         connection.value = ConnectionState.Disconnected
+    }
+
+    var pausePlaybackCount = 0
+    override fun pausePlayback() {
+        pausePlaybackCount++
+    }
+
+    var resumePlaybackCount = 0
+    override fun resumePlayback() {
+        resumePlaybackCount++
+    }
+
+    val seekPlaybackCalls = mutableListOf<Double>()
+    override fun seekPlayback(deltaSeconds: Double) {
+        seekPlaybackCalls += deltaSeconds
     }
 }

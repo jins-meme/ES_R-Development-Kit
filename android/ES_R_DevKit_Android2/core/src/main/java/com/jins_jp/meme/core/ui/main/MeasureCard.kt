@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
@@ -64,8 +65,13 @@ internal fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
             ) {
                 HoldButton(
                     modifier = Modifier.weight(1f),
-                    text = if (ui.isMeasuring) stringResource(R.string.button_measurement_stop)
-                    else stringResource(R.string.button_measurement_start),
+                    text = if (ui.isMeasuring) {
+                        if (ui.mockEnabled) stringResource(R.string.button_replay_stop)
+                        else stringResource(R.string.button_measurement_stop)
+                    } else {
+                        if (ui.mockEnabled) stringResource(R.string.button_replay_start)
+                        else stringResource(R.string.button_measurement_start)
+                    },
                     hintText = if (ui.isMeasuring) stringResource(R.string.hint_hold_to_stop)
                     else stringResource(R.string.hint_hold_to_start),
                     enabled = ui.connection == ConnectionState.ServicesReady && !ui.isStarting,
@@ -76,6 +82,40 @@ internal fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
                     onClick = { vm.marking() },
                     enabled = ui.isMeasuring,
                 ) { Text(stringResource(R.string.button_free_marking)) }
+            }
+
+            if (ui.mockEnabled && ui.isMeasuring) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = { vm.seekPlayback(-5.0) },
+                    ) { Text(stringResource(R.string.button_replay_rewind)) }
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (ui.isPlaybackPaused) vm.resumePlayback() else vm.pausePlayback()
+                        },
+                    ) {
+                        Text(
+                            if (ui.isPlaybackPaused) stringResource(R.string.button_replay_resume)
+                            else stringResource(R.string.button_replay_pause)
+                        )
+                    }
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = { vm.seekPlayback(5.0) },
+                    ) { Text(stringResource(R.string.button_replay_forward)) }
+                }
+                // 再生位置 / 総時間。シークの結果（<< で戻った等）がひと目で分かるようにする。
+                Text(
+                    "%.1f / %.1f s".format(ui.replayPositionSec, ui.replayDurationSec),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
             }
 
             if (ui.isStarting) {

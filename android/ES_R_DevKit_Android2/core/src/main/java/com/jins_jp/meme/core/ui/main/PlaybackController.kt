@@ -70,6 +70,7 @@ internal class PlaybackController(
                 ui.update {
                     it.copy(
                         mockEnabled = true,
+                        isPlaybackPaused = false,
                         settings = data.settings,
                         isInitializing = false,
                         firmwareVersion = null,
@@ -124,9 +125,30 @@ internal class PlaybackController(
         ui.update {
             it.copy(
                 mockEnabled = false,
+                isPlaybackPaused = false,
                 isInitializing = false,
                 firmwareVersion = null,
             )
         }
+    }
+
+    /** Pause button: freeze CSV playback in place without ending the measurement. */
+    fun pause() {
+        if (!ui.value.mockEnabled || !ui.value.isMeasuring || ui.value.isPlaybackPaused) return
+        repo.pausePlayback()
+        ui.update { it.copy(isPlaybackPaused = true) }
+    }
+
+    /** Resume button: continue CSV playback from where it was paused. */
+    fun resume() {
+        if (!ui.value.mockEnabled || !ui.value.isPlaybackPaused) return
+        repo.resumePlayback()
+        ui.update { it.copy(isPlaybackPaused = false) }
+    }
+
+    /** << / >> buttons: jump the CSV position by [deltaSeconds] (negative rewinds). */
+    fun seek(deltaSeconds: Double) {
+        if (!ui.value.mockEnabled || !ui.value.isMeasuring) return
+        repo.seekPlayback(deltaSeconds)
     }
 }

@@ -59,6 +59,9 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     private val _descriptorWritten = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     override val descriptorWritten: SharedFlow<Unit> = _descriptorWritten.asSharedFlow()
 
+    private val _playbackPosition = MutableStateFlow(PlaybackPosition())
+    override val playbackPosition: StateFlow<PlaybackPosition> = _playbackPosition.asStateFlow()
+
     private var gatt: BluetoothGatt? = null
     private var scanner: BluetoothLeScanner? = null
     private var currentAddress: String? = null
@@ -69,6 +72,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         connection = _connection,
         incoming = _incoming,
         descriptorWritten = _descriptorWritten,
+        playbackPosition = _playbackPosition,
     )
 
     /**
@@ -96,6 +100,21 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
 
     /** Hand the mock engine logged rows to replay instead of synthetic data. */
     override fun loadMockCsv(data: MockCsvData) = mock.loadCsv(data)
+
+    /** Freeze CSV playback in place (Pause). No-op outside mock mode. */
+    override fun pausePlayback() {
+        if (mockMode) mock.pause()
+    }
+
+    /** Continue CSV playback from where it was paused (Resume). No-op outside mock mode. */
+    override fun resumePlayback() {
+        if (mockMode) mock.resume()
+    }
+
+    /** Jump the CSV playback position by [deltaSeconds] (negative rewinds). No-op outside mock mode. */
+    override fun seekPlayback(deltaSeconds: Double) {
+        if (mockMode) mock.seek(deltaSeconds)
+    }
 
     fun hasConnectPermission(): Boolean {
         if (mockMode) return true
