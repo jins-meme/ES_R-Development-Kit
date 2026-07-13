@@ -29,11 +29,6 @@ class CsvWriter(private val context: Context) {
     private val flushThreshold = 100
     private var rowCount: Long = 0
 
-    // ユーザータップ印を書き出すサイドカー("<base>_label.csv")。本体CSVと同じ
-    // タイムスタンプを共有して対応付ける。最初の印が来た時に遅延生成する。
-    private var labelUri: Uri? = null
-    private var labelBaseName: String? = null
-
     // 行動分類(測定状態)を 1 秒ごとに書き出すサイドカー("<base>_classification.csv")。
     // 本体CSVと同じベース名(=MACアドレス_日時)を共有し、NUM で本体データ行へ対応づける。
     // 1 秒に 1 行と疎なので、最初の行が来た時に遅延生成し、各行を即フラッシュする。
@@ -51,27 +46,22 @@ class CsvWriter(private val context: Context) {
         rowCount = 0
         buffer.clear()
         pendingHeader = buildHeader(settings)
-        labelBaseName = base
-        labelUri = null
         classificationBaseName = base
         classificationUri = null
     }
 
     /**
-     * Mock 再生時など本体データCSVを書かない場合に、ラベルCSVのみを有効化する。
-     * 本体ファイルは作らず、サイドカーのベース名だけを用意する。
+     * Mock 再生時など本体データCSVを書かない場合に、分類CSVサイドカーのみを
+     * 有効化する。本体ファイルは作らず、サイドカーのベース名だけを用意する。
      */
-    fun startLabelOnly(address: String) {
+    fun startClassificationOnly(address: String) {
         // 本体データCSVは一切作らない。念のため前回計測のデータ用状態も破棄する。
         uri = null
         dataBaseName = null
         pendingHeader = null
         buffer.clear()
         rowCount = 0
-        val base = makeBaseName(address)
-        labelBaseName = base
-        labelUri = null
-        classificationBaseName = base
+        classificationBaseName = makeBaseName(address)
         classificationUri = null
     }
 
@@ -90,51 +80,13 @@ class CsvWriter(private val context: Context) {
     }
 
     /**
-     * Appends one user-tapped marker (a sample index / NUM, matching the main
-     * CSV's NUM column) to a sidecar file "<base>_label.csv" next to the main
-     * CSV. The file is created lazily on the first mark and finalized in [stop].
-     * Marks are rare, so each is flushed immediately — a crash never loses
-     * earlier marks, and the main CSV is never rewritten.
-     */
-    fun writeLabel(num: Long) {
-        val base = labelBaseName ?: return
-        val isNew = labelUri == null
-        if (isNew) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, "${base}_label.csv")
-                put(MediaStore.Downloads.MIME_TYPE, "text/csv")
-                put(
-                    MediaStore.Downloads.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
-                )
-            }
-            labelUri = context.contentResolver.insert(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                values,
-            )
-        }
-        val u = labelUri ?: return
-        runCatching {
-            context.contentResolver.openOutputStream(u, "wa")?.use { os ->
-                OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
-                    if (isNew) {
-                        w.write("// Labels for $base.csv"); w.write("\r\n")
-                        w.write("// NUM"); w.write("\r\n")
-                    }
-                    w.write(num.toString()); w.write("\r\n")
-                }
-            }
-        }
-    }
-
-    /**
      * Appends one behavior-classification row (DATE,LABEL) to a sidecar file
      * "<base>_classification.csv" next to the main CSV. Called once per second as
      * the status detector commits a 1-second segment (plus a final partial segment
      * on stop). [dateGmtMillis] is the GMT wall-clock the label maps to (already
      * delay-compensated by the caller); it is formatted the same way as the main
      * CSV's DATE column so the two files line up on time. The file is created
-     * lazily on the first row. Like [writeLabel], each row is flushed immediately
+     * lazily on the first row. Rows are sparse, so each is flushed immediately
      * so a crash never loses earlier rows and the main CSV is never rewritten.
      */
     fun writeClassification(dateGmtMillis: Long, label: String) {
@@ -183,9 +135,6 @@ class CsvWriter(private val context: Context) {
         uri = null
         pendingHeader = null
         dataBaseName = null
-
-        labelUri = null
-        labelBaseName = null
 
         classificationUri = null
         classificationBaseName = null

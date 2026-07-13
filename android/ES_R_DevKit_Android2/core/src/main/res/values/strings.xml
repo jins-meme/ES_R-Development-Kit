@@ -36,6 +36,11 @@
     <string name="button_replay_resume">Resume</string>
     <string name="button_replay_forward">&gt;&gt;</string>
     <string name="button_dialog_ok">OK</string>
+    <string name="button_dialog_cancel">Cancel</string>
+
+    <!-- チャートタップのラベル入力ダイアログ。%1$d はタップ位置のサンプル通し番号(NUM)。 -->
+    <string name="label_dialog_title">マーク NUM=%1$d</string>
+    <string name="label_dialog_hint">ラベル（空なら X）</string>
 
     <string name="eog_graph_title">EOG data</string>
     <string name="acc_graph_title">Accel data</string>

@@ -16,6 +16,7 @@ import com.jins_jp.meme.core.ble.MemeBleRepository
 import com.jins_jp.meme.core.ble.MemeCommands
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
+import com.jins_jp.meme.core.data.LabelMerger
 import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
@@ -24,6 +25,7 @@ import com.jins_jp.meme.core.data.SettingsStore
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.plugin.AlgoPlugin
 import com.jins_jp.meme.core.service.MeasurementService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,6 +36,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.OutputStreamWriter
+import kotlin.math.roundToLong
 
 private const val TAG = "MainViewModel"
 
@@ -70,10 +74,18 @@ data class MainUiState(
     // 計測完了時に「その他のアプリと共有」を自動で開くか（モックでない実機計測のみ対象）。
     val openSharingOnComplete: Boolean = false,
     val shareRequest: ShareRequest? = null,
+    // チャートタップで開くラベル入力ダイアログ。null なら非表示。
+    val labelDialog: LabelPrompt? = null,
 )
 
 /** 計測完了後に共有シートへ渡す CSV（本体データ＋サイドカーのうち存在するもの）の URI。 */
 data class ShareRequest(val uris: List<Uri>)
+
+/**
+ * チャートタップで開くラベル入力ダイアログの状態。[num] は実機計測ではサンプル
+ * 通し番号(NUM)、CSV 再生ではソースCSVのデータ行番号(0 始まり)。
+ */
+data class LabelPrompt(val num: Long)
 
 sealed class GraphEvent {
     data class Eog(val x: Long, val vh: Float, val vv: Float) : GraphEvent()
@@ -123,6 +135,10 @@ class MainViewModel(
 
     // 自動接続：1スキャンにつき一度だけ発火（再接続ループを防ぐ）
     private var autoConnectAttempted = false
+
+    // チャートタップで確定したラベル。計測/再生停止時にデータCSVの ARTIFACT 列へ
+    // 統合する（実機計測は NUM、再生はソース行番号で対応付け）。
+    private val tapLabels = mutableListOf<LabelMerger.Entry>()
 
     // 計測中の予期しない切断からの自動再接続と、CSV 再生（mock）モードの出入り。
     private val reconnect = ReconnectController(
@@ -253,7 +269,10 @@ class MainViewModel(
                     // the files in that case (no-op if nothing was being written).
                     stopCommTicker()
                     for (p in plugins) p.onDisconnected(csv)
-                    csv.stop()
+                    val dropResult = csv.stop()
+                    // 予期しない切断でもタップラベルを失わないよう本体CSVへ統合する。
+                    // 再生停止(Stop Replay/Disconnect)は stopMeasurement 側で統合済み。
+                    mergeTapLabels(target = dropResult.dataUri, byRowIndex = false)
                     // 切断イベント検知時は、原因(Disconnect ボタン/予期しない切断)によらず接続に
                     // 紐づく状態をすべて初期化し、スキャン前相当の idle へ確実に戻す。
                     // デバイス一覧・設定・自動接続などの永続項目は保持する。
@@ -268,6 +287,7 @@ class MainViewModel(
                             batteryLevel = -1,
                             successRate = 1.0,
                             commRate = 1.0,
+                            labelDialog = null,
                         )
                     }
                     // 計測中の予期しない切断のみ、従来どおり自動再接続する(reconnect 設定 ON 時)。
@@ -373,6 +393,7 @@ class MainViewModel(
             plotCount = 0
             counter.reset()
             prevTimeMs = 0
+            tapLabels.clear()
 
             val addr = repo.currentAddress()
             if (addr == null) {
@@ -410,11 +431,21 @@ class MainViewModel(
     }
 
     private fun stopMeasurement() {
+        // Disconnect 経由（playback.exit → stopMeasurement）では直後に mockEnabled が
+        // false へ戻るため、再生停止かどうかはコルーチン開始前にここで確定させる。
+        val wasMock = ui.value.mockEnabled
+        val replaySource = playback.sourceUri
         viewModelScope.launch {
             sendEncoded(MemeCommands.startStop(false))
             // 未確定の検出結果（1 秒未満の区間など）をプラグインが書き切ってから閉じる。
             for (p in plugins) p.onMeasurementStop(csv)
             val stopResult = csv.stop()
+            // Stop Measurement / Stop Replay: タップラベルをデータCSVへ統合する。
+            // 実機計測はこのセッションで書いた本体CSV、再生は再生元のCSVが対象。
+            mergeTapLabels(
+                target = if (wasMock) replaySource else stopResult.dataUri,
+                byRowIndex = wasMock,
+            )
             stopCommTicker()
             MeasurementService.stop(getApplication())
             val shareUris = listOfNotNull(stopResult.dataUri, stopResult.classificationUri)
@@ -423,6 +454,7 @@ class MainViewModel(
                     isMeasuring = false,
                     recordingRows = 0L,
                     isPlaybackPaused = false,
+                    labelDialog = null,
                     shareRequest = if (
                         it.openSharingOnComplete && !it.mockEnabled && shareUris.isNotEmpty()
                     ) ShareRequest(shareUris) else it.shareRequest,
@@ -440,16 +472,68 @@ class MainViewModel(
     }
 
     /**
-     * グラフ上のタップ位置（0..1 の横位置と可視プロット点数）をサンプル通し番号
-     * (NUM) へ換算し、ラベル CSV サイドカーへ 1 行追記する。
+     * グラフ上のタップ位置（0..1 の横位置と可視プロット点数）をサンプル位置へ換算し、
+     * ラベル入力ダイアログを開く。実機計測は NUM（受信サンプル通し番号）、再生は
+     * シークで NUM とソース位置がずれるためソースCSVのデータ行番号を基準にする。
      */
     fun markTap(fraction: Float, visiblePoints: Int) {
         if (!ui.value.isMeasuring) return
         val f = fraction.coerceIn(0f, 1f)
         val samplesBack = ((1f - f) * (visiblePoints - 1) * graphSkipCount).toLong()
-        val markNum = (counter.totalCount - samplesBack).coerceAtLeast(0L)
-        csv.writeLabel(markNum)
-        _ui.update { it.copy(toast = "マーク NUM=$markNum") }
+        val base = if (ui.value.mockEnabled) {
+            (ui.value.replayPositionSec * replaySampleRateHz()).roundToLong()
+        } else {
+            counter.totalCount
+        }
+        val markNum = (base - samplesBack).coerceAtLeast(0L)
+        _ui.update { it.copy(labelDialog = LabelPrompt(markNum)) }
+    }
+
+    /**
+     * ラベル入力ダイアログの OK。入力が空なら "X" を記録する。CSV 構造を壊さない
+     * よう区切り文字・改行は空白に置き換える。
+     */
+    fun confirmLabel(input: String) {
+        val prompt = ui.value.labelDialog ?: return
+        val text = input.replace(Regex("[,\r\n]"), " ").trim().ifEmpty { "X" }
+        tapLabels += LabelMerger.Entry(prompt.num, text)
+        _ui.update { it.copy(labelDialog = null) }
+    }
+
+    fun dismissLabelDialog() { _ui.update { it.copy(labelDialog = null) } }
+
+    /** 再生時の CSV 行消費レート(行/秒)。MockMemeBleEngine.sampleRateHz と同じ規則。 */
+    private fun replaySampleRateHz(): Int {
+        val s = ui.value.settings
+        return if (s.quality == MemeQuality.Hz100 && s.mode != MemeMode.Quaternion) 100 else 50
+    }
+
+    /**
+     * 蓄積したタップラベルを [target] のデータCSVへ統合する（ARTIFACT 列を置換）。
+     * 呼び出し時点でラベルを引き取り、二重統合（Stop 後の切断イベント等）を防ぐ。
+     */
+    private fun mergeTapLabels(target: Uri?, byRowIndex: Boolean) {
+        if (tapLabels.isEmpty()) return
+        val labels = tapLabels.toList()
+        tapLabels.clear()
+        if (target == null) return
+        val resolver = getApplication<Application>().contentResolver
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val lines = resolver.openInputStream(target)?.use { ins ->
+                    ins.bufferedReader(Charsets.UTF_8).readLines()
+                } ?: return@launch
+                val merged = LabelMerger.merge(lines, labels, byRowIndex)
+                // "wt" で全体を書き直す（追記ではラベル行だけ差し替えられないため）。
+                resolver.openOutputStream(target, "wt")?.use { os ->
+                    OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
+                        for (line in merged) { w.write(line); w.write("\r\n") }
+                    }
+                }
+            }.onFailure { e ->
+                LogCat.d(TAG, "label merge failed: $e")
+            }
+        }
     }
 
     fun dismissToast() { _ui.update { it.copy(toast = null) } }

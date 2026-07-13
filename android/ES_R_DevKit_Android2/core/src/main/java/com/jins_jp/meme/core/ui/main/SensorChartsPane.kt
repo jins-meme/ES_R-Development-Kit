@@ -80,6 +80,8 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                     yMin = spec.yMin,
                     yMax = spec.yMax,
                     onMinimize = { minimizedCharts = minimizedCharts + spec.key },
+                    // どのチャートでもタップでラベル入力ダイアログを開ける。
+                    onTapFraction = { f -> viewModel.markTap(f, GRAPH_LEN) },
                     // X 軸右端の秒: 再生モードでは CSV ソース位置（<< / >> で戻る・進むが
                     // 数字に表れる）。実機計測では経過時間(理論値)。1点=1/PLOT_HZ 秒。
                     xRightSeconds = if (ui.mockEnabled) ui.replayPositionSec.toFloat()

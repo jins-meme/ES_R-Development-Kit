@@ -37,6 +37,13 @@ internal class PlaybackController(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /**
+     * 再生中のソースCSVの URI。Stop Replay 時にタップラベルを ARTIFACT 列へ統合する
+     * 書き戻し先(OpenDocument 経由なので書き込み権限も付与されている)。
+     */
+    var sourceUri: Uri? = null
+        private set
+
+    /**
      * Play-button entry point. Opens the CSV chosen in the file dialog and, when
      * it is a valid logger CSV, enters playback (mock) mode: load the rows into
      * the mock engine, reflect/persist the CSV's measurement settings, then
@@ -65,6 +72,7 @@ internal class PlaybackController(
                 // playback was already running, so each Play starts from scratch.
                 if (repo.mockMode) repo.mockMode = false
                 repo.mockMode = true
+                sourceUri = uri
                 repo.loadMockCsv(data)
                 saveSettings(data.settings)
                 ui.update {

@@ -24,7 +24,7 @@ interface AlgoPlugin {
     /**
      * 計測開始時に呼ばれる（グラフ Reset 発行済み・計測開始コマンド送信前）。
      * 実機計測では csv.start() 済み。mock 再生では本体 CSV を開かないので、
-     * サイドカーが必要なプラグインはここで [CsvWriter.startLabelOnly] を呼ぶ。
+     * サイドカーが必要なプラグインはここで [CsvWriter.startClassificationOnly] を呼ぶ。
      */
     fun onMeasurementStart(
         settings: MeasurementSettings,

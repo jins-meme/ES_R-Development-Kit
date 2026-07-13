@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -94,6 +95,34 @@ fun MainScreen(
             }
             charts(ui)
         }
+    }
+
+    // チャートタップのラベル入力。OK で入力文字列（空なら "X"）を記録し、
+    // Stop Measurement / Stop Replay 時にデータCSVの ARTIFACT 列へ統合される。
+    ui.labelDialog?.let { prompt ->
+        var text by remember(prompt) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissLabelDialog() },
+            title = { Text(stringResource(R.string.label_dialog_title, prompt.num)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.label_dialog_hint)) },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmLabel(text) }) {
+                    Text(stringResource(R.string.button_dialog_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissLabelDialog() }) {
+                    Text(stringResource(R.string.button_dialog_cancel))
+                }
+            },
+        )
     }
 
     if (ui.mockError != null) {
