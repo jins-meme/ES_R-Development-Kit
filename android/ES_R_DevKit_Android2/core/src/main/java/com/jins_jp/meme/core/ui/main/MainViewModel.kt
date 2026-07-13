@@ -55,7 +55,6 @@ data class MainUiState(
     val isMeasuring: Boolean = false,
     val isStarting: Boolean = false,
     val isInitializing: Boolean = false,
-    val isMarking: Boolean = false,
     val recordingRows: Long = 0L,
     val batteryLevel: Int = -1,
     val successRate: Double = 1.0,
@@ -289,7 +288,6 @@ class MainViewModel(
                             isMeasuring = false,
                             isStarting = false,
                             isInitializing = false,
-                            isMarking = false,
                             recordingRows = 0L,
                             batteryLevel = -1,
                             successRate = 1.0,
@@ -473,12 +471,19 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Free Marking ボタン: タップ 1 回につき現在位置（チャート右端）へ "X" を 1 つ
+     * 記録する（旧実装は押下中 isMarking の 150ms 窓に入った全行へ X が入っていた）。
+     * 記録・表示・CSV への統合はタップラベルと同じ経路（[addLabel]）。
+     */
     fun marking() {
-        viewModelScope.launch {
-            _ui.update { it.copy(isMarking = true) }
-            delay(150)
-            _ui.update { it.copy(isMarking = false) }
+        if (!ui.value.isMeasuring) return
+        val base = if (ui.value.mockEnabled) {
+            (ui.value.replayPositionSec * replaySampleRateHz()).roundToLong()
+        } else {
+            counter.totalCount
         }
+        addLabel(base.coerceAtLeast(0L), "X")
     }
 
     /**
@@ -508,12 +513,20 @@ class MainViewModel(
     fun confirmLabel(input: String) {
         val prompt = ui.value.labelDialog ?: return
         val text = input.replace(Regex("[,\r\n]"), " ").trim().ifEmpty { "X" }
-        tapLabels += LabelMerger.Entry(prompt.num, text)
-        // 確定した瞬間からチャートに縦線イベントとして表示する。秒換算はチャートの
-        // X 軸と同じ基準（実機=NUM/受信Hz、再生=行番号/行消費レート）。
+        addLabel(prompt.num, text)
+        _ui.update { it.copy(labelDialog = null) }
+    }
+
+    /**
+     * ラベル 1 件（タップラベル/Free Marking の "X"）を記録する。停止時の CSV 統合用
+     * に蓄積しつつ、その瞬間からチャートに縦線イベントとして表示する。秒換算は
+     * チャートの X 軸と同じ基準（実機=NUM/受信Hz、再生=行番号/行消費レート）。
+     */
+    private fun addLabel(num: Long, text: String) {
+        tapLabels += LabelMerger.Entry(num, text)
         val hz = if (ui.value.mockEnabled) replaySampleRateHz() else ui.value.settings.quality.hz
-        val event = ArtifactEvent(prompt.num.toDouble() / hz, text)
-        _ui.update { it.copy(labelDialog = null, artifactEvents = it.artifactEvents + event) }
+        val event = ArtifactEvent(num.toDouble() / hz, text)
+        _ui.update { it.copy(artifactEvents = it.artifactEvents + event) }
     }
 
     fun dismissLabelDialog() { _ui.update { it.copy(labelDialog = null) } }
@@ -628,7 +641,9 @@ class MainViewModel(
             }
 
             if (!ui.value.mockEnabled) {
-                val row = formatRow(ui.value.isMarking, counter.totalCount, prevTimeMs, packet.values)
+                // ARTIFACT 列は受信時には書かず、停止時に LabelMerger がタップラベル/
+                // Free Marking をまとめて統合する。
+                val row = formatRow(false, counter.totalCount, prevTimeMs, packet.values)
                 csv.writeRow(row)
             }
         }
