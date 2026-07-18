@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +35,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -145,7 +148,8 @@ data class LegendEntry(val color: Color, val label: String)
  * Vico is great for static datasets, but we re-render every packet (50–100Hz);
  * a hand-rolled Canvas keeps overhead down without adding Choreographer skips.
  *
- * 左端内側に主軸の目盛・目盛ラベルを描画する。[rightYMin]/[rightYMax] を与えると
+ * 主軸は左に目盛ラベルぶんの余白（ガター）を取り、プロット領域の左端（x=0）に Y軸線を立てて
+ * ラベルはその外側へ出す＝波形と数字が重ならない。[rightYMin]/[rightYMax] を与えると
  * 右端内側に副軸の目盛ラベルも描画し、[Axis.Right] の系列を副軸レンジでスケールする。
  */
 @Composable
@@ -184,6 +188,10 @@ fun LiveLineChart(
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val textMeasurer = rememberTextMeasurer()
+    // 主軸の目盛ラベルはプロット領域の外（Y軸の左）へ出す。そのぶんの左余白を、
+    // 実際に出る 5 つのラベル幅から測って確保する。タップ座標の換算にも使うので
+    // 描画スコープではなくここで求める。
+    val leftGutterPx = leftGutterPx(yMin, yMax, textMeasurer, axisColor)
     Card(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -218,11 +226,13 @@ fun LiveLineChart(
                     .padding(top = 8.dp)
                     .then(
                         if (onTapFraction != null) {
-                            // 水平方向の padding は無いので、タップ x はそのまま系列の
-                            // 描画範囲(0..幅)に対応する。f=0:左端の最古点 / f=1:右端の最新点。
-                            Modifier.pointerInput(Unit) {
+                            // 系列が描かれるのは目盛ラベルのぶん左を空けた領域なので、
+                            // タップ x もその領域基準へ換算する。
+                            // f=0:左端の最古点 / f=1:右端の最新点。
+                            Modifier.pointerInput(leftGutterPx) {
                                 detectTapGestures { offset ->
-                                    val f = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                    val plotW = (size.width - leftGutterPx).coerceAtLeast(1f)
+                                    val f = ((offset.x - leftGutterPx) / plotW).coerceIn(0f, 1f)
                                     onTapFraction(f)
                                 }
                             }
@@ -232,130 +242,135 @@ fun LiveLineChart(
                     ),
             ) {
                 Canvas(modifier = Modifier.matchParentSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val span = (yMax - yMin).coerceAtLeast(1f)
-                    for (i in 1..3) {
-                        val y = h * i / 4f
-                        drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                    }
-                    series.forEach { s ->
-                        if (s.values.size < 2) return@forEach
-                        val useRight = s.axis == Axis.Right && rightYMin != null && rightYMax != null
-                        val lo = if (useRight) rightYMin else yMin
-                        val hi = if (useRight) rightYMax else yMax
-                        val sp = (hi - lo).coerceAtLeast(1f)
-                        val step = w / (s.values.size - 1).toFloat()
-                        // レンジ内/外で描き分ける。レンジ外は端にクランプした上で同色・薄め
-                        // (alpha)で描く。区間の端点いずれかがレンジ外なら薄線扱いにする。
-                        val inPath = Path()
-                        val outPath = Path()
-                        var prevX = 0f
-                        var prevY = 0f
-                        var prevOut = false
-                        // NaN は「値なし」＝線を切る（未確定な右端半窓など）。
-                        var prevNan = true
-                        s.values.forEachIndexed { i, v ->
-                            if (v.isNaN()) {
-                                prevNan = true
-                                return@forEachIndexed
-                            }
-                            val out = v < lo || v > hi
-                            val ny = ((v - lo) / sp).coerceIn(0f, 1f)
-                            val x = i * step
-                            val y = h - ny * h
-                            if (i > 0 && !prevNan) {
-                                val seg = if (out || prevOut) outPath else inPath
-                                seg.moveTo(prevX, prevY)
-                                seg.lineTo(x, y)
-                            }
-                            prevX = x; prevY = y; prevOut = out; prevNan = false
+                    // 以降の座標系はプロット領域（左ガターを除いた部分）。size.width も
+                    // プロット幅になるので、系列・マーカー・帯・時間軸の 0..1 換算は
+                    // すべてそのまま。主軸の目盛ラベルだけが負の x（ガター）へ出る。
+                    inset(left = leftGutterPx, top = 0f, right = 0f, bottom = 0f) {
+                        val w = size.width
+                        val h = size.height
+                        val span = (yMax - yMin).coerceAtLeast(1f)
+                        for (i in 1..3) {
+                            val y = h * i / 4f
+                            drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
                         }
-                        drawPath(inPath, color = s.color, style = Stroke(width = 2f))
-                        drawPath(outPath, color = s.color.copy(alpha = 0.25f), style = Stroke(width = 2f))
-                    }
-                    // トレンド（呼び出し側で計算済みの基線など）を系列色の点線で重ねる。
-                    series.forEach { s ->
-                        val trend = s.trend ?: return@forEach
-                        if (trend.size < 2) return@forEach
-                        val useRight = s.axis == Axis.Right && rightYMin != null && rightYMax != null
-                        val lo = if (useRight) rightYMin else yMin
-                        val hi = if (useRight) rightYMax else yMax
-                        drawTrendLine(trend, lo, hi, s.color)
-                    }
-                    // 目盛・目盛ラベル（軸は系列より前面に描く）
-                    drawAxisTicks(yMin, yMax, right = false, textMeasurer, axisColor)
-                    if (rightYMin != null && rightYMax != null) {
-                        drawAxisTicks(rightYMin, rightYMax, right = true, textMeasurer, axisColor)
-                    }
-                    // 軸名ラベル（軸上端付近、系列色）
-                    if (leftAxisName != null) {
-                        val c = series.firstOrNull { it.axis == Axis.Left }?.color ?: axisColor
-                        drawAxisName(leftAxisName, right = false, textMeasurer, c)
-                    }
-                    if (rightAxisName != null && rightYMin != null && rightYMax != null) {
-                        val c = series.firstOrNull { it.axis == Axis.Right }?.color ?: axisColor
-                        drawAxisName(rightAxisName, right = true, textMeasurer, c)
-                    }
-                    // 経過時間(理論値)の1秒グリッド＋ラベル。データが進むと右→左へ流れる。
-                    if (xRightSeconds != null) {
-                        drawTimeAxis(
-                            pointCount = series.firstOrNull()?.values?.size ?: 0,
-                            rightSeconds = xRightSeconds,
-                            secondsPerPoint = xSecondsPerPoint,
-                            textMeasurer = textMeasurer,
-                            gridColor = gridColor,
-                            textColor = axisColor,
-                        )
-                    }
-                    // イベントマーカー（主軸スケールで重ね描き）。範囲（±レンジ）を超えた
-                    // マーカーは端（±レンジの位置）に張り付ける＝coerceIn で上下端にクランプ。
-                    if (markers.isNotEmpty()) {
-                        for (m in markers) {
-                            val x = (m.xFraction * w).coerceIn(0f, w)
-                            val ny = ((m.value - yMin) / span).coerceIn(0f, 1f)
-                            drawMarker(m.shape, x, h - ny * h, m.color, m.sizeDp.dp.toPx())
+                        series.forEach { s ->
+                            if (s.values.size < 2) return@forEach
+                            val useRight = s.axis == Axis.Right && rightYMin != null && rightYMax != null
+                            val lo = if (useRight) rightYMin else yMin
+                            val hi = if (useRight) rightYMax else yMax
+                            val sp = (hi - lo).coerceAtLeast(1f)
+                            val step = w / (s.values.size - 1).toFloat()
+                            // レンジ内/外で描き分ける。レンジ外は端にクランプした上で同色・薄め
+                            // (alpha)で描く。区間の端点いずれかがレンジ外なら薄線扱いにする。
+                            val inPath = Path()
+                            val outPath = Path()
+                            var prevX = 0f
+                            var prevY = 0f
+                            var prevOut = false
+                            // NaN は「値なし」＝線を切る（未確定な右端半窓など）。
+                            var prevNan = true
+                            s.values.forEachIndexed { i, v ->
+                                if (v.isNaN()) {
+                                    prevNan = true
+                                    return@forEachIndexed
+                                }
+                                val out = v < lo || v > hi
+                                val ny = ((v - lo) / sp).coerceIn(0f, 1f)
+                                val x = i * step
+                                val y = h - ny * h
+                                if (i > 0 && !prevNan) {
+                                    val seg = if (out || prevOut) outPath else inPath
+                                    seg.moveTo(prevX, prevY)
+                                    seg.lineTo(x, y)
+                                }
+                                prevX = x; prevY = y; prevOut = out; prevNan = false
+                            }
+                            drawPath(inPath, color = s.color, style = Stroke(width = 2f))
+                            drawPath(outPath, color = s.color.copy(alpha = 0.25f), style = Stroke(width = 2f))
                         }
-                    }
-                    // 文字ラベル（横書き=上端の段違い / 回転=yFraction 基点）。
-                    if (textLabels.isNotEmpty()) {
-                        for (l in textLabels) drawTextLabel(l, textMeasurer)
-                    }
-                    // イベントライン: 全高の縦線＋脇に下から上へ読む回転テキスト。
-                    if (eventLines.isNotEmpty()) {
-                        for (e in eventLines) {
-                            val x = (e.xFraction * w).coerceIn(0f, w)
-                            drawLine(e.color, Offset(x, 0f), Offset(x, h), strokeWidth = 2f)
-                            if (e.text.isNotEmpty()) {
-                                drawTextLabel(
-                                    ChartTextLabel(
-                                        xFraction = e.xFraction,
-                                        text = e.text,
-                                        color = e.color,
-                                        rotated = true,
-                                        yFraction = 0.97f,
-                                        bold = true,
-                                    ),
-                                    textMeasurer,
+                        // トレンド（呼び出し側で計算済みの基線など）を系列色の点線で重ねる。
+                        series.forEach { s ->
+                            val trend = s.trend ?: return@forEach
+                            if (trend.size < 2) return@forEach
+                            val useRight = s.axis == Axis.Right && rightYMin != null && rightYMax != null
+                            val lo = if (useRight) rightYMin else yMin
+                            val hi = if (useRight) rightYMax else yMax
+                            drawTrendLine(trend, lo, hi, s.color)
+                        }
+                        // 目盛・目盛ラベル（軸は系列より前面に描く）
+                        drawAxisTicks(yMin, yMax, right = false, textMeasurer, axisColor)
+                        if (rightYMin != null && rightYMax != null) {
+                            drawAxisTicks(rightYMin, rightYMax, right = true, textMeasurer, axisColor)
+                        }
+                        // 軸名ラベル（軸上端付近、系列色）
+                        if (leftAxisName != null) {
+                            val c = series.firstOrNull { it.axis == Axis.Left }?.color ?: axisColor
+                            drawAxisName(leftAxisName, right = false, textMeasurer, c)
+                        }
+                        if (rightAxisName != null && rightYMin != null && rightYMax != null) {
+                            val c = series.firstOrNull { it.axis == Axis.Right }?.color ?: axisColor
+                            drawAxisName(rightAxisName, right = true, textMeasurer, c)
+                        }
+                        // 経過時間(理論値)の1秒グリッド＋ラベル。データが進むと右→左へ流れる。
+                        if (xRightSeconds != null) {
+                            drawTimeAxis(
+                                pointCount = series.firstOrNull()?.values?.size ?: 0,
+                                rightSeconds = xRightSeconds,
+                                secondsPerPoint = xSecondsPerPoint,
+                                textMeasurer = textMeasurer,
+                                gridColor = gridColor,
+                                textColor = axisColor,
+                            )
+                        }
+                        // イベントマーカー（主軸スケールで重ね描き）。範囲（±レンジ）を超えた
+                        // マーカーは端（±レンジの位置）に張り付ける＝coerceIn で上下端にクランプ。
+                        if (markers.isNotEmpty()) {
+                            for (m in markers) {
+                                val x = (m.xFraction * w).coerceIn(0f, w)
+                                val ny = ((m.value - yMin) / span).coerceIn(0f, 1f)
+                                drawMarker(m.shape, x, h - ny * h, m.color, m.sizeDp.dp.toPx())
+                            }
+                        }
+                        // 文字ラベル（横書き=上端の段違い / 回転=yFraction 基点）。
+                        if (textLabels.isNotEmpty()) {
+                            for (l in textLabels) drawTextLabel(l, textMeasurer)
+                        }
+                        // イベントライン: 全高の縦線＋脇に下から上へ読む回転テキスト。
+                        if (eventLines.isNotEmpty()) {
+                            for (e in eventLines) {
+                                val x = (e.xFraction * w).coerceIn(0f, w)
+                                drawLine(e.color, Offset(x, 0f), Offset(x, h), strokeWidth = 2f)
+                                if (e.text.isNotEmpty()) {
+                                    drawTextLabel(
+                                        ChartTextLabel(
+                                            xFraction = e.xFraction,
+                                            text = e.text,
+                                            color = e.color,
+                                            rotated = true,
+                                            yFraction = 0.97f,
+                                            bold = true,
+                                        ),
+                                        textMeasurer,
+                                    )
+                                }
+                            }
+                        }
+                        // 色帯（区間ごとに色分け）。[bandValue] の左軸 y へ描く。
+                        // レンジ外（チャート下端より下）なら端に張り付けて全幅見えるようにクランプする。
+                        if (bandValue != null && bandSegments.isNotEmpty()) {
+                            val bandStroke = 6.dp.toPx()
+                            val ny = ((bandValue - yMin) / span).coerceIn(0f, 1f)
+                            val cy = (h - ny * h).coerceIn(bandStroke / 2f, h - bandStroke / 2f)
+                            for (seg in bandSegments) {
+                                val x0 = (seg.startFraction * w).coerceIn(0f, w)
+                                val x1 = (seg.endFraction * w).coerceIn(0f, w)
+                                if (x1 <= x0) continue
+                                drawLine(
+                                    seg.color,
+                                    Offset(x0, cy), Offset(x1, cy),
+                                    strokeWidth = bandStroke, cap = StrokeCap.Butt,
                                 )
                             }
-                        }
-                    }
-                    // 色帯（区間ごとに色分け）。[bandValue] の左軸 y へ描く。
-                    // レンジ外（チャート下端より下）なら端に張り付けて全幅見えるようにクランプする。
-                    if (bandValue != null && bandSegments.isNotEmpty()) {
-                        val bandStroke = 6.dp.toPx()
-                        val ny = ((bandValue - yMin) / span).coerceIn(0f, 1f)
-                        val cy = (h - ny * h).coerceIn(bandStroke / 2f, h - bandStroke / 2f)
-                        for (seg in bandSegments) {
-                            val x0 = (seg.startFraction * w).coerceIn(0f, w)
-                            val x1 = (seg.endFraction * w).coerceIn(0f, w)
-                            if (x1 <= x0) continue
-                            drawLine(
-                                seg.color,
-                                Offset(x0, cy), Offset(x1, cy),
-                                strokeWidth = bandStroke, cap = StrokeCap.Butt,
-                            )
                         }
                     }
                 }
@@ -552,11 +567,17 @@ private fun DrawScope.drawAxisName(
     val layout = textMeasurer.measure(name, style)
     // 最上段の目盛ラベル（9sp）の下に重ならないよう1行分下げる
     val ty = 12.sp.toPx() + pad
-    val tx = if (right) size.width - tickLen - pad - layout.size.width else tickLen + pad
+    // 左はプロット領域の内側すぐ（目盛ラベルは軸の左＝ガター側にあるので被らない）。
+    val tx = if (right) size.width - tickLen - pad - layout.size.width else pad
     drawText(layout, topLeft = Offset(tx, ty))
 }
 
-/** 左端(または右端)内側に5段の目盛線と目盛ラベルを描画する。 */
+/**
+ * 5段の目盛線と目盛ラベルを描画する。
+ *
+ * 主軸(left)はプロット領域の x=0 に Y軸線を立て、目盛線とラベルをその左（負の x = 呼び出し側が
+ * [inset] で空けた左ガター）へ出す＝波形とラベルが重ならない。副軸(right)は右端内側に描く。
+ */
 private fun DrawScope.drawAxisTicks(
     yMin: Float,
     yMax: Float,
@@ -569,18 +590,50 @@ private fun DrawScope.drawAxisTicks(
     val tickLen = 6.dp.toPx()
     val pad = 2.dp.toPx()
     val style = TextStyle(fontSize = 9.sp, color = color)
+    if (!right) drawLine(color, Offset(0f, 0f), Offset(0f, h), strokeWidth = 1f)
     for (i in 0..4) {
         val y = h * i / 4f
         val value = yMax - (yMax - yMin) * i / 4f
         if (right) {
             drawLine(color, Offset(w - tickLen, y), Offset(w, y), strokeWidth = 1f)
         } else {
-            drawLine(color, Offset(0f, y), Offset(tickLen, y), strokeWidth = 1f)
+            drawLine(color, Offset(-tickLen, y), Offset(0f, y), strokeWidth = 1f)
         }
         val layout = textMeasurer.measure(formatTick(value), style)
         val ty = (y - layout.size.height / 2f).coerceIn(0f, h - layout.size.height.toFloat())
-        val tx = if (right) w - tickLen - pad - layout.size.width else tickLen + pad
+        val tx = if (right) {
+            w - tickLen - pad - layout.size.width
+        } else {
+            -tickLen - pad - layout.size.width   // Y軸線の左へ右揃えで置く
+        }
         drawText(layout, topLeft = Offset(tx, ty))
+    }
+}
+
+/**
+ * 主軸の目盛ラベルを収める左ガター幅 [px]。目盛線 + 余白 + 最大ラベル幅。
+ *
+ * ラベル幅は数字を '0' に均して測る。レンジが自動追従するチャート（高さ/速度・スペクトル）で
+ * 値が変わるたびに幅が微妙に変わると、プロット領域＝波形が横に揺れて見えるため、桁数が
+ * 変わらない限り同じ幅になるようにしている。
+ */
+@Composable
+private fun leftGutterPx(
+    yMin: Float,
+    yMax: Float,
+    textMeasurer: TextMeasurer,
+    color: Color,
+): Float {
+    val density = LocalDensity.current
+    return remember(yMin, yMax, density, textMeasurer, color) {
+        val style = TextStyle(fontSize = 9.sp, color = color)
+        var maxLabel = 0
+        for (i in 0..4) {
+            val value = yMax - (yMax - yMin) * i / 4f
+            val proxy = formatTick(value).map { if (it.isDigit()) '0' else it }.joinToString("")
+            maxLabel = maxOf(maxLabel, textMeasurer.measure(proxy, style).size.width)
+        }
+        with(density) { maxLabel + 6.dp.toPx() + 2.dp.toPx() * 2 }
     }
 }
 
