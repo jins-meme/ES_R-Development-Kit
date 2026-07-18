@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    OssLicensesMenuActivity / OssLicensesActivity (play-services-oss-licenses) は
+    自身のレイアウト・id・文字列リソースを Resources.getIdentifier() で「名前」から
+    引く。リソースシュリンカ(isShrinkResources)はこの参照を追跡できず未使用と誤判定して
+    削除してしまい、getIdentifier が 0 を返して getXml(0) で
+    Resources$NotFoundException(Resource ID #0x0) が発生する。ここで明示的に保持する。
+    (ライブラリ同梱の keep_third_party_licenses.xml は raw ライセンスデータのみ保持する。)
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="
+        @layout/libraries_social_licenses_license,
+        @layout/libraries_social_licenses_license_activity,
+        @layout/libraries_social_licenses_license_loading,
+        @layout/libraries_social_licenses_license_menu_activity,
+        @layout/license_menu_activity_loading,
+        @layout/license_menu_activity_no_licenses,
+        @id/license,
+        @id/license_activity_scrollview,
+        @id/license_activity_textview,
+        @id/license_list,
+        @id/no_licenses_text,
+        @string/license_content_error,
+        @string/license_is_loading,
+        @string/license_list_is_loading,
+        @string/no_licenses_available,
+        @string/oss_license_title,
+        @string/preferences_license_summary" />
