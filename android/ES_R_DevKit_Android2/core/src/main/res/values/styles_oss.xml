@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        OssLicensesMenuActivity / OssLicensesActivity 用テーマ。
+        これらは AppCompatActivity なので Theme.AppCompat 系が必須。
+        API 35+ 向けの上書きは values-v35/styles_oss.xml を参照。
+    -->
+    <style name="Theme.Core.OssLicenses" parent="Theme.AppCompat.DayNight.DarkActionBar" />
+</resources>

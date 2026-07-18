@@ -36,12 +36,23 @@
         -->
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
-            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar"
+            android:theme="@style/Theme.Core.OssLicenses"
             tools:node="merge" />
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
-            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar"
+            android:theme="@style/Theme.Core.OssLicenses"
             tools:node="merge" />
+
+        <!--
+            OSS ライセンス画面(旧レイアウト)にシステムバー/ActionBar 分の
+            インセットを当てる ActivityLifecycleCallbacks を、アプリの Application を
+            触らずに自動登録するための ContentProvider。
+        -->
+        <provider
+            android:name="com.jins_jp.meme.core.ui.oss.OssLicensesInsetsInitializer"
+            android:authorities="${applicationId}.core.osslicenses-insets"
+            android:exported="false"
+            android:initOrder="100" />
     </application>
 
 </manifest>

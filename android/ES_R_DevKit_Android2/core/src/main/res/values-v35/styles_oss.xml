@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Core.OssLicenses" parent="Theme.AppCompat.DayNight.DarkActionBar">
+        <!--
+            Android 15(API 35)以降はエッジトゥエッジが強制され、OSS ライブラリの
+            旧レイアウト(インセット非対応)ではライセンス本文がステータスバーや
+            ActionBar に重なってしまう。ここでエッジトゥエッジ強制を無効化し、
+            従来どおり ActionBar の下にコンテンツを収める。
+        -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>
