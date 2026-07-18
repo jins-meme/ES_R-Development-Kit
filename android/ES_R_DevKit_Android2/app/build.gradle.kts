@@ -23,6 +23,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // release 変種を Run/動作確認できるよう開発用 debug キーで署名する
+            // (本番配布は Generate Signed APK でウィザードの署名に上書きされ影響なし)。
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
