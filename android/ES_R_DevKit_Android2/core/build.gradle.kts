@@ -55,6 +55,13 @@ dependencies {
     implementation("androidx.compose.runtime:runtime")
     implementation("androidx.compose.foundation:foundation")
 
+    // OSS ライセンス一覧ビューア (SettingsDialog の "OSS Licenses" から起動する
+    // OssLicensesMenuActivity)。ライセンスデータ本体は各アプリ側で
+    // oss-licenses-plugin が生成し、この Activity が読み込む。
+    implementation("com.google.android.gms:play-services-oss-licenses:17.1.0")
+    // OssLicensesMenuActivity の親クラス AppCompatActivity を参照するために必要。
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     // PlaybackController.start(uri) へ渡す android.net.Uri のインスタンス生成にのみ使う。

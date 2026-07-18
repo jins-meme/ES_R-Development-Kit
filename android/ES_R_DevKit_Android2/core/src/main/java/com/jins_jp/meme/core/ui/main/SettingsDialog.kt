@@ -1,11 +1,13 @@
 package com.jins_jp.meme.core.ui.main
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
@@ -38,6 +40,7 @@ import com.jins_jp.meme.core.data.AccRange
 import com.jins_jp.meme.core.data.GyroRange
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
+import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,28 +146,46 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
             }
         },
         confirmButton = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                // BuildConfig は core から参照できないため、PackageManager から表示名/バージョンを取得する。
-                val context = LocalContext.current
-                val appLabel = remember {
-                    context.applicationInfo.loadLabel(context.packageManager).toString()
+            // BuildConfig は core から参照できないため、PackageManager から表示名/バージョンを取得する。
+            val context = LocalContext.current
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    val appLabel = remember {
+                        context.applicationInfo.loadLabel(context.packageManager).toString()
+                    }
+                    val versionText = remember {
+                        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                        "${info.versionName}.${info.longVersionCode}"
+                    }
+                    Text(
+                        "$appLabel version $versionText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.button_dialog_ok))
+                    }
                 }
-                val versionText = remember {
-                    val info = context.packageManager.getPackageInfo(context.packageName, 0)
-                    "${info.versionName}.${info.longVersionCode}"
-                }
+                // バージョン情報の下に OSS Licenses ラベル。タップで
+                // oss-licenses-plugin が生成したライセンス一覧を表示する。
+                val ossTitle = stringResource(R.string.text_label_oss_licenses)
                 Text(
-                    "$appLabel version $versionText",
+                    ossTitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .clickable {
+                            OssLicensesMenuActivity.setActivityTitle(ossTitle)
+                            context.startActivity(
+                                Intent(context, OssLicensesMenuActivity::class.java),
+                            )
+                        }
+                        .padding(vertical = 8.dp),
                 )
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.button_dialog_ok))
-                }
             }
         },
     )

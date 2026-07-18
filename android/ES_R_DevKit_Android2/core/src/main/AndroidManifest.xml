@@ -27,6 +27,21 @@
             android:name="com.jins_jp.meme.core.service.MeasurementService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!--
+            OSS ライセンス一覧ビューア。play-services-oss-licenses が宣言する
+            これらの Activity は AppCompatActivity を継承しており Theme.AppCompat 系
+            テーマが必須だが、アプリのテーマは Compose ベースで非 AppCompat のため
+            クラッシュする。ここでテーマだけ上書きする。
+        -->
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
+            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar"
+            tools:node="merge" />
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
+            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar"
+            tools:node="merge" />
     </application>
 
 </manifest>
