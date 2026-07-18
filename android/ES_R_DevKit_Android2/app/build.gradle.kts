@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    // core の SettingsDialog "OSS Licenses" が表示するライセンス一覧データを生成する。
+    id("com.google.android.gms.oss-licenses-plugin")
 }
 
 android {
