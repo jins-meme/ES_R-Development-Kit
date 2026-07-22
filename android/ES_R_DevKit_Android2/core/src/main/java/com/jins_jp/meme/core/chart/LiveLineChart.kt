@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,7 +23,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
@@ -202,6 +205,9 @@ fun LiveLineChart(
     // 実際に出る 5 つのラベル幅から測って確保する。タップ座標の換算にも使うので
     // 描画スコープではなくここで求める。
     val leftGutterPx = leftGutterPx(yMin, yMax, textMeasurer, axisColor)
+    // チャート上へ重ねる凡例の高さ[px]（実測）。上端に描く文字（軸名・イベント文字）は
+    // このぶん下げて凡例に潜り込まないようにする。凡例が無ければ 0。
+    var legendInsetPx by remember { mutableFloatStateOf(0f) }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -214,18 +220,9 @@ fun LiveLineChart(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                // Legend, laid out in a single horizontal row to the right of the title.
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    series.forEach { s ->
-                        if (s.label.isNotEmpty()) LegendItem(color = s.color, label = s.label)
-                    }
-                }
+                // 系列の凡例はここ（タイトルの右）ではなくチャート上へ重ねる。ヘッダは
+                // タイトルとボタン列だけにして、凡例が押し潰されて縦積みになるのを防ぐ。
+                Spacer(Modifier.weight(1f))
                 headerAction?.invoke()
                 // 縦軸ズームは最小化ボタンの左＝設定などの headerAction の右に並べる。
                 if (onZoomIn != null) {
@@ -329,14 +326,14 @@ fun LiveLineChart(
                         if (rightYMin != null && rightYMax != null) {
                             drawAxisTicks(rightYMin, rightYMax, right = true, textMeasurer, axisColor)
                         }
-                        // 軸名ラベル（軸上端付近、系列色）
+                        // 軸名ラベル（軸上端付近、系列色）。凡例オーバーレイのぶん下げる。
                         if (leftAxisName != null) {
                             val c = series.firstOrNull { it.axis == Axis.Left }?.color ?: axisColor
-                            drawAxisName(leftAxisName, right = false, textMeasurer, c)
+                            drawAxisName(leftAxisName, false, textMeasurer, c, legendInsetPx)
                         }
                         if (rightAxisName != null && rightYMin != null && rightYMax != null) {
                             val c = series.firstOrNull { it.axis == Axis.Right }?.color ?: axisColor
-                            drawAxisName(rightAxisName, right = true, textMeasurer, c)
+                            drawAxisName(rightAxisName, true, textMeasurer, c, legendInsetPx)
                         }
                         // 経過時間(理論値)の1秒グリッド＋ラベル。データが進むと右→左へ流れる。
                         if (xRightSeconds != null) {
@@ -360,7 +357,7 @@ fun LiveLineChart(
                         }
                         // 文字ラベル（横書き=上端の段違い / 回転=yFraction 基点）。
                         if (textLabels.isNotEmpty()) {
-                            for (l in textLabels) drawTextLabel(l, textMeasurer)
+                            for (l in textLabels) drawTextLabel(l, textMeasurer, legendInsetPx)
                         }
                         // イベントライン: 全高の縦線＋脇に下から上へ読む回転テキスト。
                         if (eventLines.isNotEmpty()) {
@@ -401,45 +398,74 @@ fun LiveLineChart(
                         }
                     }
                 }
+                // 系列の凡例。タイトル直下＝チャート左上に半透明で浮かせる（オーバーレイ）。
+                // ヘッダに置くとボタンが増えたときに幅が足りず縦積みになるため、チャートの
+                // 前面へ逃がしてある。左端はプロット領域の左端（目盛ラベルの右）に合わせる。
+                val labeled = remember(series) { series.filter { it.label.isNotEmpty() } }
+                if (labeled.isNotEmpty()) {
+                    val startDp = with(LocalDensity.current) { leftGutterPx.toDp() }
+                    FlowLegend(
+                        entries = labeled.map { LegendEntry(it.color, it.label) },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = startDp + 2.dp, end = 4.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            // 波形の上に載るので、下地を敷いて文字が読めるようにする。
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                            .onSizeChanged { legendInsetPx = it.height.toFloat() },
+                        hGapDp = 8.dp,
+                    )
+                }
             }
             // 色帯の凡例（チャート下部）。凡例を与えたグラフだけに出す。
             if (bandLegend.isNotEmpty()) {
-                BandLegend(bandLegend)
+                FlowLegend(
+                    entries = bandLegend,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                )
             }
         }
     }
 }
 
 /**
- * 色凡例をチャート下部に折り返し表示する。
+ * 色凡例を横並びに、幅が足りなければ折り返して表示する。チャート下部の色帯凡例と、
+ * チャート上へ重ねる系列凡例（オーバーレイ）の両方で使う。幅は実際に使ったぶんだけ
+ * 申告する＝オーバーレイの下地が横いっぱいに伸びない。
  *
  * `FlowRow` は端末の Compose Foundation 版とコンパイル時の ABI がズレて `NoSuchMethodError` に
  * なり得る（新しい `FlowRowOverflow` 付きオーバーロードが実行時に無い）ので、長期安定な
  * [Layout] だけで横並び＋幅オーバーで折り返す簡易フローを自前で組む。
  */
 @Composable
-private fun BandLegend(entries: List<LegendEntry>) {
+private fun FlowLegend(
+    entries: List<LegendEntry>,
+    modifier: Modifier = Modifier,
+    hGapDp: Dp = 10.dp,
+) {
     Layout(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
+        modifier = modifier,
         content = {
             for (e in entries) LegendItem(color = e.color, label = e.label)
         },
     ) { measurables, constraints ->
-        val hGap = 10.dp.roundToPx()
+        val hGap = hGapDp.roundToPx()
         val vGap = 2.dp.roundToPx()
         val maxW = constraints.maxWidth
         val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
-        var x = 0; var y = 0; var rowH = 0
+        var x = 0; var y = 0; var rowH = 0; var usedW = 0
         val positions = ArrayList<IntOffset>(placeables.size)
         for (p in placeables) {
             if (x > 0 && x + p.width > maxW) { x = 0; y += rowH + vGap; rowH = 0 }
             positions.add(IntOffset(x, y))
             x += p.width + hGap
+            usedW = maxOf(usedW, x - hGap)
             rowH = maxOf(rowH, p.height)
         }
-        layout(maxW, y + rowH) {
+        layout(usedW.coerceIn(constraints.minWidth, maxW), y + rowH) {
             placeables.forEachIndexed { i, p -> p.place(positions[i]) }
         }
     }
@@ -528,6 +554,7 @@ private fun DrawScope.drawMarker(shape: MarkerShape, cx: Float, cy: Float, color
 private fun DrawScope.drawTextLabel(
     label: ChartTextLabel,
     textMeasurer: TextMeasurer,
+    topInset: Float = 0f,
 ) {
     val w = size.width
     val h = size.height
@@ -541,7 +568,7 @@ private fun DrawScope.drawTextLabel(
     if (!label.rotated) {
         val tx = (x - layout.size.width / 2f)
             .coerceIn(0f, (w - layout.size.width).coerceAtLeast(0f))
-        val ty = 2.dp.toPx() + label.row * (layout.size.height + 1.dp.toPx())
+        val ty = topInset + 2.dp.toPx() + label.row * (layout.size.height + 1.dp.toPx())
         drawText(layout, topLeft = Offset(tx, ty))
     } else {
         // -90°回転で topLeft=pivot の文字は x∈[px, px+文字高], y∈[yBase-文字幅, yBase] を
@@ -606,19 +633,23 @@ private fun DrawScope.drawTrendLine(
     )
 }
 
-/** 軸名（例: "h"/"v"）を軸上端付近＝最上段の目盛ラベルの下に系列色で描く。 */
+/**
+ * 軸名（例: "h"/"v"）を軸上端付近＝最上段の目盛ラベルの下に系列色で描く。
+ * [topInset] は上に重なる凡例オーバーレイの高さ（そのぶん下げる）。
+ */
 private fun DrawScope.drawAxisName(
     name: String,
     right: Boolean,
     textMeasurer: TextMeasurer,
     color: Color,
+    topInset: Float = 0f,
 ) {
     val tickLen = 6.dp.toPx()
     val pad = 2.dp.toPx()
     val style = TextStyle(fontSize = 10.sp, color = color, fontWeight = FontWeight.Bold)
     val layout = textMeasurer.measure(name, style)
     // 最上段の目盛ラベル（9sp）の下に重ならないよう1行分下げる
-    val ty = 12.sp.toPx() + pad
+    val ty = topInset + 12.sp.toPx() + pad
     // 左はプロット領域の内側すぐ（目盛ラベルは軸の左＝ガター側にあるので被らない）。
     val tx = if (right) size.width - tickLen - pad - layout.size.width else pad
     drawText(layout, topLeft = Offset(tx, ty))
