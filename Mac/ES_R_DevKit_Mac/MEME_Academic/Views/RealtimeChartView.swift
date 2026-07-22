@@ -166,7 +166,8 @@ struct RealtimeChartView: View {
                            plotRect: CGRect,
                            ySpan: Double,
                            yFor: (Double) -> CGFloat) {
-        let divisions = 6
+        // 8分割にすると ±2k/4k/8k/16k/32k・±1200 のいずれでもラベルがきりのよい値になる。
+        let divisions = 8
         for i in 0...divisions {
             let v = plot.yMin + ySpan * Double(i) / Double(divisions)
             let y = yFor(v)
@@ -242,11 +243,11 @@ struct RealtimeChartView: View {
         return candidates.last ?? 60
     }
 
+    /// Y軸ラベル。1000以上は "k" 表記に丸めて、狭い左余白（leftInset）に収める。
     private func yLabel(_ v: Double) -> String {
-        if abs(v) >= 10000 {
-            return String(format: "%.0fk", v / 1000)
-        }
-        return String(format: "%.0f", v)
+        guard abs(v) >= 1000 else { return String(format: "%.0f", v) }
+        let k = v / 1000
+        return k == k.rounded() ? String(format: "%.0fk", k) : String(format: "%.1fk", k)
     }
 
     /// 秒を hh:mm:ss 形式にする。描画開始直後など負値なら先頭に "-" を付ける。

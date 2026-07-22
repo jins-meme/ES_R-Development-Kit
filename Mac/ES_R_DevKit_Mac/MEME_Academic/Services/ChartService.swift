@@ -130,13 +130,14 @@ final class ChartService {
 
         switch category {
         case 0: // EOG
-            plot.yMin = -1200; plot.yMax = 1200
+            plot.baseYMin = -1200; plot.baseYMax = 1200
             plot.series = buildEogSeries(window: window, toggles: eog)
         case 1: // Gyro (Full only)
-            plot.yMin = -36000; plot.yMax = 36000
+            // 生値は符号付き16bit（約±32000）。標準表示は ±8000 とし、拡大／縮小で ±2000〜±32000。
+            plot.baseYMin = -8000; plot.baseYMax = 8000
             plot.series = buildGyroSeries(window: window, toggles: gyro)
         case 2: // Accel
-            plot.yMin = -36000; plot.yMax = 36000
+            plot.baseYMin = -8000; plot.baseYMax = 8000
             plot.series = buildAccelSeries(window: window, toggles: accel)
         default: break
         }

@@ -103,9 +103,9 @@ final class MEMEViewModel: NSObject {
     var chart3AccelToggles = AccelToggles()
 
     // Chart rendered data
-    var chart1Plot = ChartPlot(yMin: -1200, yMax: 1200)
-    var chart2Plot = ChartPlot(yMin: -36000, yMax: 36000)
-    var chart3Plot = ChartPlot(yMin: -36000, yMax: 36000)
+    var chart1Plot = ChartPlot(baseYMin: -1200, baseYMax: 1200)
+    var chart2Plot = ChartPlot(baseYMin: -8000, baseYMax: 8000)
+    var chart3Plot = ChartPlot(baseYMin: -8000, baseYMax: 8000)
 
     // Settings sheet presentation
     var showingSettings: Bool = false
@@ -1139,8 +1139,35 @@ struct ChartArtifact {
 }
 
 struct ChartPlot {
-    var yMin: Double
-    var yMax: Double
+    /// カテゴリごとに決まる基準の縦軸範囲。実際の表示範囲はこれに yScale を掛けたもの。
+    var baseYMin: Double
+    var baseYMax: Double
+    /// 縦軸の拡大率。小さいほど拡大（max-min が狭い）。等倍を中央に、上下2段階ずつ持つ。
+    /// Gyro/Accel（基準 ±8000）では ±2000 / ±4000 / ±8000 / ±16000 / ±32000 になる。
+    /// 生値は符号付き16bitなので ±32000 が実質の上限。
+    static let yScaleOptions: [Double] = [0.25, 0.5, 1, 2, 4]
+    /// yScaleOptions のインデックス。既定は等倍（1）。
+    var yScaleIndex: Int = 2
+
+    var yScale: Double { Self.yScaleOptions[min(max(yScaleIndex, 0), Self.yScaleOptions.count - 1)] }
+    var yMin: Double { baseYMin * yScale }
+    var yMax: Double { baseYMax * yScale }
+
+    var canZoomInY: Bool { yScaleIndex > 0 }
+    var canZoomOutY: Bool { yScaleIndex < Self.yScaleOptions.count - 1 }
+
+    /// 拡大：縦軸の max-min を半分にする（下限 0.25 倍）。
+    mutating func zoomInY() {
+        guard canZoomInY else { return }
+        yScaleIndex -= 1
+    }
+
+    /// 縮小：縦軸の max-min を2倍にする（上限 4 倍）。
+    mutating func zoomOutY() {
+        guard canZoomOutY else { return }
+        yScaleIndex += 1
+    }
+
     /// 表示ウィンドウの全幅（サンプル数）＝ xRangeSeconds × sampleRate。X座標の正規化に使う。
     var windowSamples: Int = 7 * 100
     /// 最新サンプル（＝右端）のストリーム全体での絶対サンプル位置。
@@ -1160,8 +1187,8 @@ struct ChartPlot {
 
     mutating func applyCategory(_ category: Int) {
         switch category {
-        case 0: yMin = -1200; yMax = 1200
-        default: yMin = -36000; yMax = 36000
+        case 0: baseYMin = -1200; baseYMax = 1200
+        default: baseYMin = -8000; baseYMax = 8000
         }
         series.removeAll()
     }

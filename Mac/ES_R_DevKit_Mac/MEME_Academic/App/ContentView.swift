@@ -26,21 +26,21 @@ struct ContentView: View {
                                eog: $vm.chart1EogToggles,
                                gyro: $vm.chart1GyroToggles,
                                accel: $vm.chart1AccelToggles,
-                               plot: vm.chart1Plot)
+                               plot: $vm.chart1Plot)
                 ChartPanelView(index: 2,
                                title: vm.chart2Title,
                                categoryBinding: $vm.chart2Category,
                                eog: $vm.chart2EogToggles,
                                gyro: $vm.chart2GyroToggles,
                                accel: $vm.chart2AccelToggles,
-                               plot: vm.chart2Plot)
+                               plot: $vm.chart2Plot)
                 ChartPanelView(index: 3,
                                title: vm.chart3Title,
                                categoryBinding: $vm.chart3Category,
                                eog: $vm.chart3EogToggles,
                                gyro: $vm.chart3GyroToggles,
                                accel: $vm.chart3AccelToggles,
-                               plot: vm.chart3Plot)
+                               plot: $vm.chart3Plot)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -306,13 +306,14 @@ private struct ChartPanelView: View {
     @Binding var eog: EogToggles
     @Binding var gyro: GyroToggles
     @Binding var accel: AccelToggles
-    let plot: ChartPlot
+    @Binding var plot: ChartPlot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title).font(.headline)
                 Spacer()
+                YAxisZoomButtons(plot: $plot)
                 Picker("", selection: $categoryBinding) {
                     ForEach(viewModel.chartCategoryOptions.indices, id: \.self) { i in
                         Text(viewModel.chartCategoryOptions[i]).tag(i)
