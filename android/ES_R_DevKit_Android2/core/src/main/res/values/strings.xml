@@ -47,6 +47,10 @@
     <string name="acc_graph_title">Accel data</string>
     <string name="gyro_graph_title">Gyro data</string>
 
+    <!-- チャートヘッダの縦軸ズームボタン（読み上げ用の説明） -->
+    <string name="chart_zoom_in">縦軸を拡大</string>
+    <string name="chart_zoom_out">縦軸を縮小</string>
+
     <!-- フォアグラウンドサービス（計測中の常駐通知） -->
     <string name="notification_channel_measurement">計測</string>
     <string name="notification_measuring_title">計測中</string>

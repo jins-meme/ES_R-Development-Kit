@@ -19,6 +19,10 @@ private const val GRAPH_LEN = 150
 // プロット点のレート(Hz)。経過時間の換算に使う（GRAPH_LEN / PLOT_HZ = 6秒の可視窓）。
 private const val PLOT_HZ = 25
 
+// 加速度・ジャイロの既定レンジ。ヘッダの拡大/縮小ボタンで ±2k / ±4k / ±8k / ±16k / ±32k
+// （= 既定から ±[MAX_ZOOM_LEVEL] 段）に切り替わる。
+private const val IMU_RANGE = 8000f
+
 /**
  * デフォルトの基本チャートペイン（EOG / 加速度 / ジャイロ）。プラグインを持たない
  * アプリではこれがそのまま [MainScreen] の `charts` スロットの既定値になる。
@@ -29,6 +33,7 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
     val buffers = remember { SensorGraphBuffers(GRAPH_LEN) }
     var bumper by remember { mutableIntStateOf(0) }
     var minimizedCharts by remember { mutableStateOf(setOf<String>()) }
+    val zoom = remember { ChartZoomState() }
 
     LaunchedEffect(Unit) {
         viewModel.graph.collect { ev ->
@@ -59,7 +64,7 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                     LineSeries(colors.accGreen, buffers.accY.snapshotY(), label = "Y"),
                     LineSeries(colors.accRed, buffers.accZ.snapshotY(), label = "Z"),
                 ),
-                yMin = -35000f, yMax = 35000f,
+                yMin = -IMU_RANGE, yMax = IMU_RANGE,
             ),
             ChartSpec(
                 key = "gyro",
@@ -69,7 +74,7 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
                     LineSeries(colors.gyroGreen, buffers.gyroY.snapshotY(), label = "Y"),
                     LineSeries(colors.gyroRed, buffers.gyroZ.snapshotY(), label = "Z"),
                 ),
-                yMin = -35000f, yMax = 35000f,
+                yMin = -IMU_RANGE, yMax = IMU_RANGE,
             ),
         )
         // X 軸右端の秒: 再生モードでは CSV ソース位置（<< / >> で戻る・進むが数字に
@@ -82,14 +87,20 @@ fun SensorChartsPane(viewModel: MainViewModel, ui: MainUiState) {
             rightSeconds = rightSeconds,
             windowSeconds = (GRAPH_LEN - 1) / PLOT_HZ.toFloat(),
         )
-        charts.forEach { spec ->
-            if (spec.key !in minimizedCharts) {
+        charts.forEach { spec0 ->
+            if (spec0.key !in minimizedCharts) {
+                // ヘッダの拡大/縮小ボタンで選んだ段を既定レンジに適用する。
+                val spec = spec0.zoomed(zoom.level(spec0.key))
                 LiveLineChart(
                     title = spec.title,
                     series = spec.series,
                     yMin = spec.yMin,
                     yMax = spec.yMax,
                     onMinimize = { minimizedCharts = minimizedCharts + spec.key },
+                    onZoomIn = { zoom.zoomIn(spec.key) },
+                    onZoomOut = { zoom.zoomOut(spec.key) },
+                    canZoomIn = zoom.canZoomIn(spec.key),
+                    canZoomOut = zoom.canZoomOut(spec.key),
                     // どのチャートでもタップでラベル入力ダイアログを開ける。
                     onTapFraction = { f -> viewModel.markTap(f, GRAPH_LEN) },
                     eventLines = eventLines,

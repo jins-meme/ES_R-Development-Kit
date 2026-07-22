@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,9 +38,11 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -49,6 +52,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jins_jp.meme.core.R
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -179,6 +183,12 @@ fun LiveLineChart(
     leftAxisName: String? = null,
     rightAxisName: String? = null,
     headerAction: (@Composable () -> Unit)? = null,
+    // 縦軸ズーム。非 null のときヘッダ（[headerAction] と最小化ボタンの間）に
+    // 拡大/縮小ボタンを出す。段数の上限に達した側は押せない（グレーアウト）。
+    onZoomIn: (() -> Unit)? = null,
+    onZoomOut: (() -> Unit)? = null,
+    canZoomIn: Boolean = true,
+    canZoomOut: Boolean = true,
     onTapFraction: ((Float) -> Unit)? = null,
     // X軸に流す経過時間。右端(最新点)の経過秒数と、1プロット点あたりの秒数。
     // null の場合は時間軸を描かない。
@@ -217,6 +227,23 @@ fun LiveLineChart(
                     }
                 }
                 headerAction?.invoke()
+                // 縦軸ズームは最小化ボタンの左＝設定などの headerAction の右に並べる。
+                if (onZoomIn != null) {
+                    ZoomButton(
+                        icon = ChartZoomInIcon,
+                        description = stringResource(R.string.chart_zoom_in),
+                        enabled = canZoomIn,
+                        onClick = onZoomIn,
+                    )
+                }
+                if (onZoomOut != null) {
+                    ZoomButton(
+                        icon = ChartZoomOutIcon,
+                        description = stringResource(R.string.chart_zoom_out),
+                        enabled = canZoomOut,
+                        onClick = onZoomOut,
+                    )
+                }
                 MinimizeButton(onClick = onMinimize)
             }
             Box(
@@ -432,6 +459,31 @@ private fun LegendItem(color: Color, label: String) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * 縦軸ズームのボタン。ヘッダの他のアイコン（設定・リセット）と同じ寸法・色で並べる。
+ * 上限段に達した側は [enabled]=false でグレーアウトし、押せないことを示す。
+ */
+@Composable
+private fun ZoomButton(
+    icon: ImageVector,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(28.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            },
+            modifier = Modifier.size(18.dp),
         )
     }
 }
