@@ -594,7 +594,7 @@ namespace MEME_Academic_Sample
 
             string writeData;
             string BTAddr = cb_DeviceList.SelectedItem.ToString();
-            string saveFileTime = DateTime.Now.ToString("yyyyMMddHHmmss");
+            string saveFileTime = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
             saveFileName = BTAddr + "_" + saveFileTime + ".csv";
             if (this.mode == MEMEMode.Full) { writeData = "// Data mode  : Full"; }
             else { writeData = "// Data mode  : Full"; }
@@ -629,7 +629,7 @@ namespace MEME_Academic_Sample
         private void saveCsvData(AcademicFullData fullData)
         {
             // Save Data
-            DateTime targetTime = DateTime.Now;
+            DateTime targetTime = DateTime.UtcNow;
             string sYear = targetTime.Year.ToString("D4");
             string sMonth = targetTime.Month.ToString("D2");
             string sDay = targetTime.Day.ToString("D2");
