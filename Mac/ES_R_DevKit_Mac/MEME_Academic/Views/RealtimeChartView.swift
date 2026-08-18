@@ -5,7 +5,8 @@
 //  Canvas を用いた波形描画ビュー。
 //  ハム（50/60Hz）成分を残すため間引かずに全サンプルを1本の Path で描く。
 //  Swift Charts のマーク差分計算コストを避け、高頻度・多点の再生描画でも軽量。
-//  時間軸ラベルは「絶対サンプル位置 / サンプリング周波数」から秒で算出する。
+//  時間軸ラベルは記録時刻（UTC）を HH:MM:SS で表示する。
+//  記録時刻が分からない場合のみ「絶対サンプル位置 / サンプリング周波数」の経過時間へフォールバックする。
 //
 
 import SwiftUI
@@ -181,17 +182,59 @@ struct RealtimeChartView: View {
         }
     }
 
-    /// 縦グリッド＋X軸（時間）ラベル。右端が最新サンプル（latestSampleIndex）。
-    /// ラベルは「絶対サンプル位置 / 周波数」を hh:mm:ss（描画開始直後は負値）で表示する。
+    /// 縦グリッド＋X軸（時刻）ラベル。右端が最新サンプル（latestSampleIndex）。
+    /// 記録時刻が分かっていれば HH:MM:SS のタイムスタンプ、
+    /// 分からなければ従来どおり「絶対サンプル位置 / 周波数」の経過時間を表示する。
     private func drawXAxis(context: GraphicsContext,
                            plotRect: CGRect,
                            windowSamples: Int) {
         let rate = max(plot.sampleRate, 1)
+        let stepSeconds = niceTimeStep(Double(windowSamples) / Double(rate))
+        if let latestDate = plot.latestSampleDate {
+            drawTimestampXAxis(context: context, plotRect: plotRect,
+                               windowSamples: windowSamples, rate: rate,
+                               stepSeconds: stepSeconds, latestDate: latestDate)
+        } else {
+            drawElapsedXAxis(context: context, plotRect: plotRect,
+                             windowSamples: windowSamples, rate: rate,
+                             stepSeconds: stepSeconds)
+        }
+    }
+
+    /// タイムスタンプ表示。右端サンプルの記録時刻から stepSeconds ごとに左へ遡る。
+    /// グリッドはラベルがきりのよい時刻（stepSeconds の倍数の秒）に立つ位置へ合わせるため、
+    /// 経過時間表示と違いサンプル位置の倍数とは限らない。
+    private func drawTimestampXAxis(context: GraphicsContext,
+                                    plotRect: CGRect,
+                                    windowSamples: Int,
+                                    rate: Int,
+                                    stepSeconds: Double,
+                                    latestDate: Date) {
+        let rightEpoch = latestDate.timeIntervalSince1970
+        // 右端以前で最も新しい「stepSeconds の倍数」の時刻から始める。
+        // stepSeconds は 60 の約数、タイムゾーンのオフセットは 15 分単位なので、
+        // UTC で丸めればローカル表示でもきりのよい秒（:00 / :05 …）に揃う。
+        var epoch = (rightEpoch / stepSeconds).rounded(.down) * stepSeconds
+        // 1サンプル = 1/rate 秒として、右端との時間差をX座標へ換算する。
+        let pointsPerSecond = plotRect.width / CGFloat(windowSamples) * CGFloat(rate)
+        while true {
+            let x = plotRect.maxX - CGFloat(rightEpoch - epoch) * pointsPerSecond
+            if x < plotRect.minX { break }
+            drawXTick(context: context, plotRect: plotRect, x: x,
+                      label: timestampLabel(Date(timeIntervalSince1970: epoch)))
+            epoch -= stepSeconds
+        }
+    }
+
+    /// 経過時間表示（記録時刻が無いときのフォールバック）。
+    /// ラベルは「絶対サンプル位置 / 周波数」を hh:mm:ss（描画開始直後は負値）で表示する。
+    private func drawElapsedXAxis(context: GraphicsContext,
+                                  plotRect: CGRect,
+                                  windowSamples: Int,
+                                  rate: Int,
+                                  stepSeconds: Double) {
         let latest = plot.latestSampleIndex
         let leftAbs = latest - windowSamples
-
-        let totalSeconds = Double(windowSamples) / Double(rate)
-        let stepSeconds = niceTimeStep(totalSeconds)
         let stepSamples = max(1, Int((stepSeconds * Double(rate)).rounded()))
 
         // leftAbs 以上で最小の stepSamples の倍数（負値にも対応する floor 除算）。
@@ -199,17 +242,21 @@ struct RealtimeChartView: View {
         if tick < leftAbs { tick += stepSamples }
         while tick <= latest {
             let x = plotRect.maxX - CGFloat(latest - tick) / CGFloat(windowSamples) * plotRect.width
-            var line = Path()
-            line.move(to: CGPoint(x: x, y: plotRect.minY))
-            line.addLine(to: CGPoint(x: x, y: plotRect.maxY))
-            context.stroke(line, with: .color(gridColor), lineWidth: 0.5)
-
-            let seconds = Double(tick) / Double(rate)
-            let text = Text(timeLabel(seconds)).font(.system(size: 9)).foregroundColor(labelColor)
-            context.draw(text, at: CGPoint(x: x, y: plotRect.maxY + 3), anchor: .top)
-
+            drawXTick(context: context, plotRect: plotRect, x: x,
+                      label: elapsedLabel(Double(tick) / Double(rate)))
             tick += stepSamples
         }
+    }
+
+    /// X軸の目盛1本（縦グリッド線＋プロット領域下のラベル）を描く。
+    private func drawXTick(context: GraphicsContext, plotRect: CGRect, x: CGFloat, label: String) {
+        var line = Path()
+        line.move(to: CGPoint(x: x, y: plotRect.minY))
+        line.addLine(to: CGPoint(x: x, y: plotRect.maxY))
+        context.stroke(line, with: .color(gridColor), lineWidth: 0.5)
+
+        let text = Text(label).font(.system(size: 9)).foregroundColor(labelColor)
+        context.draw(text, at: CGPoint(x: x, y: plotRect.maxY + 3), anchor: .top)
     }
 
     /// 各シリーズを1本の Path として描画（間引きなし・全点）。
@@ -250,8 +297,20 @@ struct RealtimeChartView: View {
         return k == k.rounded() ? String(format: "%.0fk", k) : String(format: "%.1fk", k)
     }
 
-    /// 秒を hh:mm:ss 形式にする。描画開始直後など負値なら先頭に "-" を付ける。
-    private func timeLabel(_ seconds: Double) -> String {
+    /// 記録時刻（UTC基準）を HH:MM:SS にする。
+    /// Setting の "Convert displayed time to local time" が ON ならローカルタイムへ変換する
+    /// （DateFormatter は使わない。描画のたびに毎チャート数本ぶん呼ばれるため）。
+    private func timestampLabel(_ date: Date) -> String {
+        // 夏時間の切り替えを跨いでも正しいオフセットになるよう、その時刻のオフセットを引く。
+        let offset = plot.convertToLocalTime ? TimeZone.current.secondsFromGMT(for: date) : 0
+        let epoch = Int((date.timeIntervalSince1970 + Double(offset)).rounded(.down))
+        let secondsOfDay = ((epoch % 86_400) + 86_400) % 86_400
+        return String(format: "%02d:%02d:%02d",
+                      secondsOfDay / 3600, (secondsOfDay % 3600) / 60, secondsOfDay % 60)
+    }
+
+    /// 経過秒を hh:mm:ss 形式にする。描画開始直後など負値なら先頭に "-" を付ける。
+    private func elapsedLabel(_ seconds: Double) -> String {
         let total = Int(seconds.rounded())
         let sign = total < 0 ? "-" : ""
         let a = abs(total)

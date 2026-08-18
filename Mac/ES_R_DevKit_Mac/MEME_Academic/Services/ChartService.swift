@@ -74,6 +74,11 @@ final class ChartService {
         let window = windowStart == 0 ? chartDatas : Array(chartDatas[windowStart...])
         // 最新サンプル（右端）の絶対位置。時間軸ラベルと右詰め描画の基準。
         let latestSampleIndex = baseIndex + max(chartDatas.count - 1, 0)
+        // 右端サンプルの記録時刻（UTC）。X軸のタイムスタンプ表示の基準になる。
+        // updatePlots はどのチャートでも右端＝バッファ末尾なので、末尾の時刻だけ見ればよい。
+        let latestSampleDate = chartDatas.last?.date
+        // 表示タイムゾーンは Setting 由来。更新のたびに読み直し、設定変更を次の描画へ反映する。
+        let convertToLocalTime = UserSetting.getConvertToLocalTime()
         // Artifact は全チャート共通（絶対サンプル位置と可視ウィンドウにのみ依存）。一度だけ抽出する。
         let visibleArtifacts = Self.artifactsInWindow(artifacts,
                                                       latest: latestSampleIndex,
@@ -83,18 +88,24 @@ final class ChartService {
                         eog: chart1Eog, gyro: chart1Gyro, accel: chart1Accel,
                         window: window, windowSamples: windowSamples,
                         latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        latestSampleDate: latestSampleDate,
+                        convertToLocalTime: convertToLocalTime,
                         artifacts: visibleArtifacts)
 
         updateChartPlot(&chart2, category: chart2Category,
                         eog: chart2Eog, gyro: chart2Gyro, accel: chart2Accel,
                         window: window, windowSamples: windowSamples,
                         latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        latestSampleDate: latestSampleDate,
+                        convertToLocalTime: convertToLocalTime,
                         artifacts: visibleArtifacts)
 
         updateChartPlot(&chart3, category: chart3Category,
                         eog: chart3Eog, gyro: chart3Gyro, accel: chart3Accel,
                         window: window, windowSamples: windowSamples,
                         latestSampleIndex: latestSampleIndex, sampleRate: rate,
+                        latestSampleDate: latestSampleDate,
+                        convertToLocalTime: convertToLocalTime,
                         artifacts: visibleArtifacts)
     }
 
@@ -122,10 +133,14 @@ final class ChartService {
                                  windowSamples: Int,
                                  latestSampleIndex: Int,
                                  sampleRate: Int,
+                                 latestSampleDate: Date?,
+                                 convertToLocalTime: Bool,
                                  artifacts: [ChartArtifact]) {
         plot.windowSamples = windowSamples
         plot.latestSampleIndex = latestSampleIndex
         plot.sampleRate = sampleRate
+        plot.latestSampleDate = latestSampleDate
+        plot.convertToLocalTime = convertToLocalTime
         plot.artifacts = artifacts
 
         switch category {

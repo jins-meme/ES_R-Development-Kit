@@ -753,6 +753,8 @@ final class MEMEViewModel: NSObject {
         socketStop()
         socketStart()
         showLocalPort()
+        // ローカルタイム変換の切り替えを、停止中／一時停止中の表示にも即反映する。
+        updateChartPlots()
     }
 
     // MARK: - Chart selection
@@ -779,7 +781,7 @@ final class MEMEViewModel: NSObject {
         return [
             "data": data,
             "packetCount": NSNumber(value: stats.totalCount),
-            "date": Date(),
+            "date": data.date ?? Date(),
             "isFreeMarking": NSNumber(value: shouldMark)
         ]
     }
@@ -1055,6 +1057,9 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     }
 
     private func ingestPacket(data: AcademicData) {
+        // 受信時刻をサンプル自身に持たせる。CSV/ソケットの DATE 列と、
+        // チャートX軸のタイムスタンプ表示はどちらもこの時刻を使う。
+        data.date = Date()
         if let row = dataToDictionary(data) {
             persistence.append(row)
             saveCsv()
@@ -1175,12 +1180,19 @@ struct ChartPlot {
     var latestSampleIndex: Int = 0
     /// サンプリング周波数（Hz）。時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）算出に使う。
     var sampleRate: Int = 100
+    /// 最新サンプル（＝右端）の記録時刻（UTC基準の絶対時刻）。
+    /// X軸ラベルはこれを基準に、1サンプル = 1/sampleRate 秒として左方向へ遡って求める。
+    /// 時刻が分からない場合（DATE列が壊れているCSVなど）は nil で、経過時間表示へフォールバックする。
+    var latestSampleDate: Date? = nil
+    /// X軸のタイムスタンプをローカルタイムへ変換して表示するか（Setting 由来）。false ならUTCのまま表示する。
+    var convertToLocalTime: Bool = true
     var series: [ChartSeries] = []
     /// 可視ウィンドウ内に入る Artifact（再生中のみ設定。Y軸上限付近に文字列を描画する）。
     var artifacts: [ChartArtifact] = []
 
     mutating func reset() {
         latestSampleIndex = 0
+        latestSampleDate = nil
         series.removeAll()
         artifacts.removeAll()
     }

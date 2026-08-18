@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var yAxis: String = "0"
     @State private var zAxis: String = "0"
     @State private var showSaveFileDialog: Bool = false
+    @State private var convertToLocalTime: Bool = true
     @State private var extermalOutputSocket: Bool = false
     @State private var localPort: String = ""
 
@@ -51,6 +52,13 @@ struct SettingsView: View {
                     Text("Save Dialog")
                     Toggle("Show save file dialog after measurement",
                            isOn: $showSaveFileDialog)
+                        .toggleStyle(.checkbox)
+                }
+
+                GridRow {
+                    Text("Time Display")
+                    Toggle("Convert displayed time to local time (data is recorded in UTC)",
+                           isOn: $convertToLocalTime)
                         .toggleStyle(.checkbox)
                 }
 
@@ -104,6 +112,7 @@ struct SettingsView: View {
         yAxis = String(format: "%g", UserSetting.getYAxis())
         zAxis = String(format: "%g", UserSetting.getZAxis())
         showSaveFileDialog = UserSetting.getShowSaveFileDialog()
+        convertToLocalTime = UserSetting.getConvertToLocalTime()
         extermalOutputSocket = UserSetting.getExtermalOutputSocket()
         localPort = UserSetting.getLocalPort()
     }
@@ -114,6 +123,7 @@ struct SettingsView: View {
         UserSetting.setYAxis(Double(yAxis) ?? 0)
         UserSetting.setZAxis(Double(zAxis) ?? 0)
         UserSetting.setShowSaveFileDialog(showSaveFileDialog)
+        UserSetting.setConvertToLocalTime(convertToLocalTime)
         UserSetting.setExtermalOutputSocket(extermalOutputSocket)
         UserSetting.setLocalPort(localPort)
         viewModel.settingsDidApply()

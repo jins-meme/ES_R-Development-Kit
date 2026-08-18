@@ -173,6 +173,7 @@ final class CsvReplayService {
         case MEMEMode_Standard:
             guard fields.count >= 14 else { return nil }
             let d = AcademicStandardData()
+            d.date = parseUtcDate(fields[2])
             d.cnt = UInt32(fields[1]) ?? 0
             d.accX = Int16(fields[3]) ?? 0
             d.accY = Int16(fields[4]) ?? 0
@@ -189,6 +190,7 @@ final class CsvReplayService {
         case MEMEMode_Full:
             guard fields.count >= 13 else { return nil }
             let d = AcademicFullData()
+            d.date = parseUtcDate(fields[2])
             d.cnt = UInt32(fields[1]) ?? 0
             d.accX = Int16(fields[3]) ?? 0
             d.accY = Int16(fields[4]) ?? 0
@@ -204,6 +206,7 @@ final class CsvReplayService {
         default:
             guard fields.count >= 7 else { return nil }
             let d = AcademicQuaternionData()
+            d.date = parseUtcDate(fields[2])
             d.cnt = UInt32(fields[1]) ?? 0
             d.quaternionW = Int64(fields[3]) ?? 0
             d.quaternionX = Int64(fields[4]) ?? 0
@@ -211,6 +214,61 @@ final class CsvReplayService {
             d.quaternionZ = Int64(fields[6]) ?? 0
             return d
         }
+    }
+
+    // MARK: - DATE column
+
+    /// DATE列 "yyyy/MM/dd HH:mm:ss.SS"（UTC）を Date へ変換する。書式が違えば nil。
+    /// 秒未満の桁数は問わない（Android版 DevKit は .SSS で書き出す）。
+    /// 1ファイルで数十万行を読むため DateFormatter は使わず整数演算で解く
+    /// （DateFormatter は20万行で数秒かかるのに対し、こちらは十数ミリ秒で済む）。
+    private static func parseUtcDate(_ field: String) -> Date? {
+        let u = Array(field.utf8)
+        // "yyyy/MM/dd HH:mm:ss" の19文字が最低限必要。区切り文字は数値位置だけで判定する。
+        guard u.count >= 19 else { return nil }
+        func number(at start: Int, length: Int) -> Int? {
+            var value = 0
+            for i in start..<(start + length) {
+                let c = u[i]
+                guard c >= 0x30, c <= 0x39 else { return nil }
+                value = value * 10 + Int(c - 0x30)
+            }
+            return value
+        }
+        guard let year = number(at: 0, length: 4),
+              let month = number(at: 5, length: 2),
+              let day = number(at: 8, length: 2),
+              let hour = number(at: 11, length: 2),
+              let minute = number(at: 14, length: 2),
+              let second = number(at: 17, length: 2),
+              (1...12).contains(month), (1...31).contains(day) else {
+            return nil
+        }
+        var fraction = 0.0
+        if u.count > 20, u[19] == 0x2E { // "."
+            var scale = 0.1
+            var i = 20
+            while i < u.count, u[i] >= 0x30, u[i] <= 0x39 {
+                fraction += Double(u[i] - 0x30) * scale
+                scale /= 10
+                i += 1
+            }
+        }
+        let seconds = daysFromEpoch(year: year, month: month, day: day) * 86_400
+            + hour * 3600 + minute * 60 + second
+        return Date(timeIntervalSince1970: Double(seconds) + fraction)
+    }
+
+    /// 1970-01-01 からの経過日数（Howard Hinnant の days_from_civil）。
+    /// UTC固定なので Calendar/TimeZone を介さず整数演算で求められる。
+    private static func daysFromEpoch(year: Int, month: Int, day: Int) -> Int {
+        // 3月始まりの暦に置き換えると閏日が年末に来るため、閏年の場合分けが不要になる。
+        let y = year - (month <= 2 ? 1 : 0)
+        let era = (y >= 0 ? y : y - 399) / 400
+        let yearOfEra = y - era * 400                                          // [0, 399]
+        let dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1 // [0, 365]
+        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+        return era * 146_097 + dayOfEra - 719_468
     }
 
     // MARK: - Artifact write-back

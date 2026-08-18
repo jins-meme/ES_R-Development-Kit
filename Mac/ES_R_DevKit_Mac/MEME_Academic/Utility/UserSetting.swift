@@ -28,6 +28,7 @@ class UserSetting: NSObject {
         userDefaults.set(false, forKey: kConst_ShowSaveFileDialog)
         userDefaults.set(false, forKey: kConst_ExtermalOutputSocket)
         userDefaults.set("88", forKey: kConst_LocalPort)
+        userDefaults.set(true, forKey: kConst_ConvertToLocalTime)
     }
 
     private class func createDefaultSaveDirectory() {
@@ -94,6 +95,20 @@ class UserSetting: NSObject {
     }
     class func getExtermalOutputSocket() -> Bool {
         return UserDefaults.standard.bool(forKey: kConst_ExtermalOutputSocket)
+    }
+
+    /// 時刻表示をローカルタイムへ変換するか（既定：ON）。
+    /// CSV／ソケットへ記録する時刻は常にUTCで、この設定は表示（チャートのX軸ラベル）にのみ効く。
+    class func setConvertToLocalTime(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: kConst_ConvertToLocalTime)
+    }
+    class func getConvertToLocalTime() -> Bool {
+        // 未設定（この設定より前から使っているユーザー）は ON 扱いにする。
+        // bool(forKey:) は未設定でも false を返すため、object(forKey:) で有無を判定する。
+        guard let value = UserDefaults.standard.object(forKey: kConst_ConvertToLocalTime) as? Bool else {
+            return true
+        }
+        return value
     }
 
     class func setLocalPort(_ value: Any?) {

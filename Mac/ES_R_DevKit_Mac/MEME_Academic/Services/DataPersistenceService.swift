@@ -54,8 +54,10 @@ final class DataPersistenceService {
         if force || pendingCsvRows.count >= 100 / quality {
             if !csvManager.isSave {
                 let directoryPath = UserSetting.getSaveFilePath()
+                // ファイル名の日時もUTC（DATE列・Android版 DevKit と揃える）。
                 let formatter = DateFormatter()
-                formatter.locale = Locale(identifier: "ja_JP")
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
                 formatter.dateFormat = "yyyyMMddHHmmss"
                 let dateString = formatter.string(from: Date())
                 let fileName = "\(macAddress)_\(dateString).csv"
@@ -121,8 +123,12 @@ final class DataPersistenceService {
     }
 
     /// CSV/Socket 共通の1行整形ロジック。
+    /// DATE列はUTCで書き出す（Android版 DevKit と同じ ES_R CSV フォーマット）。
+    /// 表示側（チャートX軸）が Setting の "Convert displayed time to local time" に従って変換する。
     func dataToStoring(_ datas: [[String: Any]], stringBuffer: inout String, mode: UInt32) {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy/MM/dd HH:mm:ss.SS"
         for dic in datas {
             let date = dic["date"] as? Date ?? Date()
