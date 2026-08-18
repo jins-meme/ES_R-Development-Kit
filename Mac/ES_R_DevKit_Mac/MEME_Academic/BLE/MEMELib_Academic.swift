@@ -640,7 +640,7 @@ extension MEMELib_Academic: @preconcurrency CBPeripheralDelegate {
             md.append(d2)
             var result = ""
             for byte in md {
-                result += String(format: "%X", byte)
+                result += String(format: "%02X", byte)
             }
             NSLog("result:%@", result)
             macAddress = result
