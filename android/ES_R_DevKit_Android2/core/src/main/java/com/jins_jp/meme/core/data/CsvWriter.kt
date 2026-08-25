@@ -35,6 +35,10 @@ class CsvWriter(private val context: Context) {
     private var classificationUri: Uri? = null
     private var classificationBaseName: String? = null
 
+    // 切断ログのサイドカー("<base>_disconnect.csv")。本体データCSVと同じベース名を
+    // 共有し、実機計測セッションでのみ [writeDisconnect] が遅延生成する。
+    private var disconnectUri: Uri? = null
+
     val recordedRows: Long get() = rowCount
 
     fun start(address: String, settings: MeasurementSettings) {
@@ -48,6 +52,7 @@ class CsvWriter(private val context: Context) {
         pendingHeader = buildHeader(settings)
         classificationBaseName = base
         classificationUri = null
+        disconnectUri = null
     }
 
     /**
@@ -63,6 +68,8 @@ class CsvWriter(private val context: Context) {
         rowCount = 0
         classificationBaseName = makeBaseName(address)
         classificationUri = null
+        // 本体データCSVを開かない再生モードでは切断ログも書かない。
+        disconnectUri = null
     }
 
     private fun makeBaseName(address: String): String {
@@ -124,6 +131,53 @@ class CsvWriter(private val context: Context) {
     }
 
     /**
+     * 切断の時刻と理由を "<base>_disconnect.csv" へ 1 行追記する。長時間計測が
+     * 途中で止まった時に「メガネ側が落ちた(電池切れ・電源断)」のか「電波が
+     * 切れた」のかを後から切り分けるための計装で、[stop] がベース名を畳む前
+     * ＝切断検知時の [stop] 直前に呼ぶ。[timeGmtMillis] は本体CSVの DATE 列と
+     * 同じ GMT 壁時計、[status] は GATT の切断ステータス、[reason] はその名前。
+     *
+     * ここで本体データを [flush] して切断時点まで確定させ、1 行も受信していない
+     * セッションではサイドカーも作らない（本体CSVの無い孤児ファイルを残さない）。
+     */
+    fun writeDisconnect(timeGmtMillis: Long, status: Int, reason: String) {
+        val base = dataBaseName ?: return
+        flush()
+        // flush 後も本体CSVが無い＝データ 0 行のセッション。記録する対象がない。
+        if (uri == null) return
+        val isNew = disconnectUri == null
+        if (isNew) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, "${base}_disconnect.csv")
+                put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
+                )
+            }
+            disconnectUri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                values,
+            )
+        }
+        val u = disconnectUri ?: return
+        val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("GMT")
+        }
+        runCatching {
+            context.contentResolver.openOutputStream(u, "wa")?.use { os ->
+                OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
+                    if (isNew) {
+                        w.write("// Disconnect log for $base.csv"); w.write("\r\n")
+                        w.write("// DATE,STATUS,REASON"); w.write("\r\n")
+                    }
+                    w.write("${df.format(Date(timeGmtMillis))},$status,$reason"); w.write("\r\n")
+                }
+            }
+        }
+    }
+
+    /**
      * 計測終了。残りの本体データをファイルへ書き出し、このセッションで生成された
      * 本体データCSVと分類CSVの URI を返す(共有シートに渡すため)。ファイルは IS_PENDING
      * を付けず即公開しているので、計測中の各 flush 追記がそのまま最終ファイルとなり、
@@ -138,6 +192,7 @@ class CsvWriter(private val context: Context) {
 
         classificationUri = null
         classificationBaseName = null
+        disconnectUri = null
         return result
     }
 

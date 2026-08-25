@@ -2,6 +2,8 @@ package com.jins_jp.meme.core.ui.main
 
 import android.app.Application
 import android.net.Uri
+import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,9 +13,11 @@ import com.jins.meme.academic.util.HexDump
 import com.jins.meme.academic.util.LogCat
 import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.ble.ConnectionState
+import com.jins_jp.meme.core.ble.GATT_STATUS_NONE
 import com.jins_jp.meme.core.ble.MemeBleConstants
 import com.jins_jp.meme.core.ble.MemeBleRepository
 import com.jins_jp.meme.core.ble.MemeCommands
+import com.jins_jp.meme.core.ble.gattDisconnectReason
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
 import com.jins_jp.meme.core.data.LabelMerger
@@ -44,6 +48,10 @@ private const val TAG = "MainViewModel"
 // スキャン窓内で 1 台も見つからなかった時に一度だけ張り直す前の小休止。
 // コントローラのスキャン窓をリセットさせるための短い間隔。
 private const val SCAN_RETRY_GAP_MS = 500L
+
+// 端末(ES_R)の電池残量を logcat へ出す最長間隔。残量が変わらなくてもこの間隔で
+// 1 行出し、長時間計測中の減り方を追えるようにする。
+private const val BATTERY_LOG_INTERVAL_MS = 60_000L
 
 data class MainUiState(
     val scanning: Boolean = false,
@@ -138,6 +146,10 @@ class MainViewModel(
     // EOG プロット点の通し番号（1 始まり）。プラグインがマーカー座標を
     // プロット点座標系へ換算するために onPlotPoint で渡す。
     private var plotCount = 0L
+
+    // 端末(ES_R)電池残量ログの間引き状態（[logBatteryLevel]）。
+    private var lastLoggedBattery = Int.MIN_VALUE
+    private var lastBatteryLogAt = 0L
 
     // 自動接続：1スキャンにつき一度だけ発火（再接続ループを防ぐ）
     private var autoConnectAttempted = false
@@ -275,6 +287,22 @@ class MainViewModel(
                     // the files in that case (no-op if nothing was being written).
                     stopCommTicker()
                     for (p in plugins) p.onDisconnected(csv)
+                    // なぜ計測が止まったかを後から切り分けられるよう、切断の時刻と
+                    // GATT ステータスを "<base>_disconnect.csv" へ残す。csv.stop() が
+                    // サイドカーのベース名も畳むので、必ずその前に書く。
+                    val status = repo.lastDisconnectStatus
+                    val reason = gattDisconnectReason(status)
+                    csv.writeDisconnect(System.currentTimeMillis(), status, reason)
+                    // 起動直後は connection(StateFlow) の初期値 Disconnected がそのまま
+                    // 流れてくる。接続した形跡がない（status 未設定かつ非計測）なら
+                    // 実際の切断ではないのでログに残さない。
+                    if (status != GATT_STATUS_NONE || wasMeasuring) {
+                        Log.i(
+                            TAG,
+                            "disconnected: status=$status ($reason) measuring=$wasMeasuring " +
+                                "battery=${_ui.value.batteryLevel}/5 rows=${csv.recordedRows}",
+                        )
+                    }
                     val dropResult = csv.stop()
                     // 予期しない切断でもタップラベルを失わないよう本体CSVへ統合する。
                     // 再生停止(Stop Replay/Disconnect)は stopMeasurement 側で統合済み。
@@ -399,6 +427,9 @@ class MainViewModel(
             counter.reset()
             prevTimeMs = 0
             tapLabels.clear()
+            // 新しいセッションの開始残量を必ず 1 行残す（再接続直後で残量が
+            // 変わっていなくても間引かれないように）。
+            lastLoggedBattery = Int.MIN_VALUE
 
             val addr = repo.currentAddress()
             if (addr == null) {
@@ -648,10 +679,12 @@ class MainViewModel(
             }
         }
 
+        val battery = packets.last().batteryLevel.toInt()
+        logBatteryLevel(battery)
         _ui.update {
             it.copy(
                 recordingRows = if (ui.value.mockEnabled) 0 else csv.recordedRows,
-                batteryLevel = packets.last().batteryLevel.toInt(),
+                batteryLevel = battery,
             )
         }
 
@@ -659,6 +692,21 @@ class MainViewModel(
         if (counter.totalCount > 0) {
             _ui.update { it.copy(successRate = counter.successRate) }
         }
+    }
+
+    /**
+     * 端末(ES_R)の電池残量を logcat へ出す。残量は 0〜5 の 6 段階（0 は充電中）で
+     * 全データパケットに乗ってくるので、100Hz でそのまま出すと logcat が溢れる。
+     * 値が変わった時と、変わらなくても [BATTERY_LOG_INTERVAL_MS] ごとに 1 行だけ出す。
+     * 長時間計測が切断で止まった時に「切断直前に残量がどこまで落ちていたか」＝
+     * メガネの電池切れかどうかを `adb logcat -s MainViewModel` で追うための計装。
+     */
+    private fun logBatteryLevel(level: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (level == lastLoggedBattery && now - lastBatteryLogAt < BATTERY_LOG_INTERVAL_MS) return
+        lastLoggedBattery = level
+        lastBatteryLogAt = now
+        Log.i(TAG, "device battery=$level/5 (0=charging) rows=${csv.recordedRows}")
     }
 
     private fun handleDevInfo(data: ByteArray) {

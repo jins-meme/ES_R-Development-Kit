@@ -27,7 +27,10 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_CONNECT, enabled).apply()
     }
 
-    fun loadReconnectEnabled(): Boolean = prefs.getBoolean(KEY_RECONNECT, false)
+    // 既定 ON。OFF だと計測中に BLE が一度切れただけで切断ハンドラが計測を畳んで
+    // しまい、長時間計測がそこで終わる（実際に数時間の計測が何度も途切れた）。
+    // ON なら同じ切断で再スキャン→再接続し、新しいCSVで計測を続ける。
+    fun loadReconnectEnabled(): Boolean = prefs.getBoolean(KEY_RECONNECT, true)
 
     fun saveReconnectEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_RECONNECT, enabled).apply()

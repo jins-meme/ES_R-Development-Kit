@@ -17,7 +17,10 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
@@ -34,6 +37,34 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 enum class ConnectionState { Disconnected, Connecting, Connected, ServicesReady, Disconnecting }
+
+/** [MemeBleRepository.lastDisconnectStatus] の初期値（この接続ではまだ切断していない）。 */
+const val GATT_STATUS_NONE = -1
+
+/**
+ * 端末の Bluetooth 自体が OFF にされて接続が消えた時の合成ステータス。GATT からは
+ * 何のコールバックも来ないので、本物の HCI エラーコードと衝突しない負値を使う。
+ */
+const val GATT_STATUS_ADAPTER_OFF = -2
+
+/**
+ * GATT の切断ステータスを切り分け用の名前へ直す。長時間計測が途中で止まった時に
+ * 「メガネ側が落ちた（電源断・電池切れ）」のか「電波が届かなくなった」のかを
+ * 切断サイドカーCSVから判別するために使う。値は Bluetooth Core Spec の
+ * HCI エラーコードがそのまま上がってくる。
+ */
+fun gattDisconnectReason(status: Int): String = when (status) {
+    GATT_STATUS_NONE -> "UNKNOWN"
+    GATT_STATUS_ADAPTER_OFF -> "ADAPTER_OFF"    // 端末の Bluetooth を OFF にした
+    0x00 -> "SUCCESS"                       // 正常終了（こちらから disconnect した等）
+    0x08 -> "CONNECTION_TIMEOUT"            // リンク監視タイムアウト＝電波が届かなくなった
+    0x13 -> "REMOTE_USER_TERMINATED"        // メガネ側から切断＝電源断・電池切れ
+    0x16 -> "LOCAL_HOST_TERMINATED"         // Android 側から終了
+    0x22 -> "LMP_RESPONSE_TIMEOUT"
+    0x3E -> "CONNECTION_FAILED_TO_ESTABLISH"
+    0x85 -> "GATT_ERROR"                    // 133: 汎用エラー
+    else -> "STATUS_$status"
+}
 
 private const val TAG = "MemeBleRepository"
 
@@ -65,6 +96,63 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     private var gatt: BluetoothGatt? = null
     private var scanner: BluetoothLeScanner? = null
     private var currentAddress: String? = null
+
+    /**
+     * 直近の切断で GATT が返したステータス（[gattDisconnectReason] で名前になる）。
+     * 計測がなぜ止まったかを後から切り分けるための計装で、MainViewModel が
+     * 切断サイドカーCSV へ記録する。[connection] が Disconnected を流す前に必ず
+     * 更新するので、購読側は同じ切断の理由として読める。GATT コールバックは
+     * API 世代によってバインダースレッドから来るため volatile。
+     */
+    @Volatile
+    var lastDisconnectStatus: Int = GATT_STATUS_NONE
+        private set
+
+    /**
+     * 端末の Bluetooth を OFF にすると GATT の接続は無言で消え、
+     * onConnectionStateChange は呼ばれない。購読していないとアプリは
+     * 「計測中・受信 0」のまま固まり、CSV も閉じられない。アダプタの状態変化を
+     * 拾って、こちら側で切断として畳むためのレシーバ。
+     */
+    private val adapterStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+            val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+            // TURNING_OFF で先に畳む。続く OFF は同じ値の再代入になり何も起きない。
+            if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
+                handleAdapterOff()
+            }
+        }
+    }
+
+    init {
+        // Application スコープのシングルトン（App.bleRepository）なのでプロセスが
+        // 生きている間ずっと購読する。対応する解除処理は持たない。
+        ContextCompat.registerReceiver(
+            context,
+            adapterStateReceiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    /**
+     * Bluetooth OFF による接続消滅を、GATT 切断と同じ経路（[connection] の
+     * Disconnected）へ流す。これで MainViewModel 側の切断ハンドラが動き、CSV の
+     * クローズ・切断サイドカーの記録・自動再接続が通常の切断と同じように走る。
+     */
+    private fun handleAdapterOff() {
+        if (mockMode) return
+        _scanning.value = false
+        // すでに切断済みなら何もしない（アイドル中の BT OFF で余計な切断を作らない）。
+        if (gatt == null && _connection.value == ConnectionState.Disconnected) return
+        // 理由は Disconnected を流す前に確定させる（GATT 経由の切断と同じ順序）。
+        lastDisconnectStatus = GATT_STATUS_ADAPTER_OFF
+        runCatching { gatt?.close() }
+        gatt = null
+        currentAddress = null
+        _connection.value = ConnectionState.Disconnected
+    }
 
     private val mock = MockMemeBleEngine(
         scanning = _scanning,
@@ -172,9 +260,12 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
 
     override fun startScan() {
         if (mockMode) { mock.startScan(); return }
-        if (!hasScanPermission() || adapter?.isEnabled != true) return
         if (_scanning.value) return
+        // スキャン開始＝一覧のやり直し。実際にスキャンを張れない場合（BT OFF・権限なし）も
+        // 先に空にする。古い発見結果が残っていると再接続ループが毎周「見つかった」と
+        // 判断し、即失敗する connect を待ち時間なしで回し続ける空回りになるため。
         _devices.value = emptySet()
+        if (!hasScanPermission() || adapter?.isEnabled != true) return
         // アドバタイズを待たずに、OS／他アプリが既に握っている端末を先にリストへ入れる。
         mergeSystemDevices()
         scanner = adapter.bluetoothLeScanner ?: return
@@ -233,6 +324,10 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
                 BluetoothProfile.STATE_CONNECTING -> _connection.value = ConnectionState.Connecting
                 BluetoothProfile.STATE_DISCONNECTING -> _connection.value = ConnectionState.Disconnecting
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    // 切断理由は Disconnected を流す前に確定させる。購読側
+                    // (MainViewModel.collectConnection) が同じ切断の status として
+                    // 読み、サイドカーCSV へ書くため。
+                    lastDisconnectStatus = status
                     _connection.value = ConnectionState.Disconnected
                     g.close()
                     gatt = null
@@ -276,6 +371,9 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     override fun connect(address: String): Boolean {
+        // 前の接続の切断理由を持ち越さない（再接続後の切断で古い status を
+        // サイドカーへ書かないため）。
+        lastDisconnectStatus = GATT_STATUS_NONE
         if (mockMode) {
             currentAddress = address
             return mock.connect(address)
