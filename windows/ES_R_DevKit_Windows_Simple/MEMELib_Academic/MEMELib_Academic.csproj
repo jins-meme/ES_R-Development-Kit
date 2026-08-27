@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      windows10.0.22621.0 を指定すると Windows SDK の WinRT 射影
+      (Microsoft.Windows.SDK.NET.Ref) が NuGet から自動で入るため、
+      Windows SDK 本体のインストールは不要。
+    -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MEMELib_Academic</RootNamespace>
+    <AssemblyName>MEMELib_Academic</AssemblyName>
+    <Version>2.0.0</Version>
+    <Description>JINS MEME ES_R を Windows 本体の BLE Central で扱うライブラリ</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MEMELib_Academic.Tests" />
+  </ItemGroup>
+
+</Project>

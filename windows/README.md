@@ -1,179 +1,87 @@
 # ES_R-Development-Kit/Windows
 
-# English
-([日本語補足](#japanesedoc))
-## Summary of ES_R-DevelopmentKit-Windows
+## Summary
 
+* "ES_R" means JINS MEME ES_R (previously called JINS MEME Academic Pack)
+* **Dongle (BLE receiver) is NOT needed** — the PC's own Bluetooth LE radio is used
+* Visual Studio is not required; everything builds from the command line with the .NET SDK
 
-This project includes sample code to use JINS MEME ES_R(also called JINS MEME Academic pack). To run this project, please be sure that you have JINS MEME ES_R and BLE dongle. For general instruction, please go [here](https://jins-meme.github.io/apdoc/en/) and see manual.
+このディレクトリには 2 つのプロジェクトがあります。Mac 版の
+`ES_R_DevKit_Mac` / `ES_R_DevKit_Mac_Simple` と同じ関係です。
 
-## System requirment
-* Requirment: Microsoft .Net Framework 4.5 or Net Framework4.7
-* Windows 10
-* Visual Studio 2017, 2019
-    * Checked runnning on Windows 10 version1803 and Visual Studio 2017
-    * Checked runnning on Windows 10 version1803 and Visual Studio 2019
+| プロジェクト | 位置づけ |
+|---|---|
+| [`ES_R_DevKit_Windows`](ES_R_DevKit_Windows/README.md) | フル機能ロガー。リアルタイムチャート、通信統計などを備える |
+| [`ES_R_DevKit_Windows_Simple`](ES_R_DevKit_Windows_Simple/README.md) | 最小構成のサンプル。接続してセンサー値を表示・CSV 保存するだけ |
 
-## STEP 1: How to build
-1. Download or Clone this project
-2. Open "MEME_Academic_Sample.sln" with Visual Studio 2019/2017
-3. Go to "Solution Explore", right click on "References", and then go to "Manage NuGet Packages". See Figure. 0 (a).
-4. Search JINS MEME in the NuGet tab and install "JINSMEME_ES_R by JINS Inc". See Figure. 0 (b).
-
-<a name="fig.0"></a>
-<div align="center">
-<img src="https://user-images.githubusercontent.com/18042520/57450353-323e0980-7299-11e9-840c-56518d3d3bee.png" alt="属性" title="Figure. 0" width="850">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 0
-</div>  
-<br>
-
-5. Finally, build the project. When, successfully build, sample UI shows up.
-
-<a name="fig.1"></a>
-<div align="center">
-<img src="https://cloud.githubusercontent.com/assets/18042520/26829252/c2fb3e70-4aff-11e7-9435-e5be7f7929a1.png" alt="属性" title="Figure. 1" width="400">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 1
-</div>  
-
-## STEP2 Connect JINS MEME ES_R
-1. Insert the USB dongle of JINS MEME ES_R
-2. Press "Scan port". After COM Number(COM4 in the image) shows, press "Open".
-<a name="fig.2"></a>  
-<div align="center">
-<img src="https://cloud.githubusercontent.com/assets/18042520/26829445/a7f079be-4b00-11e7-9b92-f8079f7a000e.png" alt="属性" title="Figure. 2" width="400">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 2
-</div>  
-<br>
-
-3. Turn JINS MEME ES_R on and then press "Scan MEME"
-4. When device NO(28A183055C47 in the image) shows, press "Connect" button.
-
-<a name="fig.3"></a>
-<div align="center">
-<img src="https://cloud.githubusercontent.com/assets/18042520/26829646/451a4224-4b01-11e7-96bb-53b6ed8a72b2.png" alt="属性" title="Figure. 3" width="400">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 3
-</div>  
-<br>
-
-5. When your JINS MEME ES_R is connected, "Start Measurement" button shows up.
-<a name="fig.4"></a>
-<div align="center">
-<img src="https://cloud.githubusercontent.com/assets/18042520/26829782/bfadbd7c-4b01-11e7-84d8-fccf398119d4.png" alt="属性" title="Figure. 4" width="400">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 4
-</div>  
-<br>
-
-6. Press "Start Measurement" button to start working JINS MEME 
-
-<a name="fig.5"></a>
-<div align="center">
-<img src="https://cloud.githubusercontent.com/assets/18042520/26829860/f1ce1d6a-4b01-11e7-91d1-cf6afc65c1f1.png" alt="属性" title="Figure. 5" width="400">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 5
-</div>  
-<br>
-
-### STEP 3 Prepare for Edit code: Overview 
-Figure below shows the connection and data flow.
-
-<a name="fig.6"></a>
-<div align="center">
-<img src="https://user-images.githubusercontent.com/18042520/57433993-d1043f00-7274-11e9-9460-d873d87fedc4.png" alt="属性" title="Figure. 6" width="450">
-</div>
-<div style="text-align: center;">
-　　　　　　　　　　　　　　　　　　　　　　　　　Figure. 6
-</div>  
-<br>
-
-* PC gets data from JINS MEME ES_R via USB dongle.
-* After connected, you can call "startDataReport" method in "MemeLib" to get ready to receive data.
-
-## STEP 4 Get sensor data
-* call "memeAcademicFullDataReceived" method to receive sensor data. The method is in delegate part in "MEME_Academic_Sample.cs" file.
-* Project calls this method several times.
-* Instance of "AcademicFullData" class stores sensor values.
-
-## Class variables of AcademicFullData class
-
-| variables | meaning |
-----|---- 
-| Cnt | data count |
-| BattLv | battery level |
-| AccX | Acceleration of X-axis |
-| AccY | Acceleration of Y-axis |
-| AccZ | Acceleration of Z-axis |
-| GyroX | Gyroscope data of X-axis | 
-| GyroY | Gyroscope data of Y-axis |
-| GyroZ | Gyroscope data of Z-axis |
-| EogL | Eog voltage value between the bridge(reference) and left nosepad electrodes | 
-| EogR | Eog voltage value between the bridge(reference) and right nosepad electrodes |
-| EogH | Horizontal eye movement |
-| EogV | Vertical eye movement |
-
----
-<a name="japanesedoc"></a>
-# 日本語
-## はじめに
-このプロジェクトは，JINS MEME ES_R (JINS MEME Academic Pack)の動作デモプロジェクトです．
-プロジェクトを実行して動作させるためにはハードウェアである「[JINS MEME ES_R](https://jins-meme.com/ja/purchase/application/) (JINS MEME Academic Pack)」および専用「[BLEドングル](https://jins-meme.com/ja/purchase/application/)」が必要になります。
+BLE の接続処理とプロトコル(`MEMELib_Academic`)は両者で共通の構成です。
+まず動かして仕組みを読むなら Simple、計測に使うなら フル機能版 を選んでください。
 
 ## 環境要件
-* .Net Framework 4.5.2以上 まはた 4.7.2以上
-* Windows10
-* Visual Studio 2017, 2019
-    * Windows 10 version1803 および Visual Studio 2019で動作確認済み
-    * Windows 10 version1803 および Visual Studio 2017で動作確認済み
 
-## STEP 1: ビルド
-1. Githubからプロジェクトをクローンまたはダウンロードします.
-2. 「MEME_Academic_Sample.sln」をVisualStudio 2019(または2017)で開きます．
-3. 「Solution Explore」の中にある「References」を右クリックし，「Manage NuGet Packages」を選択します．（上述の[Figure. 0 (a)](#fig.0))
-4. 検索窓で「JINS MEME」を検索し，検索結果から「JINSMEME_ES_R by JINS Inc.」を選択しインストールします．（上述の[Figure. 0 (b)](#fig.0))
-5. ビルドを実行します．
-    *  ビルドが問題なく行われた場合，データ取得のためUIサンプルが表示されます．（上述の[Figure. 1](#fig.1))
+| 項目 | 内容 |
+|---|---|
+| OS | Windows 10 バージョン 1809 以降 / Windows 11 |
+| ハードウェア | BLE 対応の Bluetooth アダプタ(内蔵で可) |
+| SDK | .NET 10 SDK (`winget install Microsoft.DotNet.SDK.10`) |
+| IDE | 不要。VS Code + コマンドラインで完結する |
 
-## STEP 2: JINS MEME ES_Rとの接続
-1. PCにUSBドングルを接続してソフトウェアを起動したら、Scan PortボタンをタップしてOpenボタンを押します．
-（上述の[Figure. 2](#fig.2))
-2. JINS MEME ES_Rの電源ボタンを2秒長押ししてペアリングモードにします．
-（上述の[Figure. 3](#fig.3))
-3. ソフトウェアのScan MEMEボタンを押してJINS MEME ES_RのIDが表示されたらConnectボタンを押します．
-（上述の[Figure. 4](#fig.4))
-4. Start Measuermentボタンを押してセンサーの値を取得します．（上述の[Figure. 5](#fig.5))
+Windows SDK 本体のインストールは不要です。`net10.0-windows10.0.22621.0` を
+ターゲットにしているため、WinRT の射影(`Microsoft.Windows.SDK.NET.Ref`)は
+NuGet から自動で取得されます。**Visual Studio 2019 では .NET 10 を扱えません**。
+WinForms のビジュアルデザイナを使いたい場合のみ Visual Studio 2022 が要ります。
 
-## STEP3 :Codeを編集する準備：接続およびデータの流れを知る．
-上述の[Figure. 6](#fig.6)の通りです.
-* PCはUSBドングル経由でJINS MEME ES_Rと接続を行います.
-* 接続後にMemeLibのstartDataReportメソッドを呼び出すとデータの取得が可能になります.
+## ビルドと実行
 
-## センサー値の取得方法
-MEME_Academic_Sample.cs ファイルの中のデリゲートを実装している部分，memeAcademicFullDataReceivedメソッドでセンサー値を受け取ることができます．
-* このメソッドはJINS MEME ES_Rの動作クロックに合わせて複数回呼び出されます．
-* 実際のセンサー値はAcademicFullDataクラスのインスタンスに格納されています．
+```
+cd windows/ES_R_DevKit_Windows          # または ES_R_DevKit_Windows_Simple
+dotnet build
+dotnet run --project MEME_Academic_Sample
+dotnet test
+```
 
-## AcademicFullDataクラスの変数
-| 変数名 | 意味 |
-----|---- 
-| Cnt | データのカウント値 |
-| BattLv | バッテリーレベル(5段階) |
-| AccX | X軸加速度 |
-| AccY | Y軸加速度 |
-| AccZ | Z軸加速度 |
-| GyroX | X軸まわりの角速度 | 
-| GyroY | Y軸まわりの角速度 |
-| GyroZ | Z軸まわりの角速度 |
-| EogL | ブリッジ（レファレンス電極）と左鼻パッド電極の電位差 | 
-| EogR | ブリッジ（レファレンス電極）と右鼻パッド電極の電位差 |
-| EogH | 横（左右）の視線移動 |
-| EogV | 縦（上下）の視線移動 |
+成果物は `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`。
+プロジェクトのフォルダ名(`MEME_Academic_Sample`)と実行ファイル名(`JINS_MEME_DataLogger.exe`)は
+別なので注意してください。exe 単体では動かないので、フォルダごと扱ってください。
+
+## 接続手順
+
+1. ES_R の電源ボタンを 2 秒長押ししてペアリングモードにする。
+2. `Scan` を押す。見つかった端末が `ESRG2_0 (28A183055C47)` の形で一覧に出る。
+3. `Connect` を押す。接続されると ES_R のファームウェアバージョンが表示される。
+4. `Start Measurement` でセンサー値の取得と CSV 記録が始まる。
+
+CSV の書式(ヘッダ・列順・UTC 記録)は Mac 版・Android 版と共通です。
+
+## プロトコル
+
+| 項目 | 値 |
+|---|---|
+| Service | `D6F25BD1-5B54-4360-96D8-7AA62E04C7EF` |
+| Notify (端末 → PC) | `D6F25BD4-5B54-4360-96D8-7AA62E04C7EF` |
+| Write (PC → 端末) | `D6F25BD2-5B54-4360-96D8-7AA62E04C7EF` |
+| パケット長 | 20 byte 固定 |
+
+接続後のハンドシェイクは
+`0xA1 GetDevInfo` → `0x81` → `0xA3 GetMode` → `0x83` → `0xA9 Get6AxisParams` → `0x89`
+の順で、`0x89` を受け取った時点で接続完了です。計測中は
+`0x99 (AUP_REPORT_ACADEMIA2)` が 100Hz で届きます。
+
+実装は Mac 版 `Mac/ES_R_DevKit_Mac_Simple/MEME_Academic/BLE/MEMELib_Academic.swift` と
+Android 版 `android/ES_R_DevKit_Android2/core/src/main/java/com/jins_jp/meme/core/ble/`
+に準拠しています。
+
+## うまく動かないとき
+
+- **`Scan` で何も出ない**: ES_R がペアリングモード(電源ボタン 2 秒長押し)に
+  なっているか、Windows の Bluetooth が ON か確認してください。
+- **他のアプリが掴んでいる**: ES_R は同時に 1 つのホストとしか繋がりません。
+  スマートフォンのアプリなどが接続中なら切ってください。
+- **接続はできるが値が来ない**: Windows の設定 > Bluetooth とデバイス から
+  ES_R を一度削除し、再度スキャンし直すと GATT のキャッシュが解消することがあります。
+
+## 旧サンプルについて
+
+USB BLE ドングル(仮想 COM ポート)を前提とした .NET Framework 4.5.2 の旧サンプルは
+削除しました。非公開の NuGet パッケージ `JINSMEME_ES_R` に依存しており、単体では
+ビルドできない状態だったためです。内容が必要な場合は Git の履歴を参照してください。

@@ -16,6 +16,12 @@ xcuserdata/
 
 UserInterfaceState.xcuserstate 
 
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/
+
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json

@@ -1,22 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+using MEME_Academic_Sample.Utility;
 
-namespace MEME_Academic_Sample
+namespace MEME_Academic_Sample;
+
+internal static class Program
 {
-    static class Program
+    /// <summary>アプリケーションのメイン エントリ ポイントです。</summary>
+    /// <param name="args">
+    /// エクスプローラーの「プログラムから開く」から渡される CSV のパス。
+    /// 指定されていれば起動直後に File Replay として読み込む。
+    /// </param>
+    [STAThread]
+    private static void Main(string[] args)
     {
-        /// <summary>
-        /// アプリケーションのメイン エントリ ポイントです。
-        /// </summary>
-        [STAThread]
-        static void Main()
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MEME_Academic_Sample());
-        }
+        ApplicationConfiguration.Initialize();
+        FileAssociation.EnsureRegistered();
+
+        var replayPath = args.FirstOrDefault(a =>
+            a.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && File.Exists(a));
+
+        Application.Run(new MainForm(replayPath));
     }
 }
