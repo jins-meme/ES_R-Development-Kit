@@ -1,3 +1,4 @@
+using MEME_Academic_Sample.UI;
 using MEME_Academic_Sample.Utility;
 
 namespace MEME_Academic_Sample;
@@ -54,8 +55,8 @@ public sealed class CutFileForm : Form
         _error.Size = new Size(388, 20);
         _error.ForeColor = Color.FromArgb(200, 40, 40);
 
-        var ok = new Button { Text = "OK", Location = new Point(324, 124), Size = new Size(80, 28) };
-        var cancel = new Button
+        var ok = new RoundedButton { Text = "OK", Location = new Point(324, 124), Size = new Size(80, 28) };
+        var cancel = new RoundedButton
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,

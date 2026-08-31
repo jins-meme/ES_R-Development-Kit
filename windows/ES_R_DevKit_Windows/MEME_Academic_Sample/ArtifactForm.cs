@@ -1,3 +1,4 @@
+using MEME_Academic_Sample.UI;
 using MEME_Academic_Sample.Utility;
 
 namespace MEME_Academic_Sample;
@@ -33,14 +34,14 @@ public sealed class ArtifactForm : Form
         _input.Size = new Size(328, 23);
         _input.PlaceholderText = "X";
 
-        var ok = new Button
+        var ok = new RoundedButton
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
             Location = new Point(264, 82),
             Size = new Size(80, 28),
         };
-        var cancel = new Button
+        var cancel = new RoundedButton
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,

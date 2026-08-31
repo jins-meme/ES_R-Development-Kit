@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Drawing.Drawing2D;
+using MEME_Academic_Sample.UI;
 
 namespace MEME_Academic_Sample.Charting;
 
@@ -11,10 +13,10 @@ public sealed class ChartPanel : UserControl
     private static readonly string[] CategoryNames = ["Electrooculography", "Gyroscope", "Accelerometer"];
 
     private readonly Label _titleLabel = new();
-    private readonly Button _zoomInButton = new();
-    private readonly Button _zoomOutButton = new();
+    private readonly RoundedButton _zoomInButton = new();
+    private readonly RoundedButton _zoomOutButton = new();
     private readonly ComboBox _categoryCombo = new();
-    private readonly Button _applyButton = new();
+    private readonly RoundedButton _applyButton = new();
     private readonly FlowLayoutPanel _togglePanel = new();
     private readonly ChartCanvas _canvas = new();
 
@@ -22,7 +24,8 @@ public sealed class ChartPanel : UserControl
 
     public ChartPanel()
     {
-        BorderStyle = BorderStyle.FixedSingle;
+        // 枠は OnPaint で角丸に描くので、標準の直角の枠は使わない。
+        SetStyle(ControlStyles.ResizeRedraw, true);
         Padding = new Padding(6);
 
         _titleLabel.Font = new Font(Font, FontStyle.Bold);
@@ -151,6 +154,19 @@ public sealed class ChartPanel : UserControl
     }
 
     public void Redraw() => _canvas.Invalidate();
+
+    /// <summary>枠を角丸のグレーで描く。Mac 版 ChartPanelView の overlay(RoundedRectangle) に対応する。</summary>
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using var path = UiTheme.RoundedRect(
+            new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f), UiTheme.CornerRadius);
+        using var pen = new Pen(UiTheme.Border);
+        g.DrawPath(pen, path);
+    }
 
     private void UpdateZoomButtons()
     {

@@ -62,6 +62,8 @@ dotnet test
 | `Services/CsvReplayService.cs` | 再生用 CSV の解析・再生タイマー・Artifact 書き戻し・区間切り出し |
 | `SettingsForm.cs` | Setting ダイアログ |
 | `ArtifactForm.cs` / `CutFileForm.cs` | Artifact 入力・区間切り出しのダイアログ |
+| `UI/UiTheme.cs` | 角丸半径・枠線色。Mac 版の `cornerRadius: 6` に合わせてある |
+| `UI/RoundedButton.cs` | 角丸ボタン。標準ボタンは直角なので自前で描く |
 
 ## File Replay
 

@@ -19,8 +19,8 @@ namespace MEME_Academic_Sample
         {
             this.lb_SaveFilePath = new System.Windows.Forms.Label();
             this.tb_SaveFilePath = new System.Windows.Forms.TextBox();
-            this.bt_SelectFolder = new System.Windows.Forms.Button();
-            this.bt_OpenFolder = new System.Windows.Forms.Button();
+            this.bt_SelectFolder = new MEME_Academic_Sample.UI.RoundedButton();
+            this.bt_OpenFolder = new MEME_Academic_Sample.UI.RoundedButton();
             this.lb_AccOffset = new System.Windows.Forms.Label();
             this.lb_AccOffsetX = new System.Windows.Forms.Label();
             this.tb_AccOffsetX = new System.Windows.Forms.TextBox();
@@ -38,8 +38,8 @@ namespace MEME_Academic_Sample
             this.tb_LocalPort = new System.Windows.Forms.TextBox();
             this.lb_LocalIp = new System.Windows.Forms.Label();
             this.separator = new System.Windows.Forms.Panel();
-            this.bt_Cancel = new System.Windows.Forms.Button();
-            this.bt_Apply = new System.Windows.Forms.Button();
+            this.bt_Cancel = new MEME_Academic_Sample.UI.RoundedButton();
+            this.bt_Apply = new MEME_Academic_Sample.UI.RoundedButton();
             this.SuspendLayout();
             //
             // lb_SaveFilePath
@@ -273,8 +273,8 @@ namespace MEME_Academic_Sample
 
         private System.Windows.Forms.Label lb_SaveFilePath;
         private System.Windows.Forms.TextBox tb_SaveFilePath;
-        private System.Windows.Forms.Button bt_SelectFolder;
-        private System.Windows.Forms.Button bt_OpenFolder;
+        private MEME_Academic_Sample.UI.RoundedButton bt_SelectFolder;
+        private MEME_Academic_Sample.UI.RoundedButton bt_OpenFolder;
         private System.Windows.Forms.Label lb_AccOffset;
         private System.Windows.Forms.Label lb_AccOffsetX;
         private System.Windows.Forms.TextBox tb_AccOffsetX;
@@ -292,7 +292,7 @@ namespace MEME_Academic_Sample
         private System.Windows.Forms.TextBox tb_LocalPort;
         private System.Windows.Forms.Label lb_LocalIp;
         private System.Windows.Forms.Panel separator;
-        private System.Windows.Forms.Button bt_Cancel;
-        private System.Windows.Forms.Button bt_Apply;
+        private MEME_Academic_Sample.UI.RoundedButton bt_Cancel;
+        private MEME_Academic_Sample.UI.RoundedButton bt_Apply;
     }
 }

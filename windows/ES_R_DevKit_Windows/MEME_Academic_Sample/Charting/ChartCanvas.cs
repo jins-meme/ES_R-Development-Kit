@@ -23,17 +23,22 @@ public sealed class ChartCanvas : Control
     /// <summary>縦軸グリッドの分割数。</summary>
     private const int YGridDivisions = 4;
 
-    private static readonly Color PlotBackColor = Color.FromArgb(28, 30, 34);
-    private static readonly Color GridColor = Color.FromArgb(58, 62, 70);
-    private static readonly Color ZeroLineColor = Color.FromArgb(96, 102, 112);
-    private static readonly Color AxisTextColor = Color.FromArgb(168, 176, 188);
-    private static readonly Color ArtifactColor = Color.FromArgb(240, 170, 60);
+    // Mac 版 RealtimeChartView のライトモードに合わせる。
+    // 背景だけは白ではなく薄いグレーにして、白いボタンやダイアログと見分けが付くようにする。
+    private static readonly Color PlotBackColor = Color.FromArgb(246, 246, 247);
+    private static readonly Color GridColor = Color.FromArgb(217, 217, 217);      // Mac: Color(white: 0.85)
+    private static readonly Color ZeroLineColor = Color.FromArgb(178, 178, 178);  // Mac: Color(white: 0.70)
+    private static readonly Color AxisTextColor = Color.FromArgb(89, 89, 89);     // Mac: Color(white: 0.35)
+
+    /// <summary>Artifact の縦線・文字色。Mac 版はオレンジ。薄い背景で読めるところまで暗くしてある。</summary>
+    private static readonly Color ArtifactColor = Color.FromArgb(214, 122, 0);
 
     /// <summary>タップと区別するため、これ以上動かしたドラッグだけを範囲選択とみなす。</summary>
     private const int DragThreshold = 4;
 
-    private static readonly Color SelectionColor = Color.FromArgb(64, 120, 180, 240);
-    private static readonly Color SelectionEdgeColor = Color.FromArgb(160, 200, 230);
+    // 範囲選択の矩形。Mac 版と同じ紫(塗り 15% / 枠 60%)。波形色・Artifact 色と被らない。
+    private static readonly Color SelectionColor = Color.FromArgb(38, 159, 73, 204);
+    private static readonly Color SelectionEdgeColor = Color.FromArgb(153, 159, 73, 204);
 
     /// <summary>再描画のたびに確保し直さないための座標バッファ。</summary>
     private PointF[] _pointBuffer = [];
