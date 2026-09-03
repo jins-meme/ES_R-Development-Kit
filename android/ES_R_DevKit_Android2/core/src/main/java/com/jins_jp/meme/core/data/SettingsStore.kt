@@ -42,6 +42,15 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_OPEN_SHARING, enabled).apply()
     }
 
+    // 既定 ON。計測中 1 分に 1 回だけ大まかな現在地を ARTIFACT 列へ残す
+    // （[LocationSampler]）。権限がなければ何も記録されないので、既定 ON でも
+    // 位置を許可しない限りログの中身は変わらない。
+    fun loadLocationLogging(): Boolean = prefs.getBoolean(KEY_LOCATION_LOGGING, true)
+
+    fun saveLocationLogging(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_LOCATION_LOGGING, enabled).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "measurement_settings"
         const val KEY_MODE = "mode"
@@ -51,5 +60,6 @@ class SettingsStore(context: Context) {
         const val KEY_AUTO_CONNECT = "auto_connect"
         const val KEY_RECONNECT = "reconnect_enabled"
         const val KEY_OPEN_SHARING = "open_sharing_on_complete"
+        const val KEY_LOCATION_LOGGING = "location_logging"
     }
 }

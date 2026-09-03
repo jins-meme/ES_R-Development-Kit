@@ -21,6 +21,7 @@ import com.jins_jp.meme.core.ble.gattDisconnectReason
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
 import com.jins_jp.meme.core.data.LabelMerger
+import com.jins_jp.meme.core.data.LocationSampler
 import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
@@ -29,6 +30,7 @@ import com.jins_jp.meme.core.data.SettingsStore
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.plugin.AlgoPlugin
 import com.jins_jp.meme.core.service.MeasurementService
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,8 +40,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.OutputStreamWriter
 import kotlin.math.roundToLong
 
@@ -52,6 +57,16 @@ private const val SCAN_RETRY_GAP_MS = 500L
 // 端末(ES_R)の電池残量を logcat へ出す最長間隔。残量が変わらなくてもこの間隔で
 // 1 行出し、長時間計測中の減り方を追えるようにする。
 private const val BATTERY_LOG_INTERVAL_MS = 60_000L
+
+// 計測中に大まかな現在地を ARTIFACT 列へ残す間隔（計測開始時が 1 回目）。
+private const val LOCATION_INTERVAL_MS = 60_000L
+
+// Shelf 移行の 1 段目（CONFIG モードへの遷移）の ACK を待つ時間。通常は
+// 100ms 台で返る。ここで諦めても SHELF コマンドは送らないので端末は無傷。
+private const val SHELF_CONFIG_ACK_TIMEOUT_MS = 3_000L
+
+// SHELF コマンド送信後、端末が自ら切断するのを待つ時間（切断＝移行成功）。
+private const val SHELF_DISCONNECT_TIMEOUT_MS = 5_000L
 
 data class MainUiState(
     val scanning: Boolean = false,
@@ -87,6 +102,12 @@ data class MainUiState(
     // 再生ではソースCSVの ARTIFACT 列由来＋このセッションで確定したラベル、
     // 実機計測ではこのセッションで確定したラベル。
     val artifactEvents: List<ArtifactEvent> = emptyList(),
+    // 計測中 1 分に 1 回、大まかな現在地を ARTIFACT 列へ残すか（既定 ON）。
+    val locationLogging: Boolean = true,
+    // Disconnect の長押しで開く Shelf mode の確認ダイアログ。
+    val showShelfDialog: Boolean = false,
+    // Shelf 移行コマンドの送信中（完了は端末側からの切断）。
+    val isEnteringShelf: Boolean = false,
 )
 
 /** チャートに縦線で示す ARTIFACT イベント。[sec] はデータ先頭からの経過秒。 */
@@ -129,6 +150,7 @@ class MainViewModel(
             autoConnect = settingsStore.loadAutoConnect(),
             reconnectEnabled = settingsStore.loadReconnectEnabled(),
             openSharingOnComplete = settingsStore.loadOpenSharingOnComplete(),
+            locationLogging = settingsStore.loadLocationLogging(),
         )
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -181,6 +203,17 @@ class MainViewModel(
     // Comm-rate periodic job
     private var commTickerJob: Job? = null
 
+    // 計測中の位置取得ループ（[LOCATION_INTERVAL_MS] ごと）。
+    private val locationSampler = LocationSampler(application)
+    private var locationTickerJob: Job? = null
+
+    /**
+     * 直前に送ったコマンドの AUP_REPORT_RESP(ACK/NACK)を 1 件だけ受け取るための待ち合わせ。
+     * Shelf 移行が「CONFIG への遷移が成功してから SHELF を送る」順序を要求するため、
+     * 送信の直前にセットして [handleResp] から完了させる。
+     */
+    private var pendingRespAck: CompletableDeferred<Boolean>? = null
+
     init {
         val emitter: (Any) -> Unit = { payload -> _graph.tryEmit(GraphEvent.Custom(payload)) }
         for (p in plugins) p.onAttached(emitter)
@@ -224,6 +257,14 @@ class MainViewModel(
         if (ui.value.openSharingOnComplete == enabled) return
         settingsStore.saveOpenSharingOnComplete(enabled)
         _ui.update { it.copy(openSharingOnComplete = enabled) }
+    }
+
+    fun setLocationLogging(enabled: Boolean) {
+        if (ui.value.locationLogging == enabled) return
+        settingsStore.saveLocationLogging(enabled)
+        _ui.update { it.copy(locationLogging = enabled) }
+        // 計測中の切り替えは次の周期を待たずに効かせる。
+        if (ui.value.isMeasuring) startLocationTicker() else stopLocationTicker()
     }
 
     fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }
@@ -286,6 +327,7 @@ class MainViewModel(
                     // unexpected disconnect, so this is the only place that closes
                     // the files in that case (no-op if nothing was being written).
                     stopCommTicker()
+                    stopLocationTicker()
                     for (p in plugins) p.onDisconnected(csv)
                     // なぜ計測が止まったかを後から切り分けられるよう、切断の時刻と
                     // GATT ステータスを "<base>_disconnect.csv" へ残す。csv.stop() が
@@ -401,6 +443,71 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Disconnect の長押しで Shelf mode の確認ダイアログを開く。移行できる状態
+     * （実機に接続済み・非計測）でなければ何も起きない。
+     */
+    fun requestShelfMode() {
+        if (!canEnterShelfMode()) return
+        _ui.update { it.copy(showShelfDialog = true) }
+    }
+
+    fun dismissShelfDialog() { _ui.update { it.copy(showShelfDialog = false) } }
+
+    /**
+     * 端末を Shelf mode（保管モード）へ移行させる。Web Bluetooth 版 SDK と同じ順序で
+     * (1) CONFIG モードへの遷移を送り (2) その ACK を待ってから (3) SHELF を送る。
+     * 受理されると端末は自分から切断するので、切断が来たら成功と見なす。復帰は
+     * 充電のみで、アプリからは戻せない。
+     */
+    fun confirmShelfMode() {
+        _ui.update { it.copy(showShelfDialog = false) }
+        if (!canEnterShelfMode()) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isEnteringShelf = true) }
+            // 移行後の切断はこちらの意図した切断。自動再接続に拾わせない。
+            reconnect.noteUserDisconnect()
+            reconnect.cancel()
+
+            val ack = CompletableDeferred<Boolean>()
+            // 送信より先に置く（ACK は同じ viewModelScope から完了させるが、
+            // 取りこぼしを構造的に無くしておく）。
+            pendingRespAck = ack
+            sendEncoded(MemeCommands.setConfigMode())
+            val configured = withTimeoutOrNull(SHELF_CONFIG_ACK_TIMEOUT_MS) { ack.await() } == true
+            pendingRespAck = null
+            if (!configured) {
+                // SHELF はまだ送っていないので端末は通常モードのまま。
+                _ui.update {
+                    it.copy(isEnteringShelf = false, toast = "Failed to enter shelf mode")
+                }
+                return@launch
+            }
+
+            sendEncoded(MemeCommands.shelf())
+            val disconnected = withTimeoutOrNull(SHELF_DISCONNECT_TIMEOUT_MS) {
+                repo.connection.first { it == ConnectionState.Disconnected }
+            } != null
+            _ui.update {
+                it.copy(
+                    isEnteringShelf = false,
+                    toast = if (disconnected) "Entered shelf mode"
+                    else "Failed to enter shelf mode",
+                )
+            }
+        }
+    }
+
+    /**
+     * Shelf mode へ移行できる状態か。SHELF コマンドは実機が接続済みで計測していない
+     * ときだけ受理されるので、CSV 再生（mock）と計測中は対象外。
+     */
+    fun canEnterShelfMode(): Boolean {
+        val st = ui.value
+        return st.connection == ConnectionState.ServicesReady &&
+            !st.isMeasuring && !st.mockEnabled && !st.isEnteringShelf
+    }
+
     fun updateSettings(transform: (MeasurementSettings) -> MeasurementSettings) {
         _ui.update { it.copy(settings = transform(it.settings)) }
         settingsStore.save(_ui.value.settings)
@@ -466,6 +573,7 @@ class MainViewModel(
                 )
             }
             startCommTicker()
+            startLocationTicker()
         }
     }
 
@@ -486,6 +594,7 @@ class MainViewModel(
                 byRowIndex = wasMock,
             )
             stopCommTicker()
+            stopLocationTicker()
             MeasurementService.stop(getApplication())
             val shareUris = listOfNotNull(stopResult.dataUri, stopResult.classificationUri)
             _ui.update {
@@ -509,12 +618,21 @@ class MainViewModel(
      */
     fun marking() {
         if (!ui.value.isMeasuring) return
+        addLabel(currentLabelKey(), "X")
+    }
+
+    /**
+     * いまラベルを載せるサンプル位置（[LabelMerger.Entry.key] の座標系）。実機計測は
+     * 受信サンプル通し番号(NUM)、再生はシークで NUM とソース位置がずれるため
+     * ソースCSVのデータ行番号(1 始まり)。
+     */
+    private fun currentLabelKey(): Long {
         val base = if (ui.value.mockEnabled) {
             (ui.value.replayPositionSec * replaySampleRateHz()).roundToLong()
         } else {
             counter.totalCount
         }
-        addLabel(base.coerceAtLeast(0L), "X")
+        return base.coerceAtLeast(0L)
     }
 
     /**
@@ -528,12 +646,7 @@ class MainViewModel(
         if (!ui.value.isMeasuring) return
         val f = fraction.coerceIn(0f, 1f)
         val samplesBack = ((1f - f) * (visiblePoints - 1) * graphSkipCount).toLong()
-        val base = if (ui.value.mockEnabled) {
-            (ui.value.replayPositionSec * replaySampleRateHz()).roundToLong()
-        } else {
-            counter.totalCount
-        }
-        val markNum = (base - samplesBack).coerceAtLeast(0L)
+        val markNum = (currentLabelKey() - samplesBack).coerceAtLeast(0L)
         _ui.update { it.copy(labelDialog = LabelPrompt(markNum)) }
     }
 
@@ -729,6 +842,8 @@ class MainViewModel(
     }
 
     private fun handleResp(data: ByteArray) {
+        // 直前のコマンドの完了を待っている処理（Shelf 移行の CONFIG 遷移）へ結果を渡す。
+        pendingRespAck?.complete(data.getOrNull(2) == 0x00.toByte())
         if (ui.value.isInitializing) {
             when (data[2]) {
                 0x00.toByte() -> _ui.update { it.copy(isInitializing = false, toast = "Success to initialize") }
@@ -751,6 +866,36 @@ class MainViewModel(
 
     private fun stopCommTicker() {
         commTickerJob?.cancel(); commTickerJob = null
+    }
+
+    /**
+     * 計測中、[LOCATION_INTERVAL_MS] ごとに大まかな現在地の取得をトリガーする
+     * （1 回目は計測開始時）。取得自体は子コルーチンへ投げるので、測位に時間が
+     * かかっても次の周期はずれない。取れなければ何も記録しない。
+     */
+    private fun startLocationTicker() {
+        stopLocationTicker()
+        val st = ui.value
+        // 再生（mock）は過去のログを流しているだけなので、いまの位置は記録しない。
+        if (!st.locationLogging || st.mockEnabled) return
+        locationTickerJob = viewModelScope.launch {
+            while (isActive) {
+                launch { recordLocationOnce() }
+                delay(LOCATION_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopLocationTicker() {
+        locationTickerJob?.cancel(); locationTickerJob = null
+    }
+
+    /** 現在地が取れたら "lc:35.6802_139.7521" をタップラベルと同じ経路で 1 件記録する。 */
+    private suspend fun recordLocationOnce() {
+        val text = runCatching { locationSampler.sample() }.getOrNull() ?: return
+        // 測位が返るまでの間に計測が終わっていたら、載せる行が無いので捨てる。
+        if (!ui.value.isMeasuring || ui.value.mockEnabled) return
+        addLabel(currentLabelKey(), text)
     }
 
     companion object {

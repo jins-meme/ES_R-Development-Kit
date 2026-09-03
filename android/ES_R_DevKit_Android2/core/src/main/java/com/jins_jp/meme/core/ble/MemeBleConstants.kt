@@ -29,6 +29,19 @@ object MemeBleConstants {
     const val ADN_GET_6AXIS_PARAMS: Byte = 0xA9.toByte()
     const val ADN_SET_6AXIS_PARAMS: Byte = 0xAA.toByte()
 
+    /**
+     * 保管(SHELF)モードへの遷移コマンド。op の後ろに ASCII "SHELF" を置く形で、
+     * BOOT(0x40 + "BOOT") と同じ「合言葉つき」の系列。CONFIG モードでのみ受理される。
+     * 出典は Web Bluetooth 版 SDK (tkomde/webbt common/memelib_acp.js の startShelf)。
+     */
+    const val ADN_SHELF: Byte = 0x41
+
+    /**
+     * ADN_SET_MODE の mode バイト(byte4)に入れる CONFIG モードの値。通常の計測モード
+     * (Standard/Full/Quaternion = 1..3)とは別枠で、SHELF コマンドの前段として使う。
+     */
+    const val MODE_CONFIG: Byte = 0x0F
+
     const val AUP_REPORT_DEV_INFO: Byte = 0x81.toByte()
     const val AUP_REPORT_MODE: Byte = 0x83.toByte()
     const val AUP_REPORT_6AXIS_PARAMS: Byte = 0x89.toByte()

@@ -3,6 +3,9 @@ package com.jins_jp.meme.core.ui.main
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,18 +33,21 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,19 +114,19 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = { vm.connectOrDisconnect() },
-                    enabled = ui.devices.isNotEmpty() &&
+                ConnectButton(
+                    text = if (ui.connection == ConnectionState.Disconnected)
+                        stringResource(R.string.button_connect)
+                    else stringResource(R.string.button_disconnect),
+                    enabled = ui.devices.isNotEmpty() && !ui.isEnteringShelf &&
                             (ui.connection == ConnectionState.Disconnected ||
                                     ui.connection == ConnectionState.ServicesReady ||
                                     ui.connection == ConnectionState.Connected),
-                ) {
-                    Text(
-                        if (ui.connection == ConnectionState.Disconnected)
-                            stringResource(R.string.button_connect)
-                        else stringResource(R.string.button_disconnect)
-                    )
-                }
+                    // Shelf mode は隠し操作。移行できる状態のときだけ長押しを見る。
+                    longPressEnabled = vm.canEnterShelfMode(),
+                    onClick = { vm.connectOrDisconnect() },
+                    onLongPress = { vm.requestShelfMode() },
+                )
                 Box(Modifier.width(12.dp))
                 Text(stringResource(R.string.text_label_status))
                 Box(Modifier.width(4.dp))
@@ -134,6 +140,61 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
 
     if (showSettings) {
         SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
+    }
+}
+
+/**
+ * Connect / Disconnect ボタン。短いタップは [onClick]、[longPressMs] 以上の長押しは
+ * [onLongPress]（Shelf mode の確認ダイアログ）。長押しが成立したジェスチャでは
+ * [onClick] を撃たない（そのまま指を離すと切断してしまうため）。
+ *
+ * 進捗ゲージなどは出さない。Shelf mode は隠し操作なので、押している間に何かが
+ * 起きていると通常利用者へ見せない（[HoldButton] と違う点はここ）。
+ */
+@Composable
+private fun ConnectButton(
+    text: String,
+    enabled: Boolean,
+    longPressEnabled: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    longPressMs: Long = 5_000L,
+) {
+    // 長押しが成立したジェスチャの click を 1 回だけ捨てるためのフラグ。長押し成立は
+    // 必ず指が離れる前なので、この順序でだけ立つ。ジェスチャが途中で奪われて click が
+    // 来なかった場合に持ち越さないよう、次の押下で必ず倒す。
+    var suppressClick by remember { mutableStateOf(false) }
+    // 長押し成立後にダイアログが開くと、そのジェスチャの click は来ないことがある。
+    // 押せる条件が変わった時点でフラグを落とし、次の 1 タップを取りこぼさない。
+    LaunchedEffect(enabled, longPressEnabled) { suppressClick = false }
+    Button(
+        onClick = {
+            if (suppressClick) suppressClick = false else onClick()
+        },
+        enabled = enabled,
+        modifier = Modifier.pointerInput(enabled, longPressEnabled) {
+            if (!enabled) return@pointerInput
+            awaitEachGesture {
+                // Button 内側の clickable が down を消費済みなので unconsumed は求めない。
+                awaitFirstDown(requireUnconsumed = false)
+                // 前のジェスチャのフラグは持ち越さない（click は必ず同じジェスチャの
+                // up で来るので、次の押下まで残っていたら不要になっている）。
+                suppressClick = false
+                if (!longPressEnabled) return@awaitEachGesture
+                // 時間切れ(=null)だけが長押し成立。指が離れた/ジェスチャが奪われた
+                // 場合は waitForUpOrCancellation が返るのでブロックは true を返す。
+                val settled = withTimeoutOrNull(longPressMs) {
+                    waitForUpOrCancellation()
+                    true
+                }
+                if (settled == null) {
+                    suppressClick = true
+                    onLongPress()
+                }
+            }
+        },
+    ) {
+        Text(text)
     }
 }
 

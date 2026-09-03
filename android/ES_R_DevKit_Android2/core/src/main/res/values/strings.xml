@@ -15,6 +15,7 @@
     <string name="text_label_auto_connect">Auto-connect when discovered</string>
     <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>
     <string name="text_label_open_sharing_on_complete">Open sharing when measurement is complete</string>
+    <string name="text_label_location_logging">Record approximate location every minute</string>
     <string name="text_label_oss_licenses">OSS Licenses</string>
     <string name="mock_error_title">Playback CSV load error</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
@@ -38,6 +39,11 @@
     <string name="button_replay_forward">&gt;&gt;</string>
     <string name="button_dialog_ok">OK</string>
     <string name="button_dialog_cancel">Cancel</string>
+    <string name="button_dialog_yes">Yes</string>
+
+    <!-- Disconnect の長押しで開く Shelf mode(保管モード)の確認ダイアログ。 -->
+    <string name="shelf_dialog_title">Do you want to enter shelf mode?</string>
+    <string name="shelf_dialog_text">In shelf mode, all pairing capabilities are disabled and power consumption is reduced. To exit shelf mode, please recharge the device.</string>
 
     <!-- チャートタップのラベル入力ダイアログ。%1$d はタップ位置のサンプル通し番号(NUM)。 -->
     <string name="label_dialog_title">マーク NUM=%1$d</string>

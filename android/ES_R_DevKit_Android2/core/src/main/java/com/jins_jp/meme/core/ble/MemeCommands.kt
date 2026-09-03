@@ -41,4 +41,20 @@ object MemeCommands {
     fun startStop(start: Boolean): ByteArray = command(MemeBleConstants.ADN_START_STOP_SEND).also {
         it[2] = if (start) 0x01 else 0x00
     }
+
+    /**
+     * CONFIG モードへの遷移(ADN_SET_MODE の mode=0x0F, quality=0)。SHELF コマンドは
+     * CONFIG モードでのみ受理されるので、[shelf] の前に送って ACK を待つ。
+     */
+    fun setConfigMode(): ByteArray = command(MemeBleConstants.ADN_SET_MODE).also {
+        it[4] = MemeBleConstants.MODE_CONFIG
+    }
+
+    /**
+     * 保管(SHELF)モードへの遷移(op 0x41 + ASCII "SHELF")。受理されると端末は
+     * ペアリング機能を止めて自ら切断するので、切断が成功の合図になる。
+     */
+    fun shelf(): ByteArray = command(MemeBleConstants.ADN_SHELF).also {
+        for ((i, c) in "SHELF".withIndex()) it[i + 2] = c.code.toByte()
+    }
 }

@@ -61,6 +61,9 @@ class MainActivity : ComponentActivity() {
         val perms = buildList {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
+            // 計測中 1 分に 1 回の位置記録(core の LocationSampler)。COARSE だけを
+            // 要求することで、システムのダイアログが「おおよその位置情報」になる。
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }

@@ -143,6 +143,22 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                         modifier = Modifier.weight(1f),
                     )
                 }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.setLocationLogging(!ui.locationLogging) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.locationLogging,
+                        onCheckedChange = { vm.setLocationLogging(it) },
+                    )
+                    Text(
+                        stringResource(R.string.text_label_location_logging),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         },
         confirmButton = {

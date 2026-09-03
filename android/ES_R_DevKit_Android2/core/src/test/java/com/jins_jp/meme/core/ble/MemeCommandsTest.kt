@@ -73,6 +73,30 @@ class MemeCommandsTest {
     }
 
     @Test
+    fun setConfigModePutsConfigValueInModeByte() {
+        val d = MemeCommands.setConfigMode()
+        assertEquals(20, d.size)
+        assertEquals(MemeBleConstants.DATA_LENGTH, d[0])
+        assertEquals(MemeBleConstants.ADN_SET_MODE, d[1])
+        assertEquals(MemeBleConstants.MODE_CONFIG, d[4])
+        // quality は 0 のまま（Web Bluetooth 版 SDK の "14A400000F" と同じ並び）。
+        assertEquals(0x00.toByte(), d[5])
+    }
+
+    @Test
+    fun shelfMatchesWebSdkByteSequence() {
+        // tkomde/webbt common/memelib_acp.js startShelf: "14415348454C46"
+        val expectedPrefix = byteArrayOf(
+            0x14, 0x41, 0x53, 0x48, 0x45, 0x4C, 0x46,
+        )
+        val d = MemeCommands.shelf()
+        assertEquals(20, d.size)
+        for ((i, b) in expectedPrefix.withIndex()) assertEquals(b, d[i])
+        // 残りは 0 埋め（暗号化側のチェックサム計算が JS 版と一致する条件）。
+        for (i in expectedPrefix.size until d.size) assertEquals(0x00.toByte(), d[i])
+    }
+
+    @Test
     fun startStopEncodesStartAndStopByte() {
         val start = MemeCommands.startStop(true)
         assertEquals(20, start.size)

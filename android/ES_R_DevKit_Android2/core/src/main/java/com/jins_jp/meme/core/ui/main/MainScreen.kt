@@ -138,6 +138,26 @@ fun MainScreen(
         )
     }
 
+    // Disconnect 長押しで開く Shelf mode の確認。Yes で CONFIG → SHELF を送り、
+    // 端末は自ら切断する（復帰は充電のみ）。
+    if (ui.showShelfDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissShelfDialog() },
+            title = { Text(stringResource(R.string.shelf_dialog_title)) },
+            text = { Text(stringResource(R.string.shelf_dialog_text)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmShelfMode() }) {
+                    Text(stringResource(R.string.button_dialog_yes))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissShelfDialog() }) {
+                    Text(stringResource(R.string.button_dialog_cancel))
+                }
+            },
+        )
+    }
+
     if (ui.bluetoothError) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissBluetoothError() },
