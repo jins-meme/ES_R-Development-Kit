@@ -24,6 +24,9 @@ class MockCsvFormatException(message: String) : Exception(message)
  * the measurement settings; the remaining lines are data rows whose value columns
  * (everything after ARTIFACT,NUM,DATE) are kept verbatim so [com.jins_jp.meme.core.ble.MockMemeBleEngine]
  * can re-encode them into BLE packets.
+ *
+ * 入力は gz 圧縮(.csv.gz)でも非圧縮(.csv)でもよい。[decompressIfGzip] が先頭
+ * バイトで見分けるので、過去に記録した非圧縮CSVもそのまま再生できる。
  */
 object MockCsvLoader {
 
@@ -43,7 +46,7 @@ object MockCsvLoader {
         val rows = ArrayList<IntArray>()
         val artifacts = ArrayList<MockCsvArtifact>()
 
-        BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
+        BufferedReader(InputStreamReader(decompressIfGzip(input), Charsets.UTF_8)).use { reader ->
             reader.forEachLine { raw ->
                 val line = raw.trim()
                 if (line.isEmpty()) return@forEachLine

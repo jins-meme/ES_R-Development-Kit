@@ -10,17 +10,24 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.zip.GZIPOutputStream
 
 /** URIs of the main data CSV and classification CSV finalized by [CsvWriter.stop]. */
 data class CsvStopResult(val dataUri: Uri?, val classificationUri: Uri?)
 
 /**
  * Writes CSV files into the public Downloads/ESR Logger directory via MediaStore.
+ *
+ * 本体データは設定に応じて "<base>.csv.gz"(既定) か "<base>.csv" へ書く
+ * （[start] の compress 引数、[dataFileName]）。サイドカー（分類・切断ログ）は
+ * 1 行ずつ追記する疎なファイルで圧縮しても効果が無いため、設定によらず常に .csv。
  */
 class CsvWriter(private val context: Context) {
 
     private var uri: Uri? = null
     private var pendingHeader: String? = null
+    // このセッションの本体データを gz 圧縮するか。[start] で確定し、計測中は変えない。
+    private var compressData: Boolean = true
     // 本体データCSVを遅延生成するためのベース名。最初のデータ行が来た時に初めて
     // MediaStore へファイルを作成する。再生(再生モード)など 1 行もデータが来ない場合は
     // ファイル自体を作らないため、ヘッダーだけの空CSVが残らない。
@@ -41,8 +48,14 @@ class CsvWriter(private val context: Context) {
 
     val recordedRows: Long get() = rowCount
 
-    fun start(address: String, settings: MeasurementSettings) {
+    /**
+     * 計測セッションを開始する。[compress] は設定「保存時に gz 圧縮する」(既定 ON)で、
+     * このセッションのファイル 1 つ分の形式をここで確定させる。途中で設定を変えても
+     * 書きかけのファイルの形式は変わらない（1 ファイル内で形式が混ざらないように）。
+     */
+    fun start(address: String, settings: MeasurementSettings, compress: Boolean) {
         val base = makeBaseName(address)
+        compressData = compress
         // MediaStore ファイルは即時生成せず、最初のデータ行が来た時に [flush] で
         // 遅延生成する。これにより 1 行もデータが来なければ空CSVは残らない。
         uri = null
@@ -101,8 +114,11 @@ class CsvWriter(private val context: Context) {
         val isNew = classificationUri == null
         if (isNew) {
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, "${base}_classification.csv")
-                put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                put(
+                    MediaStore.Downloads.DISPLAY_NAME,
+                    "${base}_classification$CSV_EXTENSION",
+                )
+                put(MediaStore.Downloads.MIME_TYPE, CSV_MIME)
                 put(
                     MediaStore.Downloads.RELATIVE_PATH,
                     "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
@@ -121,7 +137,8 @@ class CsvWriter(private val context: Context) {
             context.contentResolver.openOutputStream(u, "wa")?.use { os ->
                 OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
                     if (isNew) {
-                        w.write("// Behavior classification for $base.csv"); w.write("\r\n")
+                        w.write("// Behavior classification for ${dataFileName(base, compressData)}")
+                        w.write("\r\n")
                         w.write("// DATE,LABEL"); w.write("\r\n")
                     }
                     w.write("${df.format(Date(dateGmtMillis))},$label"); w.write("\r\n")
@@ -148,8 +165,11 @@ class CsvWriter(private val context: Context) {
         val isNew = disconnectUri == null
         if (isNew) {
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, "${base}_disconnect.csv")
-                put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                put(
+                    MediaStore.Downloads.DISPLAY_NAME,
+                    "${base}_disconnect$CSV_EXTENSION",
+                )
+                put(MediaStore.Downloads.MIME_TYPE, CSV_MIME)
                 put(
                     MediaStore.Downloads.RELATIVE_PATH,
                     "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
@@ -168,7 +188,8 @@ class CsvWriter(private val context: Context) {
             context.contentResolver.openOutputStream(u, "wa")?.use { os ->
                 OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
                     if (isNew) {
-                        w.write("// Disconnect log for $base.csv"); w.write("\r\n")
+                        w.write("// Disconnect log for ${dataFileName(base, compressData)}")
+                        w.write("\r\n")
                         w.write("// DATE,STATUS,REASON"); w.write("\r\n")
                     }
                     w.write("${df.format(Date(timeGmtMillis))},$status,$reason"); w.write("\r\n")
@@ -205,8 +226,8 @@ class CsvWriter(private val context: Context) {
     private fun createDataFile() {
         val base = dataBaseName ?: return
         val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, "$base.csv")
-            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+            put(MediaStore.Downloads.DISPLAY_NAME, dataFileName(base, compressData))
+            put(MediaStore.Downloads.MIME_TYPE, dataFileMime(compressData))
             put(
                 MediaStore.Downloads.RELATIVE_PATH,
                 "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
@@ -218,6 +239,20 @@ class CsvWriter(private val context: Context) {
         )
     }
 
+    /**
+     * 溜まった行を追記する。[compressData] が true なら gz 圧縮する。
+     *
+     * 圧縮時は**1 回の flush につき独立した gzip メンバを 1 つ**書き、その都度
+     * 閉じきる。gzip は連結されたメンバを 1 本のストリームとして読める(RFC 1952)
+     * ので、できあがりは `gunzip`・`GZIPInputStream`・Python の `gzip` のいずれでも
+     * 普通に開ける 1 つのファイルになる。
+     *
+     * ストリームを 1 本開きっぱなしにする方が圧縮率は上がるが、それだと計測中に
+     * プロセスが落ちた時にトレーラが書かれず全体が展開できなくなる。ここは
+     * 100 行ごとの追記がそのまま最終ファイルになる（＝落ちてもそこまでは読める）
+     * という非圧縮時からの設計を守る方を採る。メンバ 1 つあたりの固定
+     * オーバーヘッドは 18 byte で、100 行(約 6KB)ごとなら誤差の範囲。
+     */
     private fun flush() {
         // データ行が一切無いときはファイルを作らない(ヘッダーだけのCSVを残さない)。
         if (buffer.isEmpty()) return
@@ -226,7 +261,10 @@ class CsvWriter(private val context: Context) {
         val header = pendingHeader
         runCatching {
             context.contentResolver.openOutputStream(u, "wa")?.use { os ->
-                OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
+                // 圧縮時は GZIPOutputStream の close() が deflate の finish と
+                // トレーラまで書き切る（下の Writer の close から連鎖する）。
+                val sink = if (compressData) GZIPOutputStream(os) else os
+                OutputStreamWriter(sink, Charsets.UTF_8).buffered().use { w ->
                     if (header != null) {
                         w.write(header)
                         w.write("\r\n")

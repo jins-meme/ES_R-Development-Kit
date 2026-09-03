@@ -42,6 +42,15 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_OPEN_SHARING, enabled).apply()
     }
 
+    // 既定 ON。本体データCSVを gz 圧縮して "<base>.csv.gz" で保存する（実測で 1/2.9）。
+    // OFF にすると従来どおり非圧縮の "<base>.csv"。再生はどちらも開ける
+    // （[decompressIfGzip] が中身で見分けるため）。
+    fun loadGzipCompression(): Boolean = prefs.getBoolean(KEY_GZIP_COMPRESSION, true)
+
+    fun saveGzipCompression(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_GZIP_COMPRESSION, enabled).apply()
+    }
+
     // 既定 ON。計測中 1 分に 1 回だけ大まかな現在地を ARTIFACT 列へ残す
     // （[LocationSampler]）。権限がなければ何も記録されないので、既定 ON でも
     // 位置を許可しない限りログの中身は変わらない。
@@ -61,5 +70,6 @@ class SettingsStore(context: Context) {
         const val KEY_RECONNECT = "reconnect_enabled"
         const val KEY_OPEN_SHARING = "open_sharing_on_complete"
         const val KEY_LOCATION_LOGGING = "location_logging"
+        const val KEY_GZIP_COMPRESSION = "gzip_compression"
     }
 }

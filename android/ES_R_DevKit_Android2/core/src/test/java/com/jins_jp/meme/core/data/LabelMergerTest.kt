@@ -2,6 +2,8 @@ package com.jins_jp.meme.core.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.StringReader
+import java.io.StringWriter
 
 /**
  * [LabelMerger] の検証: タップラベルをデータCSVの ARTIFACT 列へ統合する。
@@ -17,6 +19,58 @@ class LabelMergerTest {
 
     private fun row(artifact: String, num: Long) =
         "$artifact,$num,2026/07/13 00:00:00.000,1,2,3,4,5,6,7,8,9,10"
+
+    /**
+     * ストリーム版とリスト版が同じ結果を出すこと。実運用（[MainViewModel] の
+     * 書き戻し）はストリーム版を通るので、両者がずれないことを固定する。
+     */
+    @Test
+    fun streamingMergeMatchesListMerge() {
+        val lines = header + listOf(row("", 1), row("", 2), row("", 3), row("", 4))
+        val labels = listOf(LabelMerger.Entry(2, "jump"), LabelMerger.Entry(4, "sit"))
+        val expected = LabelMerger.merge(lines, labels, byRowIndex = false)
+
+        val out = StringWriter()
+        LabelMerger.merge(
+            StringReader(lines.joinToString("\r\n")),
+            out,
+            labels,
+            byRowIndex = false,
+        )
+        // ストリーム版は各行を CRLF 終端で書く（最終行にも付く）。
+        assertEquals(expected.joinToString("") { it + "\r\n" }, out.toString())
+    }
+
+    /** 行番号ベース（再生の書き戻し）でもストリーム版が一致すること。 */
+    @Test
+    fun streamingMergeMatchesListMergeByRowIndex() {
+        val lines = header + listOf(row("", 10), row("", 11), row("", 12))
+        val labels = listOf(LabelMerger.Entry(2, "walk"))
+        val expected = LabelMerger.merge(lines, labels, byRowIndex = true)
+
+        val out = StringWriter()
+        LabelMerger.merge(
+            StringReader(lines.joinToString("\r\n")),
+            out,
+            labels,
+            byRowIndex = true,
+        )
+        assertEquals(expected.joinToString("") { it + "\r\n" }, out.toString())
+    }
+
+    /** ラベルが 1 件も無ければ内容はそのまま（行末だけ CRLF に揃う）。 */
+    @Test
+    fun streamingMergeWithoutLabelsCopiesInputThrough() {
+        val lines = header + listOf(row("", 1), row("", 2))
+        val out = StringWriter()
+        LabelMerger.merge(
+            StringReader(lines.joinToString("\r\n")),
+            out,
+            emptyList(),
+            byRowIndex = false,
+        )
+        assertEquals(lines.joinToString("") { it + "\r\n" }, out.toString())
+    }
 
     @Test
     fun mergesByNumIntoArtifactColumn() {

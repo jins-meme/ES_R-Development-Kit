@@ -33,6 +33,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
+import com.jins_jp.meme.core.data.CSV_GZ_MIME
+import com.jins_jp.meme.core.data.CSV_MIME
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -51,11 +53,14 @@ fun MainScreen(
     LaunchedEffect(ui.shareRequest) {
         val req = ui.shareRequest ?: return@LaunchedEffect
         viewModel.dismissShareRequest()
+        // 本体データは設定により .csv.gz か .csv、分類サイドカーは常に .csv と
+        // 種類が混ざりうるので、受け手を絞りすぎないよう intent の type は "*/*"。
+        val shareMimes = arrayOf(CSV_GZ_MIME, CSV_MIME)
         val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = "text/csv"
+            type = "*/*"
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(req.uris))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = ClipData(null, arrayOf("text/csv"), ClipData.Item(req.uris.first())).apply {
+            clipData = ClipData(null, shareMimes, ClipData.Item(req.uris.first())).apply {
                 for (u in req.uris.drop(1)) addItem(ClipData.Item(u))
             }
         }

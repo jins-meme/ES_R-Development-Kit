@@ -21,6 +21,7 @@ import com.jins_jp.meme.core.ble.gattDisconnectReason
 import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
 import com.jins_jp.meme.core.data.LabelMerger
+import com.jins_jp.meme.core.data.decompressIfGzip
 import com.jins_jp.meme.core.data.LocationSampler
 import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MemeMode
@@ -45,7 +46,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.OutputStreamWriter
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import kotlin.math.roundToLong
 
 private const val TAG = "MainViewModel"
@@ -104,6 +110,8 @@ data class MainUiState(
     val artifactEvents: List<ArtifactEvent> = emptyList(),
     // 計測中 1 分に 1 回、大まかな現在地を ARTIFACT 列へ残すか（既定 ON）。
     val locationLogging: Boolean = true,
+    // 本体データCSVを gz 圧縮して保存するか（既定 ON）。形式は計測開始時に確定する。
+    val gzipCompression: Boolean = true,
     // Disconnect の長押しで開く Shelf mode の確認ダイアログ。
     val showShelfDialog: Boolean = false,
     // Shelf 移行コマンドの送信中（完了は端末側からの切断）。
@@ -151,6 +159,7 @@ class MainViewModel(
             reconnectEnabled = settingsStore.loadReconnectEnabled(),
             openSharingOnComplete = settingsStore.loadOpenSharingOnComplete(),
             locationLogging = settingsStore.loadLocationLogging(),
+            gzipCompression = settingsStore.loadGzipCompression(),
         )
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -257,6 +266,16 @@ class MainViewModel(
         if (ui.value.openSharingOnComplete == enabled) return
         settingsStore.saveOpenSharingOnComplete(enabled)
         _ui.update { it.copy(openSharingOnComplete = enabled) }
+    }
+
+    /**
+     * 保存時の gz 圧縮のオンオフ。次に開くファイルから効く（計測中のファイルは
+     * [CsvWriter.start] で形式が確定済みで、途中で混ざることはない）。
+     */
+    fun setGzipCompression(enabled: Boolean) {
+        if (ui.value.gzipCompression == enabled) return
+        settingsStore.saveGzipCompression(enabled)
+        _ui.update { it.copy(gzipCompression = enabled) }
     }
 
     fun setLocationLogging(enabled: Boolean) {
@@ -547,7 +566,7 @@ class MainViewModel(
                 // 実機計測は新しいセッション＝前回のイベント表示をクリアする。
                 // 再生はソースCSV由来のイベントを Start/Stop をまたいで表示し続ける。
                 _ui.update { it.copy(artifactEvents = emptyList()) }
-                csv.start(addr, ui.value.settings)
+                csv.start(addr, ui.value.settings, ui.value.gzipCompression)
                 // 実機計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
                 // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
                 // Mock 再生は BLE を使わないので不要。
@@ -684,27 +703,54 @@ class MainViewModel(
     /**
      * 蓄積したタップラベルを [target] のデータCSVへ統合する（ARTIFACT 列を置換）。
      * 呼び出し時点でラベルを引き取り、二重統合（Stop 後の切断イベント等）を防ぐ。
+     *
+     * 追記ではラベル行だけ差し替えられないので全体を書き直すが、**CSV を
+     * メモリに載せずに 1 行ずつ流す**。100Hz の実測は 1 時間で約 28MB の
+     * テキストになり、`List<String>` へ読み込むと数時間の計測でヒープを
+     * 使い切る（位置記録が 1 分ごとにラベルを積むため、この経路は毎セッション
+     * 通る）。いったんキャッシュの一時ファイルへ書き切ってから本体へ流し込む
+     * ので、途中で失敗しても元のファイルは壊れない。
      */
     private fun mergeTapLabels(target: Uri?, byRowIndex: Boolean) {
         if (tapLabels.isEmpty()) return
         val labels = tapLabels.toList()
         tapLabels.clear()
         if (target == null) return
-        val resolver = getApplication<Application>().contentResolver
+        val app = getApplication<Application>()
+        val resolver = app.contentResolver
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                val lines = resolver.openInputStream(target)?.use { ins ->
-                    ins.bufferedReader(Charsets.UTF_8).readLines()
-                } ?: return@launch
-                val merged = LabelMerger.merge(lines, labels, byRowIndex)
-                // "wt" で全体を書き直す（追記ではラベル行だけ差し替えられないため）。
-                resolver.openOutputStream(target, "wt")?.use { os ->
-                    OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
-                        for (line in merged) { w.write(line); w.write("\r\n") }
+            val tmp = runCatching { File.createTempFile("label_merge", ".tmp", app.cacheDir) }
+                .getOrNull() ?: return@launch
+            try {
+                runCatching {
+                    val written = resolver.openInputStream(target)?.use { ins ->
+                        val decoded = decompressIfGzip(ins)
+                        // 読んだ形式のまま書き戻す（本体データCSVは設定により
+                        // .csv.gz か .csv、再生元の過去ファイルは非圧縮のこともある）。
+                        val compress = decoded is GZIPInputStream
+                        FileOutputStream(tmp).use { fos ->
+                            val sink = if (compress) GZIPOutputStream(fos) else fos
+                            // BufferedWriter の close が連鎖して GZIPOutputStream の
+                            // finish とトレーラ書き出しまで行う。
+                            OutputStreamWriter(sink, Charsets.UTF_8).buffered().use { w ->
+                                decoded.bufferedReader(Charsets.UTF_8).use { r ->
+                                    LabelMerger.merge(r, w, labels, byRowIndex)
+                                }
+                            }
+                        }
+                        true
+                    } ?: false
+                    // 一時ファイルが完成した時だけ本体を置き換える。
+                    if (written) {
+                        resolver.openOutputStream(target, "wt")?.use { os ->
+                            FileInputStream(tmp).use { it.copyTo(os) }
+                        }
                     }
+                }.onFailure { e ->
+                    LogCat.d(TAG, "label merge failed: $e")
                 }
-            }.onFailure { e ->
-                LogCat.d(TAG, "label merge failed: $e")
+            } finally {
+                tmp.delete()
             }
         }
     }

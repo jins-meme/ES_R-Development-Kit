@@ -147,6 +147,22 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { vm.setGzipCompression(!ui.gzipCompression) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.gzipCompression,
+                        onCheckedChange = { vm.setGzipCompression(it) },
+                    )
+                    Text(
+                        stringResource(R.string.text_label_gzip_compression),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
                         .clickable { vm.setLocationLogging(!ui.locationLogging) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

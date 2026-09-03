@@ -16,6 +16,7 @@
     <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>
     <string name="text_label_open_sharing_on_complete">Open sharing when measurement is complete</string>
     <string name="text_label_location_logging">Record approximate location every minute</string>
+    <string name="text_label_gzip_compression">Compress saved data (.csv.gz)</string>
     <string name="text_label_oss_licenses">OSS Licenses</string>
     <string name="mock_error_title">Playback CSV load error</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
