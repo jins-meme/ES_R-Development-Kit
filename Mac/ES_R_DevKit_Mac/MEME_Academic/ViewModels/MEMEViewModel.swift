@@ -133,6 +133,11 @@ final class MEMEViewModel: NSObject {
     var cutFileNameInput: String = ""
     var cutErrorMessage: String = ""
 
+    // Shelf mode（Disconnect 長押しで開く確認ダイアログ）
+    var showingShelfDialog: Bool = false
+    /// Shelf 移行コマンドの送信中。完了は端末側からの切断で判断する。
+    var isEnteringShelf: Bool = false
+
     // MARK: - Private state
 
     private var memelib: (any MEMELibInterface)!
@@ -161,6 +166,9 @@ final class MEMEViewModel: NSObject {
 
     /// 描画スロットリング用カウンタ（appendChartSample で加算）。
     private var chartRenderCounter: Int = 0
+
+    /// SHELF 送信後、端末が自ら切断するのを待つタイマー。切断が来たら無効化する。
+    private var shelfDisconnectTimer: Timer?
 
     // MARK: - Services
 
@@ -278,6 +286,9 @@ final class MEMEViewModel: NSObject {
     }
 
     func toggleConnect() {
+        // Shelf mode の確認中／移行中は触らせない。長押しが成立したジェスチャの
+        // クリックがここへ届いても切断しないための保険でもある（ConnectButton 参照）。
+        guard !showingShelfDialog, !isEnteringShelf else { return }
         if phase == .replayReady || phase == .replaying {
             disconnectReplay()
             return
@@ -290,6 +301,78 @@ final class MEMEViewModel: NSObject {
             NSLog("Call : connectPeripheral")
             isConnecting = true
             memelib.connectPeripheral(deviceName: selectedDevice)
+        }
+    }
+
+    // MARK: - Shelf mode
+
+    /// Disconnect の 5 秒長押しで確認ダイアログを出す時間。
+    static let shelfLongPressSeconds: Double = 5
+
+    /// SHELF 送信後、端末が自ら切断するのを待つ時間（切断＝移行成功）。
+    private static let shelfDisconnectTimeout: TimeInterval = 5
+
+    /// Shelf mode へ移行できる状態か。SHELF コマンドは実機に接続済みで計測していない
+    /// ときだけ受理されるので、モック（CSV再生用のダミー）と計測中は対象外。
+    var canEnterShelfMode: Bool {
+        phase == .connected && !MEMELibFactory.isMock && !isEnteringShelf && !isConnecting
+    }
+
+    /// Disconnect の長押しで Shelf mode の確認ダイアログを開く。
+    /// 移行できる状態でなければ何も起きない（隠し操作なので通知もしない）。
+    func requestShelfMode() {
+        guard canEnterShelfMode else { return }
+        showingShelfDialog = true
+    }
+
+    func cancelShelfMode() {
+        showingShelfDialog = false
+    }
+
+    /// 端末を Shelf mode（保管モード）へ移行させる。CONFIG モードへの遷移が
+    /// 受理されてから SHELF が送られ、受理されると端末は自ら切断する。
+    /// 復帰は充電のみで、アプリからは戻せない。
+    func confirmShelfMode() {
+        showingShelfDialog = false
+        guard canEnterShelfMode else { return }
+        isEnteringShelf = true
+        connectionStateText = "State : Entering shelf mode..."
+        memelib.enterShelfMode { [weak self] sent in
+            guard let self else { return }
+            guard sent else {
+                // SHELF はまだ送っていないので端末は通常モードのまま。
+                self.finishShelfMode(entered: false)
+                return
+            }
+            // SHELF は送信済み。端末側からの切断が来れば成功。
+            self.shelfDisconnectTimer = Timer.scheduledTimer(
+                withTimeInterval: Self.shelfDisconnectTimeout, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    self?.finishShelfMode(entered: false)
+                }
+            }
+        }
+    }
+
+    /// Shelf 移行の結果を確定して知らせる（成功＝端末が切断した、失敗＝ACK 無し／切断待ちタイムアウト）。
+    private func finishShelfMode(entered: Bool) {
+        guard isEnteringShelf else { return }
+        shelfDisconnectTimer?.invalidate()
+        shelfDisconnectTimer = nil
+        isEnteringShelf = false
+        if !entered && connectedFlag {
+            connectionStateText = "State : Connected"
+        }
+        // 成功時はここが CoreBluetooth の切断コールバックの中なので、
+        // モーダルを積む前に delegate を抜けさせる。
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.alertStyle = entered ? .informational : .warning
+            alert.messageText = entered ? "Entered shelf mode" : "Failed to enter shelf mode"
+            alert.informativeText = entered
+                ? "To exit shelf mode, please recharge the device."
+                : "The device is still in normal mode."
+            alert.runModal()
         }
     }
 
@@ -311,9 +394,8 @@ final class MEMEViewModel: NSObject {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.level = .modalPanel
-        if let csvType = UTType(filenameExtension: "csv") {
-            panel.allowedContentTypes = [csvType]
-        }
+        // .csv と .csv.gz の両方を選べるようにする。
+        panel.allowedContentTypes = CsvFile.openPanelTypes
         guard let window = NSApp.mainWindow else { return }
         panel.beginSheetModal(for: window) { [weak self] result in
             guard let self else { return }
@@ -549,14 +631,16 @@ final class MEMEViewModel: NSObject {
 
     /// 切り出し先のデフォルトファイル名。"current.csv" → "current_1.csv"、
     /// それが既にあれば "current_2.csv" … と存在しない名前までインクリメントする。
+    /// 拡張子は元ファイルに揃える（.csv.gz なら切り出しも .csv.gz）。
     private static func defaultCutFileName(for url: URL) -> String {
-        let base = url.deletingPathExtension().lastPathComponent
+        let base = CsvFile.baseName(of: url)
+        let ext = CsvFile.matchingExtension(of: url)
         let dir = url.deletingLastPathComponent()
         var n = 1
-        while FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(base)_\(n).csv").path) {
+        while FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(base)_\(n).\(ext)").path) {
             n += 1
         }
-        return "\(base)_\(n).csv"
+        return "\(base)_\(n).\(ext)"
     }
 
     /// 切り出しダイアログOK。再生元CSVと同じフォルダへ、控えた区間のデータ行だけを書き出す。
@@ -571,8 +655,9 @@ final class MEMEViewModel: NSObject {
             cutErrorMessage = "Invalid file name."
             return
         }
-        if !name.lowercased().hasSuffix(".csv") {
-            name += ".csv"
+        // 拡張子が無ければ元ファイルに揃える（.csv.gz なら圧縮して書き出される）。
+        if !CsvFile.isSupported(fileName: name) {
+            name += "." + CsvFile.matchingExtension(of: info.url)
         }
         let dest = info.url.deletingLastPathComponent().appendingPathComponent(name)
         if FileManager.default.fileExists(atPath: dest.path) {
@@ -1037,6 +1122,10 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         foundDevices.removeAll()
         selectedDevice = ""
         phase = .idle
+        // SHELF 送信後の切断は端末が移行を受理した合図。
+        if isEnteringShelf {
+            finishShelfMode(entered: true)
+        }
     }
 
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData) {

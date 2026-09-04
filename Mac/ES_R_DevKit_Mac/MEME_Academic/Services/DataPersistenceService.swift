@@ -60,7 +60,10 @@ final class DataPersistenceService {
                 formatter.timeZone = TimeZone(secondsFromGMT: 0)
                 formatter.dateFormat = "yyyyMMddHHmmss"
                 let dateString = formatter.string(from: Date())
-                let fileName = "\(macAddress)_\(dateString).csv"
+                // 拡張子で圧縮の有無が決まる（CsvManager が .csv.gz なら gzip で書く）。
+                // 読み込み側は設定に関係なく .csv / .csv.gz の両方を受け付ける。
+                let ext = CsvFile.saveExtension(compressed: UserSetting.getCompressSaveFile())
+                let fileName = "\(macAddress)_\(dateString).\(ext)"
                 var buffer = header()
                 dataToStoring(pendingCsvRows, stringBuffer: &buffer, mode: mode)
                 if let data = buffer.data(using: .utf8) {
@@ -166,8 +169,8 @@ final class DataPersistenceService {
         savePanel.canCreateDirectories = true
         savePanel.showsTagField = false
         savePanel.isExtensionHidden = false
-        if let csvType = UTType(filenameExtension: "csv") {
-            savePanel.allowedContentTypes = [csvType]
+        if let type = CsvFile.contentType(forFileName: saveFileName) {
+            savePanel.allowedContentTypes = [type]
         }
         savePanel.nameFieldStringValue = saveFileName
         savePanel.level = .modalPanel

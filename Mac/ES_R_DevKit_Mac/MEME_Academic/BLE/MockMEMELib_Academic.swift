@@ -186,6 +186,14 @@ final class MockMEMELib_Academic: MEMELibInterface {
         return MEMELIB_OK
     }
 
+    // MARK: - Shelf mode
+
+    /// モックは実機コマンドを持たないので常に失敗を返す。
+    /// （ViewModel 側でもモック時は Shelf mode の長押しを受け付けない。）
+    func enterShelfMode(completion: @escaping (Bool) -> Void) {
+        completion(false)
+    }
+
     private func stopDataReportInternal() {
         dataTimer?.invalidate()
         dataTimer = nil

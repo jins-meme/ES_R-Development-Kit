@@ -44,7 +44,8 @@ final class CsvReplayService {
     // MARK: - Parse
 
     static func parse(url: URL) throws -> CsvReplayInfo {
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
+        // .csv でも .csv.gz でも同じテキストとして読める（CsvFile が展開を担う）。
+        guard let content = try? CsvFile.readText(at: url) else {
             throw CsvReplayError.unreadable
         }
         let lines = content.components(separatedBy: .newlines)
@@ -278,7 +279,7 @@ final class CsvReplayService {
     /// 既に値が入っている行は上書きする。artifacts が空なら何もしない。
     static func applyArtifacts(url: URL, artifacts: [Int: String]) throws {
         guard !artifacts.isEmpty else { return }
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
+        guard let content = try? CsvFile.readText(at: url) else {
             throw CsvReplayError.unreadable
         }
         // 本アプリ形式のCSVは "\n" 区切り。分割→加工→"\n"で連結して構造を保つ。
@@ -299,7 +300,8 @@ final class CsvReplayService {
         }
 
         let newContent = lines.joined(separator: "\n")
-        try newContent.write(to: url, atomically: true, encoding: .utf8)
+        // 読み込み元と同じ形式で書き戻す（.csv.gz なら再圧縮される）。
+        try CsvFile.writeText(newContent, to: url)
     }
 
     /// 1行の最初のカンマより前（ARTIFACT列）を value に差し替える。
@@ -314,7 +316,7 @@ final class CsvReplayService {
     /// ヘッダー（//ARTIFACT 行まで）はそのままコピーし、データ行の内容も加工しない。
     /// 行インデックスの数え方は applyArtifacts と同じ（ヘッダー行より後の非空行）。
     static func exportRange(from url: URL, to dest: URL, startRow: Int, endRow: Int) throws {
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
+        guard let content = try? CsvFile.readText(at: url) else {
             throw CsvReplayError.unreadable
         }
         let lines = content.components(separatedBy: "\n")
@@ -333,7 +335,8 @@ final class CsvReplayService {
             dataRow += 1
         }
 
-        try (out.joined(separator: "\n") + "\n").write(to: dest, atomically: true, encoding: .utf8)
+        // dest の拡張子（.csv / .csv.gz）に合わせて圧縮の有無が決まる。
+        try CsvFile.writeText(out.joined(separator: "\n") + "\n", to: dest)
     }
 
     // MARK: - Playback

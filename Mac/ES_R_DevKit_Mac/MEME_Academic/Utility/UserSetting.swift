@@ -29,6 +29,7 @@ class UserSetting: NSObject {
         userDefaults.set(false, forKey: kConst_ExtermalOutputSocket)
         userDefaults.set("88", forKey: kConst_LocalPort)
         userDefaults.set(true, forKey: kConst_ConvertToLocalTime)
+        userDefaults.set(true, forKey: kConst_CompressSaveFile)
     }
 
     private class func createDefaultSaveDirectory() {
@@ -106,6 +107,21 @@ class UserSetting: NSObject {
         // 未設定（この設定より前から使っているユーザー）は ON 扱いにする。
         // bool(forKey:) は未設定でも false を返すため、object(forKey:) で有無を判定する。
         guard let value = UserDefaults.standard.object(forKey: kConst_ConvertToLocalTime) as? Bool else {
+            return true
+        }
+        return value
+    }
+
+    /// 計測データを gz 圧縮して保存するか（既定：ON）。
+    /// ON なら ".csv.gz"、OFF なら従来どおり ".csv" で保存する。
+    /// 読み込み（File Replay / Finder からの「開く」）は設定に関係なく両方を受け付ける。
+    class func setCompressSaveFile(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: kConst_CompressSaveFile)
+    }
+    class func getCompressSaveFile() -> Bool {
+        // 未設定（この設定より前から使っているユーザー）は ON 扱いにする。
+        // bool(forKey:) は未設定でも false を返すため、object(forKey:) で有無を判定する。
+        guard let value = UserDefaults.standard.object(forKey: kConst_CompressSaveFile) as? Bool else {
             return true
         }
         return value

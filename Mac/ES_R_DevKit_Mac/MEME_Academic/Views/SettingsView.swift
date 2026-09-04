@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var xAxis: String = "0"
     @State private var yAxis: String = "0"
     @State private var zAxis: String = "0"
+    @State private var compressSaveFile: Bool = true
     @State private var showSaveFileDialog: Bool = false
     @State private var convertToLocalTime: Bool = true
     @State private var extermalOutputSocket: Bool = false
@@ -46,6 +47,13 @@ struct SettingsView: View {
                         axisField(text: $yAxis, label: "Y")
                         axisField(text: $zAxis, label: "Z")
                     }
+                }
+
+                GridRow {
+                    Text("Save Format")
+                    Toggle("Compress saved files with gzip (.csv.gz)",
+                           isOn: $compressSaveFile)
+                        .toggleStyle(.checkbox)
                 }
 
                 GridRow {
@@ -111,6 +119,7 @@ struct SettingsView: View {
         xAxis = String(format: "%g", UserSetting.getXAxis())
         yAxis = String(format: "%g", UserSetting.getYAxis())
         zAxis = String(format: "%g", UserSetting.getZAxis())
+        compressSaveFile = UserSetting.getCompressSaveFile()
         showSaveFileDialog = UserSetting.getShowSaveFileDialog()
         convertToLocalTime = UserSetting.getConvertToLocalTime()
         extermalOutputSocket = UserSetting.getExtermalOutputSocket()
@@ -122,6 +131,7 @@ struct SettingsView: View {
         UserSetting.setXAxis(Double(xAxis) ?? 0)
         UserSetting.setYAxis(Double(yAxis) ?? 0)
         UserSetting.setZAxis(Double(zAxis) ?? 0)
+        UserSetting.setCompressSaveFile(compressSaveFile)
         UserSetting.setShowSaveFileDialog(showSaveFileDialog)
         UserSetting.setConvertToLocalTime(convertToLocalTime)
         UserSetting.setExtermalOutputSocket(extermalOutputSocket)

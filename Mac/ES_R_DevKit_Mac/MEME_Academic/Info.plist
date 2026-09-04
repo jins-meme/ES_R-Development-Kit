@@ -30,6 +30,26 @@
 				<string>public.comma-separated-values-text</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>gzip-compressed CSV</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<!-- Alternate なので既定のアプリにはならず、右クリック →「このアプリケーションで開く」
+			     の候補に並ぶだけ（.csv の登録と同じ扱い）。 -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<!-- .csv.gz だけを拾いたいが、LaunchServices の拡張子判定は最後の1段しか見ない。
+			     "csv.gz" を tag に持つ独自UTIを宣言しても .csv.gz には結び付かない
+			     （Apple 自身も .tar.gz 用に "tgz" しか宣言しておらず、実際 foo.tar.gz は
+			     org.gnu.gnu-zip-archive として解決される）。そのため gzip 全般で登録する。
+			     CSV でない .gz を開いた場合は loadReplayFile が
+			     "Not a valid MEME CSV file" を出して終わる。 -->
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.gnu.gnu-zip-archive</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>

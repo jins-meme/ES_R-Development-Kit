@@ -36,4 +36,10 @@ protocol MEMELibInterface: AnyObject {
     // MARK: - Data Report
     @discardableResult func startDataReport() -> UInt32
     @discardableResult func stopDataReport() -> UInt32
+
+    // MARK: - Shelf mode
+    /// 端末を Shelf mode（保管モード）へ移行させる。
+    /// completion(true) は「SHELF コマンドを送信した」まで。移行の成否は、その後に
+    /// 端末側から切断が来るかどうかで判断する（受理されると端末が自ら切断する）。
+    func enterShelfMode(completion: @escaping (Bool) -> Void)
 }

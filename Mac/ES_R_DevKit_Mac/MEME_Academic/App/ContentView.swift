@@ -60,6 +60,12 @@ struct ContentView: View {
             CutFileDialogView()
                 .environment(viewModel)
         }
+        .alert("Do you want to enter shelf mode?", isPresented: $vm.showingShelfDialog) {
+            Button("Yes") { viewModel.confirmShelfMode() }
+            Button("Cancel", role: .cancel) { viewModel.cancelShelfMode() }
+        } message: {
+            Text("In shelf mode, all pairing capabilities are disabled and power consumption is reduced. To exit shelf mode, please recharge the device.")
+        }
     }
 }
 
@@ -140,10 +146,8 @@ private struct LeftColumnView: View {
                 .labelsHidden()
                 .disabled(viewModel.isDeviceSelectionDisabled)
                 if viewModel.showConnect {
-                    Button(viewModel.connectButtonLabel) {
-                        viewModel.toggleConnect()
-                    }
-                    .disabled(viewModel.isConnecting)
+                    ConnectButton()
+                        .environment(viewModel)
                 }
                 Text(viewModel.connectionStateText).foregroundStyle(.secondary)
             }
@@ -221,6 +225,43 @@ private struct LeftColumnView: View {
                 .environment(viewModel)
 
             Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Connect / Disconnect ボタン。通常のクリックは接続／切断。
+/// 実機に接続済みで非計測のときだけ、5秒の長押しで Shelf mode の確認ダイアログを開く。
+/// Shelf mode は隠し操作なので、押している間にゲージなどは出さない。
+private struct ConnectButton: View {
+
+    @Environment(MEMEViewModel.self) private var viewModel
+
+    /// 長押しが成立したジェスチャのクリックを1回だけ捨てるフラグ。
+    /// macOS では長押しが成立した直後に Button の action も走るため、
+    /// これが無いと確認ダイアログを出しながら切断してしまう。
+    @State private var suppressClick = false
+
+    var body: some View {
+        Button(viewModel.connectButtonLabel) {
+            if suppressClick {
+                suppressClick = false
+            } else {
+                viewModel.toggleConnect()
+            }
+        }
+        .disabled(viewModel.isConnecting || viewModel.isEnteringShelf)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: MEMEViewModel.shelfLongPressSeconds)
+                .onEnded { _ in
+                    guard viewModel.canEnterShelfMode else { return }
+                    suppressClick = true
+                    viewModel.requestShelfMode()
+                }
+        )
+        // ダイアログを閉じた時点で必ず倒す。ジェスチャが奪われてクリックが
+        // 来なかった場合に、次の1タップを取りこぼさないため。
+        .onChange(of: viewModel.showingShelfDialog) { _, showing in
+            if !showing { suppressClick = false }
         }
     }
 }

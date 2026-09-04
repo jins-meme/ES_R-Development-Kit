@@ -24,6 +24,15 @@ let MEMEMode_Standard: UInt32 = 1
 let MEMEMode_Full: UInt32 = 2
 let MEMEMode_Quaternion: UInt32 = 3
 
+/// ADN_SET_MODE の mode バイト(buff[4])へ入れる CONFIG モードの値。
+/// 通常の計測モード(1..3)とは別枠で、SHELF コマンドの前段としてのみ使う。
+let MEMEMode_Config: UInt32 = 0x0F
+
+/// 保管(SHELF)モードへの遷移コマンド。op の後ろに ASCII "SHELF" を置く形で、
+/// BOOT(0x40 + "BOOT") と同じ「合言葉つき」の系列。CONFIG モードでのみ受理される。
+/// 出典は Web Bluetooth 版 SDK (tkomde/webbt common/memelib_acp.js の startShelf)。
+let ADN_SHELF: UInt8 = 0x41
+
 let MEMEQuality_High: UInt32 = 1
 let MEMEQuality_Low: UInt32 = 2
 
@@ -48,6 +57,10 @@ let STATUS_REC_START_REQ_EXEC: Int = 0x08
 let STATUS_REC_STOP_REQ_EXEC: Int = 0x09
 
 let CHECK_TIMEOUT_TIME: TimeInterval = 30
+
+/// Shelf 移行の1段目(CONFIG モードへの遷移)の ACK を待つ時間。通常は 100ms 台で返る。
+/// ここで諦めても SHELF コマンドは送らないので端末は通常モードのまま無傷。
+let SHELF_CONFIG_ACK_TIMEOUT_TIME: TimeInterval = 3
 let TIME_SYNC_COUNT: Int = 2
 let PACKET_LENGTH: Int = 20
 
@@ -99,6 +112,11 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
     /// central がまだ .poweredOn でない状態で startScanningPeripherals が
     /// 呼ばれたときに保留しておき、状態が .poweredOn になった瞬間に実行する。
     private var pendingScanRequest = false
+
+    /// Shelf 移行で CONFIG モードの ACK(AUP_REPORT_RESP)を1件だけ待つためのハンドラ。
+    /// enterShelfMode がコマンド送信の直前にセットし、dataAnalysis / 切断 / タイムアウトが畳む。
+    private var shelfAckHandler: ((Bool) -> Void)?
+    private var shelfAckTimer: Timer?
 
     private var libStatus: Int = STATUS_IDLE
     private var selectMode: UInt32 = MEMEMode_Full
@@ -215,6 +233,47 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
         return MEMELIB_NG
     }
 
+    // MARK: - Shelf mode
+
+    /// 端末を Shelf mode（保管モード）へ移行させる。Web Bluetooth 版 SDK と同じ順序で
+    /// (1) CONFIG モードへの遷移を送り (2) その ACK を待ってから (3) SHELF を送る。
+    /// completion(true) は「SHELF を送信した」まで。受理されると端末は自ら切断するので、
+    /// 移行できたかどうかは呼び出し側が切断の到着で判断する。
+    /// ACK が来なければ SHELF は送らないため、失敗しても端末は通常モードのまま。
+    func enterShelfMode(completion: @escaping (Bool) -> Void) {
+        guard libraryFlag, connectedFlag, !measureFlag else {
+            completion(false)
+            return
+        }
+        // 待ちは常に1件。多重に呼ばれたら前の待ちは失敗として畳む。
+        finishShelfAck(false)
+        shelfAckHandler = { [weak self] acked in
+            guard let self, acked else {
+                completion(false)
+                return
+            }
+            // CONFIG への遷移が受理されたときだけ SHELF を送る。
+            self.memeAdnShelf()
+            completion(true)
+        }
+        shelfAckTimer = Timer.scheduledTimer(withTimeInterval: SHELF_CONFIG_ACK_TIMEOUT_TIME,
+                                             repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.finishShelfAck(false)
+            }
+        }
+        memeAdnSetConfigMode()
+    }
+
+    /// 待っている Shelf の ACK を結果付きで畳む（待ちが無ければ何もしない）。
+    private func finishShelfAck(_ acked: Bool) {
+        shelfAckTimer?.invalidate()
+        shelfAckTimer = nil
+        guard let handler = shelfAckHandler else { return }
+        shelfAckHandler = nil
+        handler(acked)
+    }
+
     // MARK: - Private Methods
 
     private func dataSend(buff: inout [UInt8]) {
@@ -297,6 +356,29 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
         buff[1] = 0xA4
         buff[4] = UInt8(selectMode & 0xFF)
         buff[5] = UInt8(transMode & 0xFF)
+        dataSend(buff: &buff)
+    }
+
+    /// CONFIG モードへの遷移（ADN_SET_MODE の mode=0x0F, quality=0）。
+    /// SHELF コマンドは CONFIG モードでのみ受理されるので、memeAdnShelf の前に送って ACK を待つ。
+    private func memeAdnSetConfigMode() {
+        var buff = [UInt8](repeating: 0, count: PACKET_LENGTH)
+        buff[0] = UInt8(PACKET_LENGTH)
+        buff[1] = 0xA4
+        buff[4] = UInt8(MEMEMode_Config & 0xFF)
+        buff[5] = 0
+        dataSend(buff: &buff)
+    }
+
+    /// 保管(SHELF)モードへの遷移（op 0x41 + ASCII "SHELF"）。受理されると端末は
+    /// ペアリング機能を止めて自ら切断するので、切断が成功の合図になる。
+    private func memeAdnShelf() {
+        var buff = [UInt8](repeating: 0, count: PACKET_LENGTH)
+        buff[0] = UInt8(PACKET_LENGTH)
+        buff[1] = ADN_SHELF
+        for (i, c) in Array("SHELF".utf8).enumerated() {
+            buff[i + 2] = c
+        }
         dataSend(buff: &buff)
     }
 
@@ -402,6 +484,8 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
             // AUP_REPORT_RESP
             case 0x8F:
                 libLog("0x8F AUP_REPORT_RESP")
+                // Shelf 移行が CONFIG 遷移の結果を待っていれば渡す（buff[2]==0x00 が ACK）。
+                finishShelfAck(buff[2] == 0x00)
             // AUP_REPORT_ACADEMIC1
             case 0x98:
                 //libLog("0x98")
@@ -537,6 +621,8 @@ extension MEMELib_Academic: @preconcurrency CBCentralManagerDelegate {
             delegate?.memePeripheralDisconnectedDelegate(result: MEMELIB_OK)
         }
         checkTimerStop()
+        // 切断されたら ACK はもう来ない。待ちがあれば失敗として畳む。
+        finishShelfAck(false)
         connectedFlag = false
         measureFlag = false
         serviceFlag = false
