@@ -23,6 +23,7 @@ public partial class SettingsForm : Form
         tb_AccOffsetX.Text = setting.AccOffsetX.ToString("0.###", CultureInfo.InvariantCulture);
         tb_AccOffsetY.Text = setting.AccOffsetY.ToString("0.###", CultureInfo.InvariantCulture);
         tb_AccOffsetZ.Text = setting.AccOffsetZ.ToString("0.###", CultureInfo.InvariantCulture);
+        ck_CompressSaveFile.Checked = setting.CompressSaveFile;
         ck_ShowSaveFileDialog.Checked = setting.ShowSaveFileDialog;
         ck_ConvertToLocalTime.Checked = setting.ConvertToLocalTime;
         ck_ExternalOutputSocket.Checked = setting.ExternalOutputSocket;
@@ -45,6 +46,7 @@ public partial class SettingsForm : Form
         setting.AccOffsetX = ParseOffset(tb_AccOffsetX.Text);
         setting.AccOffsetY = ParseOffset(tb_AccOffsetY.Text);
         setting.AccOffsetZ = ParseOffset(tb_AccOffsetZ.Text);
+        setting.CompressSaveFile = ck_CompressSaveFile.Checked;
         setting.ShowSaveFileDialog = ck_ShowSaveFileDialog.Checked;
         setting.ConvertToLocalTime = ck_ConvertToLocalTime.Checked;
         setting.ExternalOutputSocket = ck_ExternalOutputSocket.Checked;

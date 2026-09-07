@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MEMELib_Academic;
@@ -28,6 +29,19 @@ public static partial class MemeProtocol
     public const byte AdnSetMode = 0xA4;
     public const byte AdnGet6AxisParams = 0xA9;
     public const byte AdnSet6AxisParams = 0xAA;
+
+    /// <summary>
+    /// 保管(SHELF)モードへの遷移コマンド。op の後ろに ASCII "SHELF" を置く形で、
+    /// BOOT(0x40 + "BOOT") と同じ「合言葉つき」の系列。CONFIG モードでのみ受理される。
+    /// 出典は Web Bluetooth 版 SDK (tkomde/webbt common/memelib_acp.js の startShelf)。
+    /// </summary>
+    public const byte AdnShelf = 0x41;
+
+    /// <summary>
+    /// ADN_SET_MODE の mode バイト(buf[4])へ入れる CONFIG モードの値。
+    /// 通常の計測モード(1..3)とは別枠で、SHELF コマンドの前段としてのみ使う。
+    /// </summary>
+    public const byte ConfigMode = 0x0F;
 
     // AUP: 端末 → PC
     public const byte AupReportDevInfo = 0x81;
@@ -65,6 +79,29 @@ public static partial class MemeProtocol
         var buf = Command(AdnSetMode);
         buf[4] = (byte)mode;
         buf[5] = (byte)quality;
+        return buf;
+    }
+
+    /// <summary>
+    /// CONFIG モードへの遷移(ADN_SET_MODE の mode=0x0F, quality=0)。
+    /// SHELF は CONFIG モードでのみ受理されるので、<see cref="Shelf"/> の前に送って ACK を待つ。
+    /// </summary>
+    public static byte[] SetConfigMode()
+    {
+        var buf = Command(AdnSetMode);
+        buf[4] = ConfigMode;
+        buf[5] = 0;
+        return buf;
+    }
+
+    /// <summary>
+    /// 保管(SHELF)モードへの遷移(op 0x41 + ASCII "SHELF")。受理されると端末は
+    /// ペアリング機能を止めて自ら切断するので、切断が成功の合図になる。
+    /// </summary>
+    public static byte[] Shelf()
+    {
+        var buf = Command(AdnShelf);
+        Encoding.ASCII.GetBytes("SHELF", buf.AsSpan(2));
         return buf;
     }
 

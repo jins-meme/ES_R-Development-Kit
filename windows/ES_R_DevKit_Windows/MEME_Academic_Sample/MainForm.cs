@@ -24,6 +24,12 @@ public partial class MainForm : Form
     /// <summary>再生位置スライダーの目盛り数。</summary>
     private const int ScrubberResolution = 1000;
 
+    /// <summary>Disconnect を押しっぱなしにして Shelf mode の確認ダイアログが出るまでの時間。</summary>
+    private const int ShelfLongPressMs = 5000;
+
+    /// <summary>SHELF 送信後、端末が自ら切断するのを待つ時間(切断＝移行成功)。</summary>
+    private const int ShelfDisconnectTimeoutMs = 5000;
+
     private readonly UserSetting setting = UserSetting.Load();
     private readonly MEMELib memeLib = new();
     private readonly ChartService chartService = new();
@@ -32,11 +38,22 @@ public partial class MainForm : Form
     private readonly TcpOutputServer tcpServer = new();
     private readonly CsvReplayService replayService = new();
     private readonly System.Windows.Forms.Timer uiTimer;
+    private readonly System.Windows.Forms.Timer shelfLongPressTimer;
+    private readonly System.Windows.Forms.Timer shelfDisconnectTimer;
     private readonly ChartPanel[] chartPanels;
 
     private Phase phase = Phase.Idle;
     private bool isScanning;
     private bool isFreeMarking;
+
+    /// <summary>Shelf 移行コマンドの送信中。完了は端末側からの切断で判断する。</summary>
+    private bool isEnteringShelf;
+
+    /// <summary>
+    /// 長押しが成立した押下の Click を 1 回だけ捨てるフラグ。WinForms の Click は
+    /// マウスを離した時点で走るため、これが無いと確認ダイアログを出しながら切断してしまう。
+    /// </summary>
+    private bool suppressConnectClick;
 
     /// <summary>
     /// タップで付けた未書き戻しの Artifact(絶対チャートサンプル位置 → 文字列)。
@@ -113,6 +130,16 @@ public partial class MainForm : Form
         uiTimer = new System.Windows.Forms.Timer { Interval = UiRefreshIntervalMs };
         uiTimer.Tick += (_, _) => RefreshCharts();
         uiTimer.Start();
+
+        // Disconnect の長押しで Shelf mode へ。隠し操作なので、押している間の表示は変えない。
+        shelfLongPressTimer = new System.Windows.Forms.Timer { Interval = ShelfLongPressMs };
+        shelfLongPressTimer.Tick += (_, _) => OnShelfLongPress();
+        bt_Connect.MouseDown += bt_Connect_MouseDown;
+        bt_Connect.MouseUp += (_, _) => shelfLongPressTimer.Stop();
+        bt_Connect.MouseLeave += (_, _) => shelfLongPressTimer.Stop();
+
+        shelfDisconnectTimer = new System.Windows.Forms.Timer { Interval = ShelfDisconnectTimeoutMs };
+        shelfDisconnectTimer.Tick += (_, _) => FinishShelfMode(entered: false);
 
         UpdateUiState();
     }
@@ -287,6 +314,12 @@ public partial class MainForm : Form
                 ? "State : Disconnected"
                 : "State : Disconnected (link lost)";
             UpdateUiState();
+            // SHELF 送信後の切断は、端末が移行を受理した合図。
+            if (isEnteringShelf)
+            {
+                FinishShelfMode(entered: true);
+            }
+
             if (wasMeasuring)
             {
                 OfferSaveFileDialog();
@@ -353,14 +386,16 @@ public partial class MainForm : Form
         cb_DeviceList.Enabled = !connected && !isScanning && !inReplaySession;
 
         // 再生中の Connect は「再生セッションを終える」ボタンとして働く(Mac 版と同じ)。
-        bt_Connect.Enabled = connected || inReplaySession || cb_DeviceList.SelectedItem is MEMEDevice;
+        // Shelf 移行中だけは、結果が出るまで押させない。
+        bt_Connect.Enabled = !isEnteringShelf &&
+            (connected || inReplaySession || cb_DeviceList.SelectedItem is MEMEDevice);
         bt_Connect.Text = connected || inReplaySession ? "Disconnect" : "Connect";
 
         // BLE 接続中は CSV 再生に入れない。
         bt_FileReplay.Enabled = !connected;
 
         bt_Measurement.Visible = !replaying;
-        bt_Measurement.Enabled = connected;
+        bt_Measurement.Enabled = connected && !isEnteringShelf;
         bt_Measurement.Text = measuring ? "Stop Measurement" : "Start Measurement";
         bt_FreeMarking.Enabled = measuring;
 
@@ -440,6 +475,18 @@ public partial class MainForm : Form
 
     private void bt_Connect_Click(object sender, EventArgs e)
     {
+        // 長押しが成立した押下のクリックは捨てる。移行中も触らせない。
+        if (suppressConnectClick)
+        {
+            suppressConnectClick = false;
+            return;
+        }
+
+        if (isEnteringShelf)
+        {
+            return;
+        }
+
         if (phase is Phase.ReplayReady or Phase.Replaying)
         {
             EndReplaySession();
@@ -467,6 +514,110 @@ public partial class MainForm : Form
         bt_Connect.Enabled = false;
         memeLib.connectPeripheral(device);
     }
+
+    #region Shelf mode
+
+    /// <summary>
+    /// Shelf mode へ移行できる状態か。SHELF コマンドは接続済みで計測していないときだけ
+    /// 受理されるので、計測中(Phase.Measuring)と再生中は対象外。
+    /// </summary>
+    private bool CanEnterShelfMode => phase == Phase.Connected && !isEnteringShelf;
+
+    private void bt_Connect_MouseDown(object? sender, MouseEventArgs e)
+    {
+        // 押し直しのたびに倒す。ダイアログの外でマウスを離してクリックが来なかった場合に、
+        // 次の 1 クリックを取りこぼさないため。
+        suppressConnectClick = false;
+        if (e.Button == MouseButtons.Left && CanEnterShelfMode)
+        {
+            shelfLongPressTimer.Start();
+        }
+    }
+
+    /// <summary>Disconnect が 5 秒押されたまま。確認ダイアログを出す。</summary>
+    private void OnShelfLongPress()
+    {
+        shelfLongPressTimer.Stop();
+        if (!CanEnterShelfMode)
+        {
+            return;
+        }
+
+        // ダイアログを出している間にマウスを離すとボタンの Click が走るので、先に倒しておく。
+        suppressConnectClick = true;
+
+        using var dialog = new ShelfModeForm();
+        if (dialog.ShowDialog(this) != DialogResult.Yes || !CanEnterShelfMode)
+        {
+            return;
+        }
+
+        EnterShelfMode();
+    }
+
+    /// <summary>
+    /// 端末を Shelf mode(保管モード)へ移行させる。CONFIG モードへの遷移が受理されてから
+    /// SHELF が送られ、受理されると端末は自ら切断する。復帰は充電のみで、アプリからは戻せない。
+    /// </summary>
+    private void EnterShelfMode()
+    {
+        isEnteringShelf = true;
+        lb_ConnectionState.Text = "State : Entering shelf mode...";
+        UpdateUiState();
+
+        memeLib.enterShelfMode(sent => RunOnUi(() =>
+        {
+            if (!sent)
+            {
+                // SHELF はまだ送っていないので端末は通常モードのまま。
+                FinishShelfMode(entered: false);
+                return;
+            }
+
+            // SHELF は送信済み。端末側からの切断が来れば成功。
+            shelfDisconnectTimer.Start();
+        }));
+    }
+
+    /// <summary>
+    /// Shelf 移行の結果を確定して知らせる
+    /// (成功＝端末が切断した、失敗＝ACK 無し／切断待ちタイムアウト)。
+    /// </summary>
+    private void FinishShelfMode(bool entered)
+    {
+        if (!isEnteringShelf)
+        {
+            return;
+        }
+
+        shelfDisconnectTimer.Stop();
+        isEnteringShelf = false;
+        if (entered)
+        {
+            // 移行した端末はもうペアリングに応じないので、スキャン結果に残っていると
+            // 選んで Connect できてしまう。通常の切断と違い、一覧ごと捨てて Scan からやり直させる。
+            cb_DeviceList.Items.Clear();
+            phase = Phase.Idle;
+            lb_ConnectionState.Text = "State : Shelf mode";
+        }
+        else if (phase is Phase.Connected or Phase.Measuring)
+        {
+            lb_ConnectionState.Text = "State : Connected";
+        }
+
+        UpdateUiState();
+
+        MessageBox.Show(
+            this,
+            entered
+                ? "To exit shelf mode, please recharge the device."
+                : "The device is still in normal mode.",
+            entered ? "Entered shelf mode" : "Failed to enter shelf mode",
+            MessageBoxButtons.OK,
+            entered ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+
+    #endregion
 
     private void bt_Measurement_Click(object sender, EventArgs e)
     {
@@ -497,7 +648,8 @@ public partial class MainForm : Form
         pendingArtifacts.Clear();
 
         var header = DataPersistenceService.BuildHeader(mode, quality, accelRange, gyroRange);
-        persistence.Begin(setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, quality);
+        persistence.Begin(
+            setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, quality, setting.CompressSaveFile);
         tcpServer.SetHeader(header);
 
         memeLib.startDataReport();
@@ -527,7 +679,10 @@ public partial class MainForm : Form
 
         using var dialog = new SaveFileDialog
         {
-            Filter = "CSV (*.csv)|*.csv",
+            // 保存済みファイルの移動なので、選べる形式は書き出した形式に揃える。
+            Filter = CsvFile.IsGzip(source)
+                ? "gzip CSV (*.csv.gz)|*.csv.gz"
+                : "CSV (*.csv)|*.csv",
             FileName = Path.GetFileName(source),
             InitialDirectory = Path.GetDirectoryName(source) ?? string.Empty,
             OverwritePrompt = true,
@@ -614,6 +769,8 @@ public partial class MainForm : Form
     private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
     {
         uiTimer.Stop();
+        shelfLongPressTimer.Stop();
+        shelfDisconnectTimer.Stop();
         if (phase == Phase.Measuring)
         {
             memeLib.stopDataReport();
@@ -645,7 +802,7 @@ public partial class MainForm : Form
 
         using var dialog = new OpenFileDialog
         {
-            Filter = "MEME CSV (*.csv)|*.csv|All files (*.*)|*.*",
+            Filter = CsvFile.OpenFilter,
             InitialDirectory = Directory.Exists(setting.SaveFilePath) ? setting.SaveFilePath : string.Empty,
         };
 
@@ -1044,7 +1201,11 @@ public partial class MainForm : Form
         }
 
         var directory = Path.GetDirectoryName(replayInfo.FilePath) ?? ".";
-        using var dialog = new CutFileForm(directory, DefaultCutFileName(replayInfo.FilePath), end - start + 1);
+        using var dialog = new CutFileForm(
+            directory,
+            DefaultCutFileName(replayInfo.FilePath),
+            end - start + 1,
+            CsvFile.MatchingExtension(replayInfo.FilePath));
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -1061,21 +1222,25 @@ public partial class MainForm : Form
         }
     }
 
-    /// <summary>"current.csv" なら "current_1.csv"、既にあれば "current_2.csv" … と空きを探す。</summary>
+    /// <summary>
+    /// "current.csv" なら "current_1.csv"、既にあれば "current_2.csv" … と空きを探す。
+    /// 拡張子は元ファイルに揃える(.csv.gz なら切り出しも .csv.gz)。
+    /// </summary>
     private static string DefaultCutFileName(string sourcePath)
     {
         var directory = Path.GetDirectoryName(sourcePath) ?? ".";
-        var baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        var baseName = CsvFile.BaseName(sourcePath);
+        var extension = CsvFile.MatchingExtension(sourcePath);
         for (var n = 1; n < 1000; n++)
         {
-            var candidate = $"{baseName}_{n}.csv";
+            var candidate = $"{baseName}_{n}{extension}";
             if (!File.Exists(Path.Combine(directory, candidate)))
             {
                 return candidate;
             }
         }
 
-        return $"{baseName}_cut.csv";
+        return $"{baseName}_cut{extension}";
     }
 
     #endregion

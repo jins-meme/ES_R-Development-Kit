@@ -1,5 +1,5 @@
+using MEMELib_Academic;
 using MEME_Academic_Sample.UI;
-using MEME_Academic_Sample.Utility;
 
 namespace MEME_Academic_Sample;
 
@@ -12,13 +12,18 @@ public sealed class CutFileForm : Form
     private readonly TextBox _input = new();
     private readonly Label _error = new();
     private readonly string _directory;
+    private readonly string _extension;
 
     /// <param name="directory">切り出し先のフォルダ(再生元 CSV と同じ場所)。</param>
     /// <param name="defaultName">初期表示するファイル名。</param>
     /// <param name="rowCount">切り出す行数。件数が分かるように見出しへ出す。</param>
-    public CutFileForm(string directory, string defaultName, int rowCount)
+    /// <param name="extension">
+    /// 拡張子が入力されていないときに補う拡張子(".csv" / ".csv.gz")。再生元に揃える。
+    /// </param>
+    public CutFileForm(string directory, string defaultName, int rowCount, string extension)
     {
         _directory = directory;
+        _extension = extension;
 
         Icon = AppInfo.LoadIcon();
         Text = "Save selected range as CSV";
@@ -84,9 +89,10 @@ public sealed class CutFileForm : Form
             return;
         }
 
-        if (!name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        // 拡張子が無ければ再生元に揃える(.csv.gz なら圧縮して書き出される)。
+        if (!CsvFile.IsSupported(name))
         {
-            name += ".csv";
+            name += _extension;
         }
 
         var destination = Path.Combine(_directory, name);

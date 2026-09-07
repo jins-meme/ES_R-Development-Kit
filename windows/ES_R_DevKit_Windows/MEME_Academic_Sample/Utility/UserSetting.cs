@@ -30,6 +30,14 @@ public sealed class UserSetting
 
     public double AccOffsetZ { get; set; }
 
+    /// <summary>
+    /// 計測データを gz 圧縮して保存するか(既定 ON)。ON なら ".csv.gz"、OFF なら ".csv"。
+    /// 読み込み(File Replay / エクスプローラーからの「開く」)は設定に関係なく両方を受け付ける。
+    /// この設定より前から使っているユーザーの settings.json には項目が無いが、
+    /// その場合はここの初期値がそのまま残るので ON 扱いになる。
+    /// </summary>
+    public bool CompressSaveFile { get; set; } = true;
+
     /// <summary>計測終了後に保存先を選び直すダイアログを出すか。</summary>
     public bool ShowSaveFileDialog { get; set; }
 

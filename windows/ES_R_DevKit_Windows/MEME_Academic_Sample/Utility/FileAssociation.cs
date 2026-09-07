@@ -9,7 +9,13 @@ namespace MEME_Academic_Sample.Utility;
 /// </summary>
 public static class FileAssociation
 {
-    private const string Extension = ".csv";
+    /// <summary>
+    /// 「プログラムから開く」に並べる拡張子。.csv.gz だけを拾いたいが、Windows の
+    /// 拡張子判定は最後の 1 段しか見ないため、gz 全般で登録するほかない
+    /// (Mac 版も同じ理由で org.gnu.gnu-zip-archive として登録している)。
+    /// CSV でない .gz を開いた場合は読み込み時に形式違いとして弾かれる。
+    /// </summary>
+    private static readonly string[] Extensions = [".csv", ".gz"];
 
     /// <summary>起動のたびに呼ぶ。内容が変わっていなければ何も書かない。</summary>
     public static void EnsureRegistered()
@@ -33,9 +39,14 @@ public static class FileAssociation
                     return;
                 }
 
-                // 同じ内容なら書き込みを省く(exe を動かしたときだけ更新される)。
                 using var commandKey = application.CreateSubKey(@"shell\open\command");
-                if (commandKey?.GetValue(null) as string == command)
+                // 「プログラムから開く」の一覧に並べるための宣言。
+                using var supportedTypes = application.CreateSubKey("SupportedTypes");
+
+                // 同じ内容なら書き込みを省く(exe を動かしたときと、対応拡張子が
+                // 増えたときだけ更新される)。
+                if (commandKey?.GetValue(null) as string == command &&
+                    Array.TrueForAll(Extensions, e => supportedTypes?.GetValue(e) is not null))
                 {
                     return;
                 }
@@ -46,15 +57,19 @@ public static class FileAssociation
                 using var icon = application.CreateSubKey("DefaultIcon");
                 icon?.SetValue(null, $"{exePath},0");
 
-                // 「プログラムから開く」の一覧に .csv 用として並べるための宣言。
-                using var supportedTypes = application.CreateSubKey("SupportedTypes");
-                supportedTypes?.SetValue(Extension, string.Empty);
+                foreach (var extension in Extensions)
+                {
+                    supportedTypes?.SetValue(extension, string.Empty);
+                }
             }
 
             // 拡張子側からも候補として参照させる。
-            using var openWith = Registry.CurrentUser.CreateSubKey(
-                $@"Software\Classes\{Extension}\OpenWithList\{exeName}");
-            openWith?.Close();
+            foreach (var extension in Extensions)
+            {
+                using var openWith = Registry.CurrentUser.CreateSubKey(
+                    $@"Software\Classes\{extension}\OpenWithList\{exeName}");
+                openWith?.Close();
+            }
         }
         catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {

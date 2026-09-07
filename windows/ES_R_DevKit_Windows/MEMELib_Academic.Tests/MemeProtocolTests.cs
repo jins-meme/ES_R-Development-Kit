@@ -33,6 +33,34 @@ public class MemeProtocolTests
         Assert.Equal(1, command[5]);
     }
 
+    /// <summary>
+    /// SHELF の前段。mode に 0x0F(CONFIG)、quality に 0 を置く。
+    /// 計測モード(1..3)とは別枠の値なので、SetMode とは別の口にしてある。
+    /// </summary>
+    [Fact]
+    public void SetConfigMode_PlacesConfigModeWithoutQuality()
+    {
+        var command = MemeProtocol.SetConfigMode();
+
+        Assert.Equal(MemeProtocol.AdnSetMode, command[1]);
+        Assert.Equal(0x0F, command[4]);
+        Assert.Equal(0x00, command[5]);
+    }
+
+    /// <summary>op 0x41 の後ろに ASCII "SHELF"。Mac 版 memeAdnShelf と同じ並び。</summary>
+    [Fact]
+    public void Shelf_PlacesPassphraseAfterOpcode()
+    {
+        var command = MemeProtocol.Shelf();
+
+        Assert.Equal(MemeProtocol.PacketLength, command.Length);
+        Assert.Equal(MemeProtocol.PacketLength, command[0]);
+        Assert.Equal(MemeProtocol.AdnShelf, command[1]);
+        Assert.Equal("SHELF"u8.ToArray(), command[2..7]);
+        // 合言葉より後ろは 0 のまま。
+        Assert.All(command[7..], b => Assert.Equal(0, b));
+    }
+
     [Fact]
     public void Set6AxisParams_PlacesRanges()
     {

@@ -27,7 +27,11 @@ public sealed class DataPersistenceService : IDisposable
     public event Action<string>? RowFormatted;
 
     /// <summary>計測開始。実ファイルは最初のフラッシュ時に作る(空ファイルを残さないため)。</summary>
-    public void Begin(string directory, string macAddress, string header, MEMEQuality quality)
+    /// <param name="compressed">
+    /// gz 圧縮して保存するか(Setting の Save Format)。拡張子で圧縮の有無が決まり、
+    /// 読み込み側は設定に関係なく .csv / .csv.gz の両方を受け付ける。
+    /// </param>
+    public void Begin(string directory, string macAddress, string header, MEMEQuality quality, bool compressed)
     {
         lock (_gate)
         {
@@ -35,7 +39,7 @@ public sealed class DataPersistenceService : IDisposable
             _directory = directory;
             _header = header;
             // ファイル名の日時も UTC(DATE 列・Mac 版・Android 版と揃える)。
-            _fileName = $"{macAddress}_{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
+            _fileName = $"{macAddress}_{DateTime.UtcNow:yyyyMMddHHmmss}{CsvFile.SaveExtension(compressed)}";
             _flushThreshold = Math.Max(100 / Math.Max((int)quality, 1), 1);
             CurrentFilePath = null;
         }
@@ -98,7 +102,8 @@ public sealed class DataPersistenceService : IDisposable
                 buffer.Append(row).Append("\r\n");
             }
 
-            File.AppendAllText(path, buffer.ToString(), new UTF8Encoding(false));
+            // .csv.gz ならこの 1 回ぶんが gzip の 1 メンバーとして連結される。
+            CsvFile.AppendText(path, buffer.ToString());
             CurrentFilePath = path;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -119,8 +124,9 @@ public sealed class DataPersistenceService : IDisposable
         }
 
         var directory = Path.GetDirectoryName(path) ?? string.Empty;
-        var name = Path.GetFileNameWithoutExtension(path);
-        var extension = Path.GetExtension(path);
+        // ".csv.gz" は 2 段なので Path.GetExtension では切り分けられない。
+        var name = CsvFile.BaseName(path);
+        var extension = CsvFile.MatchingExtension(path);
         for (var suffix = 2; suffix < 1000; suffix++)
         {
             var candidate = Path.Combine(directory, $"{name}_{suffix}{extension}");

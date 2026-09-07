@@ -29,6 +29,12 @@ public sealed class MEMELib : IDisposable
     private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Shelf 移行の 1 段目(CONFIG モードへの遷移)の ACK を待つ時間。通常は 100ms 台で返る。
+    /// ここで諦めても SHELF は送らないので端末は通常モードのまま無傷。
+    /// </summary>
+    private static readonly TimeSpan ShelfConfigAckTimeout = TimeSpan.FromSeconds(3);
+
     public event memePeripheralFoundDelegate? memePeripheralFound;
     public event memePeripheralConnectedDelegate? memePeripheralConnected;
     public event memePeripheralDisconnectedDelegate? memePeripheralDisconnected;
@@ -43,6 +49,14 @@ public sealed class MEMELib : IDisposable
     private BluetoothLEAdvertisementWatcher? _watcher;
     private Timer? _scanTimer;
     private Timer? _connectTimer;
+
+    /// <summary>
+    /// Shelf 移行で CONFIG モードの ACK(0x8F)を 1 件だけ待つためのハンドラ。
+    /// <see cref="enterShelfMode"/> がコマンド送信の直前にセットし、
+    /// 受信 / 切断 / タイムアウトのいずれかが畳む。
+    /// </summary>
+    private Action<bool>? _shelfAck;
+    private Timer? _shelfAckTimer;
 
     private BluetoothLEDevice? _device;
     private GattDeviceService? _service;
@@ -406,7 +420,76 @@ public sealed class MEMELib : IDisposable
             _measuring = false;
         }
 
+        // 切断されたら ACK はもう来ない。待ちがあれば失敗として畳む。
+        FinishShelfAck(false);
         _csv.Close();
+    }
+
+    #endregion
+
+    #region Shelf mode
+
+    /// <summary>
+    /// 端末を Shelf mode(保管モード)へ移行させる。Mac 版 / Web Bluetooth 版 SDK と同じ順序で
+    /// (1) CONFIG モードへの遷移を送り (2) その ACK を待ってから (3) SHELF を送る。
+    /// <paramref name="completion"/> に true が渡るのは「SHELF を送信した」まで。受理されると
+    /// 端末は自ら切断するので、移行できたかどうかは呼び出し側が
+    /// <see cref="memePeripheralDisconnected"/> の到着で判断する。
+    /// ACK が来なければ SHELF は送らないため、失敗しても端末は通常モードのまま。
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="completion"/> は BLE の受信スレッドかタイマースレッドから呼ばれる。
+    /// UI を触る場合は呼び出し側でディスパッチすること。
+    /// </remarks>
+    public MEMEStatus enterShelfMode(Action<bool> completion)
+    {
+        ArgumentNullException.ThrowIfNull(completion);
+
+        // SHELF は接続済みかつ非計測のときだけ受理される。
+        if (!_connected || _measuring)
+        {
+            completion(false);
+            return MEMEStatus.MEMELIB_NG;
+        }
+
+        // 待ちは常に 1 件。多重に呼ばれたら前の待ちは失敗として畳む。
+        FinishShelfAck(false);
+        lock (_gate)
+        {
+            _shelfAck = acked =>
+            {
+                if (!acked)
+                {
+                    completion(false);
+                    return;
+                }
+
+                // CONFIG への遷移が受理されたときだけ SHELF を送る。
+                Send(MemeProtocol.Shelf());
+                completion(true);
+            };
+            _shelfAckTimer = new Timer(
+                _ => FinishShelfAck(false), null, ShelfConfigAckTimeout, Timeout.InfiniteTimeSpan);
+        }
+
+        Send(MemeProtocol.SetConfigMode());
+        return MEMEStatus.MEMELIB_OK;
+    }
+
+    /// <summary>待っている Shelf の ACK を結果付きで畳む(待ちが無ければ何もしない)。</summary>
+    private void FinishShelfAck(bool acked)
+    {
+        Action<bool>? handler;
+        lock (_gate)
+        {
+            _shelfAckTimer?.Dispose();
+            _shelfAckTimer = null;
+            handler = _shelfAck;
+            _shelfAck = null;
+        }
+
+        // ハンドラは Send を呼ぶのでロックの外で実行する。
+        handler?.Invoke(acked);
     }
 
     #endregion
@@ -505,8 +588,13 @@ public sealed class MEMELib : IDisposable
                 memeAcademicQuaternionDataReceived?.Invoke(this, MemeProtocol.ParseQuaternionData(packet));
                 break;
 
+            case MemeProtocol.AupReportResp:
+                // Shelf 移行が CONFIG 遷移の結果を待っていれば渡す(packet[2] == 0x00 が ACK)。
+                FinishShelfAck(packet[2] == 0x00);
+                break;
+
             default:
-                // 0x8F(応答)。計測データではないので何もしない。
+                // 計測データでも応答でもないレポート。何もしない。
                 break;
         }
     }

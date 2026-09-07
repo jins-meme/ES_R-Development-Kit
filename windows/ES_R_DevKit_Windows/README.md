@@ -23,7 +23,9 @@ dotnet test
 
 - **Setting (S) メニュー** — 保存先や TCP 出力などの設定（[Setting](#setting) 参照）
 - **バージョン表示** — アプリと ES_R ファームウェアのバージョン
-- **Scan → デバイス選択 → Connect** — 接続状態は `State :` に出る
+- **Scan → デバイス選択 → Connect** — 接続状態は `State :` に出る。
+  接続中に `Disconnect` を 5 秒押したままにすると Shelf mode へ移行できる
+  （[Shelf mode](#shelf-mode) 参照）
 - **File Replay** — 記録済み CSV を読み込んで再生する（[File Replay](#file-replay) 参照）
 - **Select Mode / Trans Speed / Accel Range / Gyro Range** — 接続時に端末の現在値を読み出して反映する
 - **Start Measurement** — 計測と CSV 記録の開始・停止
@@ -43,9 +45,9 @@ dotnet test
 
 | プロジェクト | 役割 |
 |---|---|
-| `MEMELib_Academic` | BLE 接続とプロトコル |
+| `MEMELib_Academic` | BLE 接続とプロトコル、CSV ファイルの読み書き |
 | `MEME_Academic_Sample` | ロガー本体（WinForms） |
-| `MEMELib_Academic.Tests` | 暗号化とパケット解析の単体テスト |
+| `MEMELib_Academic.Tests` | 暗号化・パケット解析・CSV 読み書きの単体テスト |
 
 `MEME_Academic_Sample` の構成:
 
@@ -62,6 +64,7 @@ dotnet test
 | `Services/CsvReplayService.cs` | 再生用 CSV の解析・再生タイマー・Artifact 書き戻し・区間切り出し |
 | `SettingsForm.cs` | Setting ダイアログ |
 | `ArtifactForm.cs` / `CutFileForm.cs` | Artifact 入力・区間切り出しのダイアログ |
+| `ShelfModeForm.cs` | Shelf mode の確認ダイアログ |
 | `UI/UiTheme.cs` | 角丸半径・枠線色。Mac 版の `cornerRadius: 6` に合わせてある |
 | `UI/RoundedButton.cs` | 角丸ボタン。標準ボタンは直角なので自前で描く |
 
@@ -89,6 +92,25 @@ dotnet test
   波形の細部（ハム成分など）は x32 でも残ります。
 - 読み込めるのは本アプリ形式（Mac 版・Android 版と共通）の CSV だけです。旧 Windows 版の
   `// Accelerometer sensor's range` や `// Data quality` 表記、`BattLv` 列付きの CSV も読めます。
+- `.csv` と `.csv.gz` のどちらも、設定に関係なくそのまま開けます。圧縮の有無はファイルの中身
+  （gzip の magic number）で判断するので、拡張子と中身が食い違っていても読めます。
+- エクスプローラーで `.csv` / `.csv.gz` を右クリック →「プログラムから開く」からも起動できます。
+
+## Shelf mode
+
+Shelf mode（保管モード）は、ペアリング機能を止めて消費電力を抑える端末側のモードです。
+出荷前や長期保管の前に使います。**復帰は充電のみで、アプリからは戻せません。**
+
+接続中かつ非計測のときに `Disconnect` を **5 秒押したまま**にすると確認ダイアログが出て、
+`Yes` を選ぶと移行します。誤操作を防ぐための隠し操作なので、押している間のゲージ表示などは
+出しません。移行の手順は Mac 版・Web Bluetooth 版 SDK と同じです。
+
+1. CONFIG モードへの遷移（`ADN_SET_MODE` の mode=0x0F）を送る
+2. その ACK（`0x8F`、3 秒でタイムアウト）を待つ
+3. SHELF コマンド（`0x41` + ASCII `"SHELF"`）を送る
+4. 端末が自ら切断したら成功（5 秒待っても切断されなければ失敗）
+
+ACK が返らなければ SHELF は送らないので、失敗しても端末は通常モードのままです。
 
 ## Artifact と区間切り出し
 
@@ -120,6 +142,7 @@ dotnet test
 |---|---|
 | Save File Path | CSV の保存先。既定は `ドキュメント\JINS\MEME_Academic` |
 | Acc Offset X / Y / Z | チャート表示のみに足すオフセット。CSV の値は変えない |
+| Save Format | 計測データを gzip 圧縮して保存する（既定 ON）。ON なら `.csv.gz`、OFF なら `.csv` |
 | Save Dialog | 計測終了後に保存先を選び直すダイアログを出す |
 | Time Display | チャート X 軸をローカルタイムで表示する（記録は常に UTC） |
 | TCP Output | 計測データを TCP で外部へ流す |
@@ -145,8 +168,8 @@ $ ncat 127.0.0.1 88
 
 ## CSV
 
-Setting の保存先に `<MACアドレス>_<UTC日時>.csv` として出力します。書式は Mac 版・Android 版と
-共通で、モードごとに列が変わります。
+Setting の保存先に `<MACアドレス>_<UTC日時>.csv.gz` として出力します（Setting の Save Format を
+OFF にすると `.csv`）。書式は Mac 版・Android 版と共通で、モードごとに列が変わります。
 
 | モード | 列 |
 |---|---|
@@ -159,6 +182,11 @@ Setting の保存先に `<MACアドレス>_<UTC日時>.csv` として出力し�
 - `ARTIFACT` は `Free Marking` を押した直後の 1 行に `x` が入る。
 - 100Hz なら 100 行、50Hz なら 50 行たまるごとに書き出します。1 行ずつ open/close すると
   取りこぼすためで、計測停止時に残りをフラッシュします。
+- `.csv.gz` の場合、この 1 回の書き出しが gzip の 1 メンバーになり、それをファイルへ
+  連結していきます。gzip は複数メンバーの連結を 1 ファイルとして扱えるので、`gzip -d` でも
+  本アプリの File Replay でもそのまま読めます。ストリームを開きっぱなしにして最後に
+  トレーラを書く方式と違い、アプリが落ちても切断で計測が途切れても、その時点までの
+  ファイルが常に完結しています（圧縮率の悪化は実測で数％）。
 
 ## Mac 版との対応状況
 
@@ -173,6 +201,8 @@ Mac 版の機能は段階的に移植し、現時点で一通り揃っていま�
 | Standard / Quaternion モード（0x98 / 0x9A） | 実装済み |
 | File Replay（再生・一時停止・シーク・速度切替） | 実装済み |
 | チャートタップでの Artifact 付与、範囲切り出し | 実装済み |
+| CSV の gz 圧縮保存（`.csv` / `.csv.gz` の読み込み） | 実装済み |
+| `Disconnect` 長押しでの Shelf mode 移行 | 実装済み |
 
 Quaternion モードにはチャートに出せる波形が無いため、計測中もチャートは空のままです
 （Mac 版も同じ挙動）。Standard モードの EOG チャートは 1 組目（`EOG_L1` / `EOG_R1` /

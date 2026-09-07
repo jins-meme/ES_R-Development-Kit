@@ -28,6 +28,8 @@ namespace MEME_Academic_Sample
             this.tb_AccOffsetY = new System.Windows.Forms.TextBox();
             this.lb_AccOffsetZ = new System.Windows.Forms.Label();
             this.tb_AccOffsetZ = new System.Windows.Forms.TextBox();
+            this.lb_SaveFormat = new System.Windows.Forms.Label();
+            this.ck_CompressSaveFile = new System.Windows.Forms.CheckBox();
             this.lb_SaveDialog = new System.Windows.Forms.Label();
             this.ck_ShowSaveFileDialog = new System.Windows.Forms.CheckBox();
             this.lb_TimeDisplay = new System.Windows.Forms.Label();
@@ -128,9 +130,26 @@ namespace MEME_Academic_Sample
             this.tb_AccOffsetZ.Size = new System.Drawing.Size(70, 23);
             this.tb_AccOffsetZ.TabIndex = 5;
             //
+            // lb_SaveFormat
+            //
+            this.lb_SaveFormat.Location = new System.Drawing.Point(20, 102);
+            this.lb_SaveFormat.Name = "lb_SaveFormat";
+            this.lb_SaveFormat.Size = new System.Drawing.Size(140, 20);
+            this.lb_SaveFormat.Text = "Save Format";
+            //
+            // ck_CompressSaveFile
+            //
+            this.ck_CompressSaveFile.AutoSize = true;
+            this.ck_CompressSaveFile.Location = new System.Drawing.Point(165, 102);
+            this.ck_CompressSaveFile.Name = "ck_CompressSaveFile";
+            this.ck_CompressSaveFile.Size = new System.Drawing.Size(300, 19);
+            this.ck_CompressSaveFile.TabIndex = 6;
+            this.ck_CompressSaveFile.Text = "Compress saved files with gzip (.csv.gz)";
+            this.ck_CompressSaveFile.UseVisualStyleBackColor = true;
+            //
             // lb_SaveDialog
             //
-            this.lb_SaveDialog.Location = new System.Drawing.Point(20, 102);
+            this.lb_SaveDialog.Location = new System.Drawing.Point(20, 137);
             this.lb_SaveDialog.Name = "lb_SaveDialog";
             this.lb_SaveDialog.Size = new System.Drawing.Size(140, 20);
             this.lb_SaveDialog.Text = "Save Dialog";
@@ -138,16 +157,16 @@ namespace MEME_Academic_Sample
             // ck_ShowSaveFileDialog
             //
             this.ck_ShowSaveFileDialog.AutoSize = true;
-            this.ck_ShowSaveFileDialog.Location = new System.Drawing.Point(165, 102);
+            this.ck_ShowSaveFileDialog.Location = new System.Drawing.Point(165, 137);
             this.ck_ShowSaveFileDialog.Name = "ck_ShowSaveFileDialog";
             this.ck_ShowSaveFileDialog.Size = new System.Drawing.Size(270, 19);
-            this.ck_ShowSaveFileDialog.TabIndex = 6;
+            this.ck_ShowSaveFileDialog.TabIndex = 7;
             this.ck_ShowSaveFileDialog.Text = "Show save file dialog after measurement";
             this.ck_ShowSaveFileDialog.UseVisualStyleBackColor = true;
             //
             // lb_TimeDisplay
             //
-            this.lb_TimeDisplay.Location = new System.Drawing.Point(20, 137);
+            this.lb_TimeDisplay.Location = new System.Drawing.Point(20, 172);
             this.lb_TimeDisplay.Name = "lb_TimeDisplay";
             this.lb_TimeDisplay.Size = new System.Drawing.Size(140, 20);
             this.lb_TimeDisplay.Text = "Time Display";
@@ -155,16 +174,16 @@ namespace MEME_Academic_Sample
             // ck_ConvertToLocalTime
             //
             this.ck_ConvertToLocalTime.AutoSize = true;
-            this.ck_ConvertToLocalTime.Location = new System.Drawing.Point(165, 137);
+            this.ck_ConvertToLocalTime.Location = new System.Drawing.Point(165, 172);
             this.ck_ConvertToLocalTime.Name = "ck_ConvertToLocalTime";
             this.ck_ConvertToLocalTime.Size = new System.Drawing.Size(380, 19);
-            this.ck_ConvertToLocalTime.TabIndex = 7;
+            this.ck_ConvertToLocalTime.TabIndex = 8;
             this.ck_ConvertToLocalTime.Text = "Convert displayed time to local time (data is recorded in UTC)";
             this.ck_ConvertToLocalTime.UseVisualStyleBackColor = true;
             //
             // lb_TcpOutput
             //
-            this.lb_TcpOutput.Location = new System.Drawing.Point(20, 172);
+            this.lb_TcpOutput.Location = new System.Drawing.Point(20, 207);
             this.lb_TcpOutput.Name = "lb_TcpOutput";
             this.lb_TcpOutput.Size = new System.Drawing.Size(140, 20);
             this.lb_TcpOutput.Text = "TCP Output";
@@ -172,31 +191,31 @@ namespace MEME_Academic_Sample
             // ck_ExternalOutputSocket
             //
             this.ck_ExternalOutputSocket.AutoSize = true;
-            this.ck_ExternalOutputSocket.Location = new System.Drawing.Point(165, 172);
+            this.ck_ExternalOutputSocket.Location = new System.Drawing.Point(165, 207);
             this.ck_ExternalOutputSocket.Name = "ck_ExternalOutputSocket";
             this.ck_ExternalOutputSocket.Size = new System.Drawing.Size(220, 19);
-            this.ck_ExternalOutputSocket.TabIndex = 8;
+            this.ck_ExternalOutputSocket.TabIndex = 9;
             this.ck_ExternalOutputSocket.Text = "External output via TCP socket";
             this.ck_ExternalOutputSocket.UseVisualStyleBackColor = true;
             //
             // lb_LocalPort
             //
-            this.lb_LocalPort.Location = new System.Drawing.Point(20, 207);
+            this.lb_LocalPort.Location = new System.Drawing.Point(20, 242);
             this.lb_LocalPort.Name = "lb_LocalPort";
             this.lb_LocalPort.Size = new System.Drawing.Size(140, 20);
             this.lb_LocalPort.Text = "Local Port";
             //
             // tb_LocalPort
             //
-            this.tb_LocalPort.Location = new System.Drawing.Point(165, 203);
+            this.tb_LocalPort.Location = new System.Drawing.Point(165, 238);
             this.tb_LocalPort.Name = "tb_LocalPort";
             this.tb_LocalPort.Size = new System.Drawing.Size(90, 23);
-            this.tb_LocalPort.TabIndex = 9;
+            this.tb_LocalPort.TabIndex = 10;
             //
             // lb_LocalIp
             //
             this.lb_LocalIp.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.lb_LocalIp.Location = new System.Drawing.Point(265, 207);
+            this.lb_LocalIp.Location = new System.Drawing.Point(265, 242);
             this.lb_LocalIp.Name = "lb_LocalIp";
             this.lb_LocalIp.Size = new System.Drawing.Size(300, 20);
             this.lb_LocalIp.Text = "Local IP:";
@@ -204,26 +223,26 @@ namespace MEME_Academic_Sample
             // separator
             //
             this.separator.BackColor = System.Drawing.SystemColors.ControlDark;
-            this.separator.Location = new System.Drawing.Point(20, 245);
+            this.separator.Location = new System.Drawing.Point(20, 280);
             this.separator.Name = "separator";
             this.separator.Size = new System.Drawing.Size(709, 1);
             //
             // bt_Cancel
             //
             this.bt_Cancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.bt_Cancel.Location = new System.Drawing.Point(559, 258);
+            this.bt_Cancel.Location = new System.Drawing.Point(559, 293);
             this.bt_Cancel.Name = "bt_Cancel";
             this.bt_Cancel.Size = new System.Drawing.Size(80, 28);
-            this.bt_Cancel.TabIndex = 11;
+            this.bt_Cancel.TabIndex = 12;
             this.bt_Cancel.Text = "Cancel";
             this.bt_Cancel.UseVisualStyleBackColor = true;
             //
             // bt_Apply
             //
-            this.bt_Apply.Location = new System.Drawing.Point(649, 258);
+            this.bt_Apply.Location = new System.Drawing.Point(649, 293);
             this.bt_Apply.Name = "bt_Apply";
             this.bt_Apply.Size = new System.Drawing.Size(80, 28);
-            this.bt_Apply.TabIndex = 10;
+            this.bt_Apply.TabIndex = 11;
             this.bt_Apply.Text = "Apply";
             this.bt_Apply.UseVisualStyleBackColor = true;
             this.bt_Apply.Click += new System.EventHandler(this.bt_Apply_Click);
@@ -234,7 +253,7 @@ namespace MEME_Academic_Sample
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.bt_Cancel;
-            this.ClientSize = new System.Drawing.Size(749, 300);
+            this.ClientSize = new System.Drawing.Size(749, 335);
             this.Controls.Add(this.bt_Apply);
             this.Controls.Add(this.bt_Cancel);
             this.Controls.Add(this.separator);
@@ -247,6 +266,8 @@ namespace MEME_Academic_Sample
             this.Controls.Add(this.lb_TimeDisplay);
             this.Controls.Add(this.ck_ShowSaveFileDialog);
             this.Controls.Add(this.lb_SaveDialog);
+            this.Controls.Add(this.ck_CompressSaveFile);
+            this.Controls.Add(this.lb_SaveFormat);
             this.Controls.Add(this.tb_AccOffsetZ);
             this.Controls.Add(this.lb_AccOffsetZ);
             this.Controls.Add(this.tb_AccOffsetY);
@@ -282,6 +303,8 @@ namespace MEME_Academic_Sample
         private System.Windows.Forms.TextBox tb_AccOffsetY;
         private System.Windows.Forms.Label lb_AccOffsetZ;
         private System.Windows.Forms.TextBox tb_AccOffsetZ;
+        private System.Windows.Forms.Label lb_SaveFormat;
+        private System.Windows.Forms.CheckBox ck_CompressSaveFile;
         private System.Windows.Forms.Label lb_SaveDialog;
         private System.Windows.Forms.CheckBox ck_ShowSaveFileDialog;
         private System.Windows.Forms.Label lb_TimeDisplay;

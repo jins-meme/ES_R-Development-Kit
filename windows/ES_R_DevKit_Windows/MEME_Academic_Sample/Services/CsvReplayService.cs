@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using MEMELib_Academic;
 
 namespace MEME_Academic_Sample.Services;
@@ -52,7 +51,8 @@ public sealed class CsvReplayService : IDisposable
         string[] lines;
         try
         {
-            lines = File.ReadAllLines(path);
+            // .csv でも .csv.gz でも同じ行の並びとして読める(CsvFile が展開を担う)。
+            lines = CsvFile.ReadAllLines(path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -351,7 +351,7 @@ public sealed class CsvReplayService : IDisposable
             return;
         }
 
-        var lines = File.ReadAllLines(path);
+        var lines = CsvFile.ReadAllLines(path);
         var headerIndex = Array.FindIndex(lines, l => l.StartsWith("//ARTIFACT", StringComparison.Ordinal));
         if (headerIndex < 0)
         {
@@ -384,7 +384,7 @@ public sealed class CsvReplayService : IDisposable
     /// </summary>
     public static void ExportRange(string sourcePath, string destinationPath, int startRow, int endRow)
     {
-        var lines = File.ReadAllLines(sourcePath);
+        var lines = CsvFile.ReadAllLines(sourcePath);
         var headerIndex = Array.FindIndex(lines, l => l.StartsWith("//ARTIFACT", StringComparison.Ordinal));
         if (headerIndex < 0)
         {
@@ -430,18 +430,13 @@ public sealed class CsvReplayService : IDisposable
     private static void WriteAtomic(string path, IEnumerable<string> lines)
     {
         var directory = Path.GetDirectoryName(path);
+        // 一時ファイルにも本来の拡張子を残す。CsvFile は拡張子で圧縮の有無を決めるので、
+        // "….csv.gz.tmp" にすると gz のはずのファイルが非圧縮で書かれてしまう。
         var temp = Path.Combine(
             string.IsNullOrEmpty(directory) ? "." : directory,
-            Path.GetFileName(path) + ".tmp");
+            CsvFile.BaseName(path) + ".tmp" + CsvFile.MatchingExtension(path));
 
-        using (var writer = new StreamWriter(temp, append: false, new UTF8Encoding(false)) { NewLine = "\r\n" })
-        {
-            foreach (var line in lines)
-            {
-                writer.WriteLine(line);
-            }
-        }
-
+        CsvFile.WriteAllLines(temp, lines);
         File.Move(temp, path, overwrite: true);
     }
 
