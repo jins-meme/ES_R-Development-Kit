@@ -44,7 +44,7 @@
 4. **作業ツリー確認**: `git status` でクリーンであることを確認する。未コミットの変更があればユーザーに確認してから進める。
 5. **配布用アセットの準備**: 上記スクリプトを使ってzip化するか、Android の場合は署名済み apk/aab をそのまま使う。ソースは `CLAUDE.local.md` に書かれたパス、無ければユーザーに確認する。
 6. **タグ作成とpush**: `git tag <tag>` → `git push origin <tag>`
-7. **リリース作成**: `gh release create <tag> <asset...> --title "<Platform> v<version>" --notes "<変更点サマリ>"`(変更点サマリは対象プラットフォームの直近コミットメッセージから要約する)
+7. **リリース作成**: `gh release create <tag> <asset...> --title "<Platform> v<version>" --notes "<変更点サマリ>"`(変更点サマリは対象プラットフォームの直近コミットメッセージから要約する)。**タイトル・本文とも英語で書く**(このリポジトリはpublicで海外の開発者も読むため)
 8. 作成したReleaseのURLをユーザーに報告する。
 
 ## 前提条件
