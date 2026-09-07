@@ -1,9 +1,24 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     // core の SettingsDialog "OSS Licenses" が表示するライセンス一覧データを生成する。
     id("com.google.android.gms.oss-licenses-plugin")
 }
+
+// 本番リリース署名情報は local.properties (gitignore対象) か環境変数から読む。
+// どちらにも無ければ null のまま → release は debug キー署名にフォールバックする。
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+fun releaseSigningProp(key: String): String? =
+    localProperties.getProperty(key) ?: System.getenv(key)
+
+val releaseStoreFile = releaseSigningProp("RELEASE_STORE_FILE")
 
 android {
     namespace = "com.jins_jp.meme.academic"
@@ -17,6 +32,17 @@ android {
         versionName = "3.0.3"
     }
 
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseSigningProp("RELEASE_STORE_PASSWORD")
+                keyAlias = releaseSigningProp("RELEASE_KEY_ALIAS")
+                keyPassword = releaseSigningProp("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -25,9 +51,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // release 変種を Run/動作確認できるよう開発用 debug キーで署名する
-            // (本番配布は Generate Signed APK でウィザードの署名に上書きされ影響なし)。
-            signingConfig = signingConfigs.getByName("debug")
+            // 本番keystore情報(local.properties/環境変数)があればそれで署名、
+            // 無い開発者のマシンでは従来どおり debug キーにフォールバックする。
+            signingConfig = if (releaseStoreFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
