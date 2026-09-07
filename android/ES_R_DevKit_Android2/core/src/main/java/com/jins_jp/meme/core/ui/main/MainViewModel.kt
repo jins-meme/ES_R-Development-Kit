@@ -22,13 +22,16 @@ import com.jins_jp.meme.core.data.CsvWriter
 import com.jins_jp.meme.core.data.DataParser
 import com.jins_jp.meme.core.data.LabelMerger
 import com.jins_jp.meme.core.data.decompressIfGzip
+import com.jins_jp.meme.core.data.LocationFix
 import com.jins_jp.meme.core.data.LocationSampler
 import com.jins_jp.meme.core.data.MeasurementSettings
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
 import com.jins_jp.meme.core.data.SampleCounter
 import com.jins_jp.meme.core.data.SettingsStore
+import com.jins_jp.meme.core.data.formatLocationArtifact
 import com.jins_jp.meme.core.data.formatRow
+import com.jins_jp.meme.core.data.movedAtLeast
 import com.jins_jp.meme.core.plugin.AlgoPlugin
 import com.jins_jp.meme.core.service.MeasurementService
 import kotlinx.coroutines.CompletableDeferred
@@ -45,6 +48,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileInputStream
@@ -64,8 +68,12 @@ private const val SCAN_RETRY_GAP_MS = 500L
 // 1 行出し、長時間計測中の減り方を追えるようにする。
 private const val BATTERY_LOG_INTERVAL_MS = 60_000L
 
-// 計測中に大まかな現在地を ARTIFACT 列へ残す間隔（計測開始時が 1 回目）。
+// 計測中に大まかな現在地の取得をトリガーする間隔（計測開始時が 1 回目）。
 private const val LOCATION_INTERVAL_MS = 60_000L
+
+// 前回記録した地点からこれだけ動いていたら記録する（緯度方向・経度方向のどちらか）。
+// 止まっている間は同じ座標を毎分書かない＝ARTIFACT 列が位置情報で埋まらない。
+private const val LOCATION_MOVE_THRESHOLD_M = 50.0
 
 // Shelf 移行の 1 段目（CONFIG モードへの遷移）の ACK を待つ時間。通常は
 // 100ms 台で返る。ここで諦めても SHELF コマンドは送らないので端末は無傷。
@@ -108,8 +116,8 @@ data class MainUiState(
     // 再生ではソースCSVの ARTIFACT 列由来＋このセッションで確定したラベル、
     // 実機計測ではこのセッションで確定したラベル。
     val artifactEvents: List<ArtifactEvent> = emptyList(),
-    // 計測中 1 分に 1 回、大まかな現在地を ARTIFACT 列へ残すか（既定 ON）。
-    val locationLogging: Boolean = true,
+    // 計測中、大まかな現在地を ARTIFACT 列へ残すか（既定 OFF）。
+    val locationLogging: Boolean = false,
     // 本体データCSVを gz 圧縮して保存するか（既定 ON）。形式は計測開始時に確定する。
     val gzipCompression: Boolean = true,
     // Disconnect の長押しで開く Shelf mode の確認ダイアログ。
@@ -215,6 +223,15 @@ class MainViewModel(
     // 計測中の位置取得ループ（[LOCATION_INTERVAL_MS] ごと）。
     private val locationSampler = LocationSampler(application)
     private var locationTickerJob: Job? = null
+
+    // 最後に ARTIFACT 列へ書いた地点。次の測位がここから
+    // [LOCATION_MOVE_THRESHOLD_M] 以上離れた時だけ記録する。
+    private var lastLocationFix: LocationFix? = null
+
+    // 次に書くデータ行の ARTIFACT 列へ載せる位置情報（1 行消費したら null に戻る）。
+    // 測位は別コルーチンで走るが、書き込むのも消費するのも viewModelScope の
+    // 既定ディスパッチャ(Main)上なので、この受け渡しに排他は要らない。
+    private var pendingLocationArtifact: String? = null
 
     /**
      * 直前に送ったコマンドの AUP_REPORT_RESP(ACK/NACK)を 1 件だけ受け取るための待ち合わせ。
@@ -553,6 +570,7 @@ class MainViewModel(
             counter.reset()
             prevTimeMs = 0
             tapLabels.clear()
+            resetLocationState()
             // 新しいセッションの開始残量を必ず 1 行残す（再接続直後で残量が
             // 変わっていなくても間引かれないように）。
             lastLoggedBattery = Int.MIN_VALUE
@@ -606,26 +624,31 @@ class MainViewModel(
             // 未確定の検出結果（1 秒未満の区間など）をプラグインが書き切ってから閉じる。
             for (p in plugins) p.onMeasurementStop(csv)
             val stopResult = csv.stop()
-            // Stop Measurement / Stop Replay: タップラベルをデータCSVへ統合する。
-            // 実機計測はこのセッションで書いた本体CSV、再生は再生元のCSVが対象。
-            mergeTapLabels(
-                target = if (wasMock) replaySource else stopResult.dataUri,
-                byRowIndex = wasMock,
-            )
             stopCommTicker()
             stopLocationTicker()
             MeasurementService.stop(getApplication())
-            val shareUris = listOfNotNull(stopResult.dataUri, stopResult.classificationUri)
+            // 停止の見た目（ボタン・行数）は統合を待たずに先に戻す。統合は数百MBの
+            // CSV を書き直すことがあり、待たせると Stop が固まったように見える。
             _ui.update {
                 it.copy(
                     isMeasuring = false,
                     recordingRows = 0L,
                     isPlaybackPaused = false,
                     labelDialog = null,
-                    shareRequest = if (
-                        it.openSharingOnComplete && !it.mockEnabled && shareUris.isNotEmpty()
-                    ) ShareRequest(shareUris) else it.shareRequest,
                 )
+            }
+            // Stop Measurement / Stop Replay: タップラベルをデータCSVへ統合する。
+            // 実機計測はこのセッションで書いた本体CSV、再生は再生元のCSVが対象。
+            mergeTapLabels(
+                target = if (wasMock) replaySource else stopResult.dataUri,
+                byRowIndex = wasMock,
+            )
+            // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
+            // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。
+            // 再生停止かどうかは Disconnect 経由で mockEnabled が戻る前の値で判定する。
+            val shareUris = listOfNotNull(stopResult.dataUri, stopResult.classificationUri)
+            if (!wasMock && shareUris.isNotEmpty() && ui.value.openSharingOnComplete) {
+                _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
             }
         }
     }
@@ -707,20 +730,22 @@ class MainViewModel(
      * 追記ではラベル行だけ差し替えられないので全体を書き直すが、**CSV を
      * メモリに載せずに 1 行ずつ流す**。100Hz の実測は 1 時間で約 28MB の
      * テキストになり、`List<String>` へ読み込むと数時間の計測でヒープを
-     * 使い切る（位置記録が 1 分ごとにラベルを積むため、この経路は毎セッション
-     * 通る）。いったんキャッシュの一時ファイルへ書き切ってから本体へ流し込む
+     * 使い切る。いったんキャッシュの一時ファイルへ書き切ってから本体へ流し込む
      * ので、途中で失敗しても元のファイルは壊れない。
+     *
+     * **完了まで返らない**（suspend）。計測完了時の共有は書き戻し済みのファイルを
+     * 渡す必要があり、投げっぱなしだと共有シートが統合前のCSVを掴む。
      */
-    private fun mergeTapLabels(target: Uri?, byRowIndex: Boolean) {
+    private suspend fun mergeTapLabels(target: Uri?, byRowIndex: Boolean) {
         if (tapLabels.isEmpty()) return
         val labels = tapLabels.toList()
         tapLabels.clear()
         if (target == null) return
         val app = getApplication<Application>()
         val resolver = app.contentResolver
-        viewModelScope.launch(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             val tmp = runCatching { File.createTempFile("label_merge", ".tmp", app.cacheDir) }
-                .getOrNull() ?: return@launch
+                .getOrNull() ?: return@withContext
             try {
                 runCatching {
                     val written = resolver.openInputStream(target)?.use { ins ->
@@ -831,9 +856,12 @@ class MainViewModel(
             }
 
             if (!ui.value.mockEnabled) {
-                // ARTIFACT 列は受信時には書かず、停止時に LabelMerger がタップラベル/
-                // Free Marking をまとめて統合する。
-                val row = formatRow(false, counter.totalCount, prevTimeMs, packet.values)
+                // 位置情報は測位できた直後の 1 行へその場で書く（後からの統合は
+                // 全行の書き直しになるため）。タップラベル/Free Marking は受信時には
+                // 分からないので、従来どおり停止時に LabelMerger が同じ列へ統合する。
+                val artifact = pendingLocationArtifact ?: ""
+                if (artifact.isNotEmpty()) pendingLocationArtifact = null
+                val row = formatRow(artifact, counter.totalCount, prevTimeMs, packet.values)
                 csv.writeRow(row)
             }
         }
@@ -921,6 +949,7 @@ class MainViewModel(
      */
     private fun startLocationTicker() {
         stopLocationTicker()
+        resetLocationState()
         val st = ui.value
         // 再生（mock）は過去のログを流しているだけなので、いまの位置は記録しない。
         if (!st.locationLogging || st.mockEnabled) return
@@ -936,12 +965,37 @@ class MainViewModel(
         locationTickerJob?.cancel(); locationTickerJob = null
     }
 
-    /** 現在地が取れたら "lc:35.6802_139.7521" をタップラベルと同じ経路で 1 件記録する。 */
+    /**
+     * 位置の記録状態を初期化する。セッションの開始と設定の切り替えで呼び、
+     * 最初の 1 回は「前回地点なし」＝必ず記録される状態から始める。前のセッションで
+     * 書けなかった位置が新しいCSVの先頭行へ紛れ込まないよう、持ち越しも捨てる。
+     */
+    private fun resetLocationState() {
+        lastLocationFix = null
+        pendingLocationArtifact = null
+    }
+
+    /**
+     * 現在地を 1 回取り、前回記録した地点から [LOCATION_MOVE_THRESHOLD_M] 以上
+     * 動いていれば "lc:35.6802_139.7521" を**次に書くデータ行**の ARTIFACT 列へ載せる
+     * （[handleIncoming] が消費する）。停止時にまとめて統合していた頃と違い、CSV を
+     * 読み直さないので長時間計測でも停止が重くならない。
+     */
     private suspend fun recordLocationOnce() {
-        val text = runCatching { locationSampler.sample() }.getOrNull() ?: return
+        val fix = runCatching { locationSampler.sample() }.getOrNull() ?: return
         // 測位が返るまでの間に計測が終わっていたら、載せる行が無いので捨てる。
         if (!ui.value.isMeasuring || ui.value.mockEnabled) return
-        addLabel(currentLabelKey(), text)
+        if (!movedAtLeast(lastLocationFix, fix, LOCATION_MOVE_THRESHOLD_M)) return
+        val text = formatLocationArtifact(fix.latitude, fix.longitude) ?: return
+        lastLocationFix = fix
+        pendingLocationArtifact = text
+        // タップラベルと同じようにチャートへも縦線で出す（CSV への書き込みは
+        // 次のデータ行なので、この秒位置とのずれは 1 サンプル以内）。
+        val event = ArtifactEvent(
+            currentLabelKey().toDouble() / ui.value.settings.quality.hz,
+            text,
+        )
+        _ui.update { it.copy(artifactEvents = it.artifactEvents + event) }
     }
 
     companion object {

@@ -142,6 +142,21 @@ class LabelMergerTest {
         assertEquals(header + listOf(row("X", 1), row("sit", 2)), out)
     }
 
+    /**
+     * 計測中に書き込まれた位置情報の ARTIFACT は、同じ行にタップラベルが載っても
+     * 消さずに残す（位置は後から取り直せない）。
+     */
+    @Test
+    fun keepsInlineLocationWhenLabelLandsOnSameRow() {
+        val lines = header + listOf(row("lc:35.6802_139.7521", 1), row("", 2))
+        val out = LabelMerger.merge(
+            lines,
+            listOf(LabelMerger.Entry(1, "sit")),
+            byRowIndex = false,
+        )
+        assertEquals(header + listOf(row("lc:35.6802_139.7521;sit", 1), row("", 2)), out)
+    }
+
     @Test
     fun emptyLabelsReturnLinesUnchanged() {
         val lines = header + listOf(row("", 1))

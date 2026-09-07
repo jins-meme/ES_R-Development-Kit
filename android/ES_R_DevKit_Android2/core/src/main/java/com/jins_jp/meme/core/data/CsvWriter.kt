@@ -304,9 +304,15 @@ class CsvWriter(private val context: Context) {
     }
 }
 
-/** Format a single CSV row matching the original Java sources. */
+/**
+ * Format a single CSV row matching the original Java sources.
+ *
+ * [artifact] は先頭の ARTIFACT 列にそのまま入る文字列（通常は空。計測中に確定した
+ * 位置情報 "lc:35.6802_139.7521" をその行へ載せる時だけ非空になる）。タップラベルと
+ * Free Marking は受信時には分からないので、停止時に [LabelMerger] が同じ列へ統合する。
+ */
 fun formatRow(
-    isMarking: Boolean,
+    artifact: String,
     totalCount: Long,
     timeMillisGmt: Long,
     values: IntArray,
@@ -315,7 +321,7 @@ fun formatRow(
         timeZone = TimeZone.getTimeZone("GMT")
     }
     val sb = StringBuilder()
-    sb.append(if (isMarking) "X" else "").append(",")
+    sb.append(artifact).append(",")
     sb.append(totalCount).append(",")
     sb.append(df.format(Date(timeMillisGmt)))
     for (v in values) {

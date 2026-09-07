@@ -51,10 +51,10 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_GZIP_COMPRESSION, enabled).apply()
     }
 
-    // 既定 ON。計測中 1 分に 1 回だけ大まかな現在地を ARTIFACT 列へ残す
-    // （[LocationSampler]）。権限がなければ何も記録されないので、既定 ON でも
-    // 位置を許可しない限りログの中身は変わらない。
-    fun loadLocationLogging(): Boolean = prefs.getBoolean(KEY_LOCATION_LOGGING, true)
+    // 既定 OFF。ON にすると計測中 1 分に 1 回測位し、前回記録した地点から 50m 以上
+    // 動いていた時だけ大まかな現在地を ARTIFACT 列へ残す（[LocationSampler]）。
+    // 位置は要る人だけが要る情報で、常時オンにするものではないので既定は OFF。
+    fun loadLocationLogging(): Boolean = prefs.getBoolean(KEY_LOCATION_LOGGING, false)
 
     fun saveLocationLogging(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_LOCATION_LOGGING, enabled).apply()

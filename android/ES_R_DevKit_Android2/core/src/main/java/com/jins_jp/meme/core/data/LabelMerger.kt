@@ -42,7 +42,8 @@ object LabelMerger {
      * [lines](データCSVの全行)のうち、各ラベルの [Entry.key] 以上で最初のデータ行の
      * ARTIFACT 列(先頭列)へラベル文字列を書き込んだ結果を返す。key がぴったりの行が
      * ない場合(パケット取りこぼしで NUM が飛んだ等)も直後の行に載せて失わない。
-     * 同じ行に複数のラベルが重なったときは ";" で連結する。
+     * 同じ行に複数のラベルが重なったときは ";" で連結する。計測中に書き込まれた
+     * ARTIFACT（位置情報）がある行はそれを先頭に残したまま連結する。
      *
      * 全行をメモリに載せるので、実運用の書き戻しではストリーム版を使うこと。
      * こちらは短い入力（テスト）向けに残している。
@@ -84,7 +85,11 @@ object LabelMerger {
                 texts.add(sorted[next].text)
                 next++
             }
-            return if (texts.isEmpty()) line else texts.joinToString(";") + line.substring(comma)
+            if (texts.isEmpty()) return line
+            // 計測中に書き込み済みの ARTIFACT（位置情報 "lc:..."）は消さずに残す。
+            val existing = line.substring(0, comma).trim()
+            if (existing.isNotEmpty()) texts.add(0, existing)
+            return texts.joinToString(";") + line.substring(comma)
         }
     }
 }

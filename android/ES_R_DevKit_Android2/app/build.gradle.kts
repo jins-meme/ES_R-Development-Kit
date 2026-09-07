@@ -13,8 +13,8 @@ android {
         applicationId = "com.jins_jp.meme.academic"
         minSdk = 31
         targetSdk = 37
-        versionCode = 8
-        versionName = "3.0.2"
+        versionCode = 9
+        versionName = "3.0.3"
     }
 
     buildTypes {
