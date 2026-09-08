@@ -37,6 +37,10 @@ class MeasurementService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
 
+    // いま startForeground 済みの type。既に同じ型で前面化しているなら呼び直さない
+    // （理由は [onStartCommand]）。サービスのインスタンスと寿命が同じ。
+    private var currentType: Int? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -47,8 +51,18 @@ class MeasurementService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // minSdk 31 のため 3 引数版 startForeground が常に使える。
         val type = foregroundServiceType()
+        // 型が変わらないなら呼び直さない。自動再接続は計測中の切断からの続きで、
+        // サービスを止めずに維持したままバックグラウンドから [start] を呼び直すため、
+        // ここで location 型を**付け直そうとする**と「バックグラウンドから
+        // while-in-use 型の FGS を開始した」と見なされて SecurityException になり得る。
+        // 既に location 付きで前面化しているものをそのままにすれば、その判定に触れない。
+        if (currentType == type) {
+            acquireWakeLock()
+            return START_NOT_STICKY
+        }
         try {
             startForeground(NOTIFICATION_ID, buildNotification(), type)
+            currentType = type
         } catch (e: SecurityException) {
             // location 型は「開始時点で位置権限がある」ことを OS が検査する。権限を
             // 取り消した直後などで弾かれても計測そのものは続けたいので、位置を諦めて
@@ -59,6 +73,7 @@ class MeasurementService : Service() {
                 buildNotification(),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
             )
+            currentType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         }
         acquireWakeLock()
         // プロセス死後の自動復帰は無意味（BLE 接続も一緒に失われるため）。
@@ -98,6 +113,7 @@ class MeasurementService : Service() {
     }
 
     override fun onDestroy() {
+        currentType = null
         releaseWakeLock()
         super.onDestroy()
     }
