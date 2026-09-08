@@ -84,7 +84,7 @@ class MeasurementService : Service() {
      * このサービスを上げるときの foregroundServiceType。
      *
      * **location を足さないと、画面 OFF 中の測位が丸ごと落ちる。**
-     * ACCESS_COARSE_LOCATION は while-in-use（appop が foreground）なので、アプリが
+     * ACCESS_FINE_LOCATION も COARSE と同じく while-in-use（appop が foreground）なので、アプリが
      * 前面でなくなった時点で位置の capability を失う。type=connectedDevice だけだと
      * FGS 中も「前面ではない」扱いになり、LocationManager は要求を不活性のまま置いて
      * 例外も出さずに null を返す（実機の appops で、fgsvc 中は MONITOR_LOCATION の

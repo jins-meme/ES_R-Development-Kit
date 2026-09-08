@@ -61,9 +61,11 @@ class MainActivity : ComponentActivity() {
         val perms = buildList {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
-            // 計測中の位置記録(core の LocationSampler。設定は既定 OFF)。COARSE だけを
-            // 要求することで、システムのダイアログが「おおよその位置情報」になる。
-            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            // 計測中の位置記録(core の LocationSampler。設定は既定 OFF)。FINE を要求する。
+            // COARSE のみだと Android 12+ の Approximate Location 丸めがプロバイダごとに
+            // 別々にかかり、静止中でも fused/network のどちらが先着するかで数km単位の
+            // 見かけ移動が出た（2026-09-08 実測）。
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }

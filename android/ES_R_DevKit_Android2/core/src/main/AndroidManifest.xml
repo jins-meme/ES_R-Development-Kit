@@ -8,10 +8,12 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- 計測中の現在地(LocationSampler。設定「位置情報を残す」は既定 OFF)。実行時に
+         要求するのは FINE（システムのダイアログは「正確な位置情報」）。COARSE のみ
+         要求していた頃は Android 12+ の Approximate Location 丸めがプロバイダごとに
+         別々にかかり、静止中でも見かけ移動が出ていたため FINE に変更した
+         （2026-09-08）。 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- 計測中の大まかな現在地(LocationSampler。設定「位置情報を残す」は既定 OFF)。
-         実行時に要求するのは COARSE だけなので、システムのダイアログは
-         「おおよその位置情報」になる。 -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />

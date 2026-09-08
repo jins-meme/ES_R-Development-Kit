@@ -37,7 +37,7 @@ data class LocationFix(val latitude: Double, val longitude: Double)
 
 /**
  * 緯度経度を ARTIFACT 列の 1 エントリ ("lc:35.6802_139.7521") にする。無効値なら null。
- * 小数 4 桁(約 11m)は Approximate Location の粒度に対して十分。CSV を壊さないよう、
+ * 小数 4 桁(約 11m)は [movedAtLeast] の 50m 判定に対して十分な粒度。CSV を壊さないよう、
  * 小数点がカンマになるロケールを避けて [Locale.US] で整形する。
  */
 fun formatLocationArtifact(latitude: Double, longitude: Double): String? {
@@ -66,16 +66,20 @@ fun movedAtLeast(prev: LocationFix?, next: LocationFix, meters: Double): Boolean
 }
 
 /**
- * 計測中の大まかな現在地(Approximate Location)を 1 回だけ取り、緯度経度を返す。
+ * 計測中の現在地を 1 回だけ取り、緯度経度を返す。
  *
- * 権限は [Manifest.permission.ACCESS_COARSE_LOCATION] だけを要求する前提。
- * COARSE しか無い状態ではどのプロバイダも街区レベルに丸めた座標を返すので、
- * 精密な位置は取れない（それでよい）。取得できない場合(権限なし・プロバイダ
- * 無効・タイムアウト・無効値)は一貫して null を返し、呼び出し側は何も記録しない。
+ * 権限は [Manifest.permission.ACCESS_FINE_LOCATION] を要求する前提（2026-09-08〜）。
+ * 以前は COARSE だけを要求していたが、Android 12+ の Approximate Location 丸めが
+ * プロバイダ([FUSED_PROVIDER]/[NETWORK_PROVIDER])ごとに別々にかかるため、静止中でも
+ * どちらが先に応答するかで数km単位の見かけ移動が記録される不具合があった。FINE なら
+ * OS 側の丸めが外れ、素の測位結果を得られる。要求精度自体は変えていない
+ * （[LocationRequest.QUALITY_BALANCED_POWER_ACCURACY] のまま）。取得できない場合
+ * (権限なし・プロバイダ無効・タイムアウト・無効値)は一貫して null を返し、
+ * 呼び出し側は何も記録しない。
  */
 class LocationSampler(private val context: Context) {
 
-    /** 大まかな位置の取得が許可されているか。FINE があれば COARSE も満たされる。 */
+    /** 位置の取得が許可されているか。FINE を要求する運用だが、COARSE のみでも動く。 */
     fun hasPermission(): Boolean {
         val granted = { p: String ->
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
@@ -93,7 +97,7 @@ class LocationSampler(private val context: Context) {
         // 1 点も残らない不具合の切り分けに、実機の appops を読む羽目になった）。
         // 失敗の理由だけは必ず 1 行残す。
         if (!hasPermission()) {
-            Log.w(TAG, "skip: ACCESS_COARSE_LOCATION not granted")
+            Log.w(TAG, "skip: location permission not granted")
             return null
         }
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
@@ -151,9 +155,11 @@ class LocationSampler(private val context: Context) {
     /**
      * [provider] で 1 回だけ測位する。測位できなければ（エラー含め）null。
      *
-     * 精度は [LocationRequest.QUALITY_BALANCED_POWER_ACCURACY]。街区レベルの位置が
-     * 分かれば十分（記録は小数 4 桁・移動判定は 50m 単位）で、GPS を回して精密な
-     * 測位をする必要が無いため。1 回の測位に使う時間も [FIX_TIMEOUT_MS] で切る。
+     * 精度は [LocationRequest.QUALITY_BALANCED_POWER_ACCURACY]。記録は小数 4 桁・
+     * 移動判定は 50m 単位なので、HIGH_ACCURACY で GPS を回し続けるほどの精密さは
+     * 要らない。FINE 権限があれば BALANCED でも fused/network 側の丸めが外れて
+     * 十分な精度が出るため、電力コストの低い BALANCED のまま据え置いている。
+     * 1 回の測位に使う時間も [FIX_TIMEOUT_MS] で切る。
      */
     @SuppressLint("MissingPermission")
     private suspend fun currentLocation(lm: LocationManager, provider: String): Location? =
