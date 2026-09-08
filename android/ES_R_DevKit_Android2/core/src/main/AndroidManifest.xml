@@ -17,6 +17,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- 計測フォアグラウンドサービスに location 型を足すために要る（宣言のみの
+         install-time 権限。実行時ダイアログは出ない）。型を足す理由は
+         [MeasurementService.foregroundServiceType] のコメントを見ること。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <uses-feature
         android:name="android.hardware.bluetooth_le"
@@ -26,11 +30,14 @@
         <!--
             計測中にプロセスとCPUを生かし続けるためのフォアグラウンドサービス。
             BLEデバイスとの継続通信なので type は connectedDevice。
+            location を併記するのは、画面OFF中も位置記録(LocationSampler)を
+            続けるため。ここは宣言できる型の**和集合**で、実際に使う型は実行時に
+            [MeasurementService.foregroundServiceType] が権限と設定を見て選ぶ。
         -->
         <service
             android:name="com.jins_jp.meme.core.service.MeasurementService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|location" />
 
         <!--
             OSS ライセンス一覧ビューア。play-services-oss-licenses が宣言する

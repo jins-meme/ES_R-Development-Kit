@@ -301,6 +301,12 @@ class MainViewModel(
         _ui.update { it.copy(locationLogging = enabled) }
         // 計測中の切り替えは次の周期を待たずに効かせる。
         if (ui.value.isMeasuring) startLocationTicker() else stopLocationTicker()
+        // 実機計測中なら FGS を上げ直して foregroundServiceType を評価し直す。
+        // location 型が付いていないと画面 OFF 中の測位が落ちるため
+        // （[MeasurementService.foregroundServiceType]）。冪等なので通知は増えない。
+        if (ui.value.isMeasuring && !ui.value.mockEnabled) {
+            MeasurementService.start(getApplication())
+        }
     }
 
     fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }

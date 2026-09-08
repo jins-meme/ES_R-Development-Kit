@@ -10,8 +10,13 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.jins_jp.meme.core.R
+import com.jins_jp.meme.core.data.LocationSampler
+import com.jins_jp.meme.core.data.SettingsStore
+
+private const val TAG = "MeasurementService"
 
 /**
  * 計測中にプロセスと CPU を生かし続けるためのフォアグラウンドサービス。
@@ -20,6 +25,8 @@ import com.jins_jp.meme.core.R
  * kill したり CPU を眠らせたりするため、BLE のデータ受信が途切れる。これを防ぐため:
  *   - 常駐通知付きの Foreground Service（type=connectedDevice）でプロセスを保護し、
  *   - PARTIAL_WAKE_LOCK で画面 OFF 中も CPU を回して GATT コールバックを届かせる。
+ *
+ * 位置記録が ON のときは type に location も足す（[foregroundServiceType]）。
  *
  * BLE 接続そのものは [com.jins_jp.meme.core.App] スコープの
  * [com.jins_jp.meme.core.ble.MemeBleRepository] が保持しており、このサービスは
@@ -39,14 +46,49 @@ class MeasurementService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // minSdk 31 のため 3 引数版 startForeground が常に使える。
-        startForeground(
-            NOTIFICATION_ID,
-            buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-        )
+        val type = foregroundServiceType()
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(), type)
+        } catch (e: SecurityException) {
+            // location 型は「開始時点で位置権限がある」ことを OS が検査する。権限を
+            // 取り消した直後などで弾かれても計測そのものは続けたいので、位置を諦めて
+            // connectedDevice だけで上げ直す。
+            Log.w(TAG, "startForeground(type=$type) rejected; retry without location", e)
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            )
+        }
         acquireWakeLock()
         // プロセス死後の自動復帰は無意味（BLE 接続も一緒に失われるため）。
         return START_NOT_STICKY
+    }
+
+    /**
+     * このサービスを上げるときの foregroundServiceType。
+     *
+     * **location を足さないと、画面 OFF 中の測位が丸ごと落ちる。**
+     * ACCESS_COARSE_LOCATION は while-in-use（appop が foreground）なので、アプリが
+     * 前面でなくなった時点で位置の capability を失う。type=connectedDevice だけだと
+     * FGS 中も「前面ではない」扱いになり、LocationManager は要求を不活性のまま置いて
+     * 例外も出さずに null を返す（実機の appops で、fgsvc 中は MONITOR_LOCATION の
+     * 記録が 1 件も付かないことを確認済み）。結果、CSV に残る位置は Start を押した
+     * 瞬間の 1 点だけになる。
+     *
+     * 位置権限が無い／設定が OFF のときに location を渡すと [SecurityException] に
+     * なるため、両方そろったときだけ足す。設定を計測中に切り替えたときは
+     * MainViewModel が [start] を呼び直してここを再評価させる。
+     */
+    private fun foregroundServiceType(): Int {
+        val useLocation =
+            SettingsStore(this).loadLocationLogging() && LocationSampler(this).hasPermission()
+        return if (useLocation) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
