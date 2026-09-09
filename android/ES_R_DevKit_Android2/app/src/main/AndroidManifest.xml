@@ -5,10 +5,14 @@
          宣言しており、マニフェストマージで取り込まれる。 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- allowBackup="false" は必須。true にするとGoogleの自動バックアップ巡回
+         (約12時間おき)の対象になり、巡回時に BackupManager が計測中の
+         プロセスごとSIGKILLする(前面サービスでも容赦なく殺される)。
+         サイドロード配布のため transport 側には毎回拒否されており、
+         バックアップの実利はゼロで長時間計測だけが中断されていた。 -->
     <application
         android:name="com.jins_jp.meme.core.App"
-        android:allowBackup="true"
-        android:fullBackupContent="false"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
