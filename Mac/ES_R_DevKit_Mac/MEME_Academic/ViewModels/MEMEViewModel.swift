@@ -158,6 +158,9 @@ final class MEMEViewModel: NSObject {
     /// 再生中はサンプル位置＝データ行インデックス。計測中は先頭パケットを1件落とすため
     /// データ行インデックス＝サンプル位置−1（書き戻し時に変換する。flushLiveArtifacts 参照）。
     private var pendingArtifacts: [Int: String] = [:]
+    /// 計測中に Free Marking で付けた印（絶対チャートサンプル位置 → "x"）。CSV には
+    /// 受信時に書き込み済み（ingestPacket 参照）なので表示専用で、書き戻しはしない。
+    private var freeMarkings: [Int: String] = [:]
     /// Artifact ダイアログの対象サンプル位置（絶対チャートサンプル位置）。
     private var artifactTargetRow: Int = 0
 
@@ -226,6 +229,7 @@ final class MEMEViewModel: NSObject {
         isFreeMarking = false
         isReplayPaused = false
         pendingArtifacts.removeAll()
+        freeMarkings.removeAll()
         showingArtifactDialog = false
         showingCutDialog = false
     }
@@ -856,18 +860,13 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Data → dictionary
 
-    /// 最初の1パケットは前回カウンタの基準取得のみに使い、CSVには記録しない (nil を返す)。
-    private func dataToDictionary(_ data: AcademicData) -> [String: Any]? {
-        guard stats.registerPacket(count: Int(data.cnt)) else { return nil }
-
-        let shouldMark = isFreeMarking
-        isFreeMarking = false
-
-        return [
+    /// CSV／ソケットへ流す1行ぶんの辞書を作る（registerPacket 済みのパケットに対して呼ぶ）。
+    private func dataToDictionary(_ data: AcademicData, isFreeMarking: Bool) -> [String: Any] {
+        [
             "data": data,
             "packetCount": NSNumber(value: stats.totalCount),
             "date": data.date ?? Date(),
-            "isFreeMarking": NSNumber(value: shouldMark)
+            "isFreeMarking": NSNumber(value: isFreeMarking)
         ]
     }
 
@@ -944,8 +943,12 @@ final class MEMEViewModel: NSObject {
 
     /// 1サンプルをバッファへ追加し、スロットリング周期ごとにプロットを更新する。
     /// ハム（50/60Hz）成分を残すため間引かず全サンプルを保持する。
-    private func appendChartSample(_ data: AcademicData) {
-        chartService.append(data)
+    /// freeMarked なら、CSV に x を書いた行と同じサンプル位置へ Free Marking の印を出す。
+    private func appendChartSample(_ data: AcademicData, freeMarked: Bool = false) {
+        let sampleIndex = chartService.append(data)
+        if freeMarked {
+            freeMarkings[sampleIndex] = "x"
+        }
         chartRenderCounter += 1
         if chartRenderCounter % chartRenderStride == 0 {
             updateChartPlots()
@@ -975,19 +978,26 @@ final class MEMEViewModel: NSObject {
 
     /// 各グラフへ表示する Artifact（キー＝絶対チャートサンプル位置 → 文字列）。
     /// 再生中：再生元CSVに記録済みのものと、この再生中にタップで付けた未書き戻しのものを併せて返す。
-    /// 計測中：タップで付けた未書き戻しのものを返す（停止時にCSVへ書き戻す）。
+    /// 計測中：Free Marking の印と、タップで付けた未書き戻しのもの（停止時にCSVへ書き戻す）を併せて返す。
     /// それ以外は空。
     private func currentChartArtifacts() -> [Int: String] {
         switch phase {
         case .replaying:
             guard let info = replayInfo else { return [:] }
-            guard !pendingArtifacts.isEmpty else { return info.artifacts }
-            return info.artifacts.merging(pendingArtifacts) { _, tapped in tapped }
+            return Self.mergeArtifacts(info.artifacts, overrides: pendingArtifacts)
         case .measuring:
-            return pendingArtifacts
+            return Self.mergeArtifacts(freeMarkings, overrides: pendingArtifacts)
         default:
             return [:]
         }
+    }
+
+    /// 同じ行に両方あれば overrides を採る（タップ入力は書き戻し時にその行を上書きするので、
+    /// 表示もそれに合わせる）。片方が空なら複製せずそのまま返す。
+    private static func mergeArtifacts(_ baseline: [Int: String], overrides: [Int: String]) -> [Int: String] {
+        if overrides.isEmpty { return baseline }
+        if baseline.isEmpty { return overrides }
+        return baseline.merging(overrides) { _, tapped in tapped }
     }
 
     // MARK: - Chart X-axis range
@@ -1129,28 +1139,36 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     }
 
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData) {
-        ingestPacket(data: data)
+        let freeMarked = ingestPacket(data: data)
         ingestForDisplay(standard: data)
-        appendChartSample(data)
+        appendChartSample(data, freeMarked: freeMarked)
     }
 
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData) {
-        ingestPacket(data: data)
+        let freeMarked = ingestPacket(data: data)
         ingestForDisplay(full: data)
-        appendChartSample(data)
+        appendChartSample(data, freeMarked: freeMarked)
     }
 
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData) {
-        ingestPacket(data: data)
+        // Quaternion はチャートを持たないので、Free Marking は CSV に書くだけで印は出さない。
+        _ = ingestPacket(data: data)
         displayCnt = data.cnt
     }
 
-    private func ingestPacket(data: AcademicData) {
+    /// 受信パケットを CSV／ソケットへ流す。このパケットの行へ Free Marking の x を書いたら
+    /// true を返す（呼び出し側がチャートの同じサンプル位置へ印を出す）。
+    private func ingestPacket(data: AcademicData) -> Bool {
         // 受信時刻をサンプル自身に持たせる。CSV/ソケットの DATE 列と、
         // チャートX軸のタイムスタンプ表示はどちらもこの時刻を使う。
         data.date = Date()
-        if let row = dataToDictionary(data) {
-            persistence.append(row)
+        var freeMarked = false
+        // 最初の1パケットは前回カウンタの基準取得のみに使い、CSVには記録しない。
+        // Free Marking のフラグも消費せず、記録される次のパケットへ持ち越す。
+        if stats.registerPacket(count: Int(data.cnt)) {
+            freeMarked = isFreeMarking
+            isFreeMarking = false
+            persistence.append(dataToDictionary(data, isFreeMarking: freeMarked))
             saveCsv()
             if socket?.isConnected() == true, let last = persistence.lastRow {
                 socketDatas.append(last)
@@ -1159,6 +1177,7 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         }
         stats.bumpDataCount()
         displayBattLv = data.battLv
+        return freeMarked
     }
 
     private func ingestForDisplay(standard d: AcademicStandardData) {

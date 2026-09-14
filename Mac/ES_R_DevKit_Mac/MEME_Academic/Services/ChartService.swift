@@ -29,13 +29,16 @@ final class ChartService {
 
     // MARK: - Buffer
 
-    func append(_ data: AcademicData) {
+    /// サンプルを追加し、そのストリーム全体での絶対サンプル位置を返す（Artifact のキーに使う）。
+    @discardableResult
+    func append(_ data: AcademicData) -> Int {
         chartDatas.append(data)
         let overflow = chartDatas.count - Self.maxBufferSamples
         if overflow > 0 {
             chartDatas.removeFirst(overflow)
             baseIndex += overflow
         }
+        return baseIndex + chartDatas.count - 1
     }
 
     /// バッファをクリアする。baseIndex には次に append されるサンプルの絶対位置を渡す
