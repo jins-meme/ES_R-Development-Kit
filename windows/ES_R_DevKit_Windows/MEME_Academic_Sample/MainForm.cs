@@ -61,6 +61,12 @@ public partial class MainForm : Form
     /// </summary>
     private readonly Dictionary<int, string> pendingArtifacts = [];
 
+    /// <summary>
+    /// 計測中に Free Marking で付けた印(絶対チャートサンプル位置 → "x")。CSV には
+    /// <see cref="HandleSample"/> で書き込み済みなので表示専用で、書き戻しはしない。
+    /// </summary>
+    private readonly Dictionary<int, string> freeMarkings = [];
+
     /// <summary>起動引数で渡された CSV。<see cref="OnShown"/> で一度だけ読み込む。</summary>
     private string? initialReplayPath;
 
@@ -339,7 +345,7 @@ public partial class MainForm : Form
         }
 
         stats.BumpDataCount();
-        chartService.Append(data);
+        var sampleIndex = chartService.Append(data);
 
         if (phase != Phase.Measuring)
         {
@@ -349,6 +355,13 @@ public partial class MainForm : Form
         var freeMarking = isFreeMarking;
         isFreeMarking = false;
         persistence.Append(data, stats.TotalCount, freeMarking);
+
+        if (freeMarking)
+        {
+            // CSV に x を書いた行と同じサンプル位置へ印を出す。freeMarkings は UI スレッドが
+            // 描画のたびに読むので、受信スレッドから直接触らずに渡す。
+            RunOnUi(() => freeMarkings[sampleIndex] = "x");
+        }
     }
 
     #endregion
@@ -646,6 +659,7 @@ public partial class MainForm : Form
         stats.StartMeasurement((int)quality);
         isFreeMarking = false;
         pendingArtifacts.Clear();
+        freeMarkings.Clear();
 
         var header = DataPersistenceService.BuildHeader(mode, quality, accelRange, gyroRange);
         persistence.Begin(
@@ -1046,38 +1060,44 @@ public partial class MainForm : Form
     #region Artifact / range cut
 
     /// <summary>
-    /// 各チャートへ重ねる Artifact。再生中は CSV に記録済みのものとタップで付けたものを
-    /// 併せ、計測中はタップぶんだけを返す。
+    /// 各チャートへ重ねる Artifact。再生中は CSV に記録済みのものとタップで付けたものを、
+    /// 計測中は Free Marking の印とタップで付けたものを併せて返す。
     /// </summary>
     private IReadOnlyDictionary<int, string>? CurrentChartArtifacts()
     {
-        switch (phase)
+        return phase switch
         {
-            case Phase.Replaying or Phase.ReplayReady:
-                if (replayInfo is null)
-                {
-                    return null;
-                }
+            Phase.Replaying or Phase.ReplayReady when replayInfo is not null =>
+                MergeArtifacts(replayInfo.Artifacts, pendingArtifacts),
+            Phase.Measuring => MergeArtifacts(freeMarkings, pendingArtifacts),
+            _ => null,
+        };
+    }
 
-                if (pendingArtifacts.Count == 0)
-                {
-                    return replayInfo.Artifacts;
-                }
-
-                var merged = new Dictionary<int, string>(replayInfo.Artifacts);
-                foreach (var (row, text) in pendingArtifacts)
-                {
-                    merged[row] = text;
-                }
-
-                return merged;
-
-            case Phase.Measuring:
-                return pendingArtifacts;
-
-            default:
-                return null;
+    /// <summary>
+    /// 同じ行に両方あれば <paramref name="overrides"/> を採る(タップ入力は書き戻し時に
+    /// その行を上書きするので、表示もそれに合わせる)。片方が空なら複製せずそのまま返す。
+    /// </summary>
+    private static IReadOnlyDictionary<int, string> MergeArtifacts(
+        IReadOnlyDictionary<int, string> baseline, IReadOnlyDictionary<int, string> overrides)
+    {
+        if (overrides.Count == 0)
+        {
+            return baseline;
         }
+
+        if (baseline.Count == 0)
+        {
+            return overrides;
+        }
+
+        var merged = new Dictionary<int, string>(baseline);
+        foreach (var (row, text) in overrides)
+        {
+            merged[row] = text;
+        }
+
+        return merged;
     }
 
     /// <summary>チャートがクリックされた。対象サンプルに Artifact を付ける。</summary>
@@ -1145,8 +1165,8 @@ public partial class MainForm : Form
 
     /// <summary>
     /// 計測中にタップで付けた Artifact を、保存した CSV の ARTIFACT 列へ書き戻す。
-    /// pendingArtifacts のキーは絶対チャートサンプル位置。CSV は先頭パケットを 1 件落とすため、
-    /// データ行番号 = サンプル位置 − 1(サンプル 0 は CSV に無いので除く)。
+    /// pendingArtifacts のキーは絶対チャートサンプル位置。端末カウンタの基準取りに使う先頭 1 件は
+    /// <see cref="HandleSample"/> がチャート・CSV の両方から落とすので、サンプル位置 = データ行番号。
     /// </summary>
     private void FlushLiveArtifacts()
     {
@@ -1162,18 +1182,9 @@ public partial class MainForm : Form
             return;
         }
 
-        var rowKeyed = new Dictionary<int, string>();
-        foreach (var (sampleIndex, text) in pendingArtifacts)
-        {
-            if (sampleIndex >= 1)
-            {
-                rowKeyed[sampleIndex - 1] = text;
-            }
-        }
-
         try
         {
-            CsvReplayService.ApplyArtifacts(path, rowKeyed);
+            CsvReplayService.ApplyArtifacts(path, pendingArtifacts);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {

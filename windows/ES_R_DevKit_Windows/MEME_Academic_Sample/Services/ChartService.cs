@@ -43,7 +43,8 @@ public sealed class ChartService
         }
     }
 
-    public void Append(AcademicData data)
+    /// <summary>サンプルを追加し、そのストリーム全体での絶対サンプル位置を返す(Artifact のキーに使う)。</summary>
+    public int Append(AcademicData data)
     {
         lock (_gate)
         {
@@ -54,6 +55,8 @@ public sealed class ChartService
                 _samples.RemoveRange(0, overflow);
                 _baseIndex += overflow;
             }
+
+            return _baseIndex + _samples.Count - 1;
         }
     }
 
