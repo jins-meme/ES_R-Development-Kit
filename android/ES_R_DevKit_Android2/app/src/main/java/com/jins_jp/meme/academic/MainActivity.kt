@@ -11,10 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.jins_jp.meme.core.theme.ESRTheme
@@ -36,11 +33,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ESRTheme {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .windowInsetsPadding(WindowInsets.systemBars),
-                ) {
+                // Surface はシステムバーの下まで敷く（インセットはここで取らない）。
+                // ここで windowInsetsPadding すると背景がステータスバー領域を覆わず、
+                // ライトテーマの windowBackground(白)の上にダークモードの白いアイコンが
+                // 乗って時計・電池が見えなくなる。コンテンツのインセットは
+                // MainScreen の Scaffold(contentWindowInsets)が処理する。
+                Surface(modifier = Modifier.fillMaxSize()) {
                     MainScreen()
                 }
             }

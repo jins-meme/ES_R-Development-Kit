@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ダークモード用。windowBackground は Material3 既定の dark surface(Neutral6)。 -->
+    <style name="Theme.ESRDevKit2" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#FF141218</item>
+    </style>
+</resources>

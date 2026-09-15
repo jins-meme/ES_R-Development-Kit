@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+        ライト/ダークで親テーマと windowBackground を切り替える(ダークは values-night)。
+        以前は Light 固定だったため、ダークモードでも Compose が描く前の
+        ウィンドウ背景が白く、ステータスバーの白いアイコンが見えなかった。
+        windowBackground は Material3 既定の surface 色(light=Neutral98)に合わせ、
+        起動直後の背景と Compose の Surface の色の段差をなくす。
+    -->
     <style name="Theme.ESRDevKit2" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#FFFEF7FF</item>
     </style>
 </resources>
