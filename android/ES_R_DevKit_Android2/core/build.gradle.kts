@@ -37,7 +37,7 @@ dependencies {
     // DataEncryption.encode を直接呼ぶため api で公開する。
     api(fileTree("libs") { include("*.jar") })
 
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.19.0")
