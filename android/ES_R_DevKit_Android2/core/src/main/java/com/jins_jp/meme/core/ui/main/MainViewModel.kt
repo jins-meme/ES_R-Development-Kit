@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.jins.meme.academic.util.DataEncryption
 import com.jins.meme.academic.util.HexDump
 import com.jins.meme.academic.util.LogCat
 import com.jins_jp.meme.core.App
@@ -16,6 +15,7 @@ import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.ble.GATT_STATUS_NONE
 import com.jins_jp.meme.core.ble.MemeBleConstants
 import com.jins_jp.meme.core.ble.MemeBleRepository
+import com.jins_jp.meme.core.ble.MemeCipher
 import com.jins_jp.meme.core.ble.MemeCommands
 import com.jins_jp.meme.core.ble.gattDisconnectReason
 import com.jins_jp.meme.core.data.CsvWriter
@@ -800,7 +800,7 @@ class MainViewModel(
 
     private fun sendEncoded(data: ByteArray) {
         LogCat.d(TAG, "send: " + HexDump.toHexString(data))
-        repo.send(DataEncryption.encode(data))
+        repo.send(MemeCipher.encode(data))
     }
 
     /* ---- Incoming dispatch ---- */

@@ -1,6 +1,5 @@
 package com.jins_jp.meme.core.ble
 
-import com.jins.meme.academic.util.DataEncryption
 import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +82,6 @@ class MockMemeBleEngine(
 
     fun connect(addr: String): Boolean {
         address = addr
-        DataEncryption.setKey(addr)
         connection.value = ConnectionState.Connecting
         scope.launch {
             delay(200)
@@ -113,7 +111,7 @@ class MockMemeBleEngine(
     }
 
     fun send(encoded: ByteArray): Boolean {
-        val data = runCatching { DataEncryption.decode(encoded) }.getOrNull() ?: return false
+        val data = runCatching { MemeCipher.decode(encoded) }.getOrNull() ?: return false
         scope.launch {
             // Simulate a small command-to-response round-trip latency.
             delay(40)

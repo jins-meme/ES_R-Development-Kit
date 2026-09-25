@@ -5,7 +5,7 @@ import com.jins_jp.meme.core.data.MemeMode
 
 /**
  * 20 byte の ADN コマンド(暗号化前の平文)を組み立てる純粋関数群。
- * 送信時は DataEncryption.encode を通す(MainViewModel.sendEncoded)。
+ * 送信時は MemeCipher.encode を通す(MainViewModel.sendEncoded)。
  */
 object MemeCommands {
     private fun command(op: Byte): ByteArray {

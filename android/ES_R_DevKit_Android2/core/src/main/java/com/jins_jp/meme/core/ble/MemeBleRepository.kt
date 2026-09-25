@@ -25,7 +25,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
-import com.jins.meme.academic.util.DataEncryption
 import com.jins.meme.academic.util.LogCat
 import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -356,7 +355,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
             g: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
             val value = characteristic.value ?: return
-            val decoded = runCatching { DataEncryption.decode(value) }.getOrNull() ?: return
+            val decoded = runCatching { MemeCipher.decode(value) }.getOrNull() ?: return
             _incoming.tryEmit(decoded)
         }
 
@@ -365,7 +364,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            val decoded = runCatching { DataEncryption.decode(value) }.getOrNull() ?: return
+            val decoded = runCatching { MemeCipher.decode(value) }.getOrNull() ?: return
             _incoming.tryEmit(decoded)
         }
     }
@@ -382,7 +381,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         if (!hasConnectPermission() || !a.isEnabled) return false
         val device: BluetoothDevice = runCatching { a.getRemoteDevice(address) }
             .getOrNull() ?: return false
-        DataEncryption.setKey(address)
         currentAddress = address
         _connection.value = ConnectionState.Connecting
         gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
