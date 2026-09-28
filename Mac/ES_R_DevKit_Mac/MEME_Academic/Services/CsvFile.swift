@@ -85,14 +85,14 @@ enum CsvFile {
         let raw = try Data(contentsOf: url)
         let bytes = Gzip.isGzipped(raw) ? try Gzip.decompress(raw) : raw
         guard let text = String(data: bytes, encoding: .utf8) else {
-            throw CsvReplayError.unreadable
+            throw CsvFileError.unreadable
         }
         return text
     }
 
     /// テキストを CSV として書き出す。url が .csv.gz なら gz 圧縮して書く。
     static func writeText(_ text: String, to url: URL) throws {
-        guard let utf8 = text.data(using: .utf8) else { throw CsvReplayError.unreadable }
+        guard let utf8 = text.data(using: .utf8) else { throw CsvFileError.unreadable }
         let bytes = isGzip(url) ? try Gzip.compress(utf8) : utf8
         try bytes.write(to: url, options: .atomic)
     }

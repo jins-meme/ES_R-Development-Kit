@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
 
@@ -22,6 +23,9 @@ struct SettingsView: View {
     @State private var convertToLocalTime: Bool = true
     @State private var extermalOutputSocket: Bool = false
     @State private var localPort: String = ""
+    @State private var graphContent: String = ""
+    @State private var graphMessage: String = ""
+    @State private var graphIsCustom: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -78,6 +82,25 @@ struct SettingsView: View {
                 }
 
                 GridRow {
+                    Text("Graph Display")
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(graphContent).monospacedDigit()
+                            Spacer()
+                            Button("Choose zip…") { chooseGraphZip() }
+                            Button("Use Built-in") { useBuiltInGraph() }
+                                .disabled(!graphIsCustom)
+                        }
+                        Text(graphMessage.isEmpty
+                             ? "The graph area shows a web page packaged as a zip. Choose a zip to switch it (applies immediately)."
+                             : graphMessage)
+                            .font(.callout)
+                            .foregroundStyle(graphMessage.isEmpty ? Color.secondary : Color.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                GridRow {
                     Text("Local Port")
                     HStack(spacing: 12) {
                         TextField("", text: $localPort)
@@ -124,6 +147,39 @@ struct SettingsView: View {
         convertToLocalTime = UserSetting.getConvertToLocalTime()
         extermalOutputSocket = UserSetting.getExtermalOutputSocket()
         localPort = UserSetting.getLocalPort()
+        refreshGraphContent()
+    }
+
+    private func refreshGraphContent() {
+        let store = WebContentStore.shared
+        graphIsCustom = store.source == .custom
+        let name = store.manifest?.displayName ?? "(none)"
+        graphContent = graphIsCustom ? "\(name) (zip)" : "\(name) (built-in)"
+    }
+
+    /// zip を選んで取り込み、グラフ画面を読み込み直す。検査に通らなければ今の中身のまま、理由を出す。
+    private func chooseGraphZip() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.zip]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try WebContentStore.shared.importZip(url)
+            graphMessage = ""
+            viewModel.reloadGraph()
+        } catch {
+            graphMessage = error.localizedDescription
+        }
+        refreshGraphContent()
+    }
+
+    private func useBuiltInGraph() {
+        WebContentStore.shared.useBundled()
+        graphMessage = ""
+        viewModel.reloadGraph()
+        refreshGraphContent()
     }
 
     private func apply() {

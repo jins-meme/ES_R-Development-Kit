@@ -19,45 +19,15 @@ struct ContentView: View {
                 .environment(viewModel)
                 .frame(width: 270)
 
-            VStack(spacing: 8) {
-                ChartPanelView(index: 1,
-                               title: vm.chart1Title,
-                               categoryBinding: $vm.chart1Category,
-                               eog: $vm.chart1EogToggles,
-                               gyro: $vm.chart1GyroToggles,
-                               accel: $vm.chart1AccelToggles,
-                               plot: $vm.chart1Plot)
-                ChartPanelView(index: 2,
-                               title: vm.chart2Title,
-                               categoryBinding: $vm.chart2Category,
-                               eog: $vm.chart2EogToggles,
-                               gyro: $vm.chart2GyroToggles,
-                               accel: $vm.chart2AccelToggles,
-                               plot: $vm.chart2Plot)
-                ChartPanelView(index: 3,
-                               title: vm.chart3Title,
-                               categoryBinding: $vm.chart3Category,
-                               eog: $vm.chart3EogToggles,
-                               gyro: $vm.chart3GyroToggles,
-                               accel: $vm.chart3AccelToggles,
-                               plot: $vm.chart3Plot)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // グラフ画面(WebView)。表示幅・拡大縮小・畳む・再生の操作・アーティファクトの入力はこの中にある。
+            WebChartView(bridge: viewModel.web)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
         }
         .padding(12)
         .sheet(isPresented: $vm.showingSettings) {
             SettingsView()
-                .environment(viewModel)
-        }
-        .alert("Artifact", isPresented: $vm.showingArtifactDialog) {
-            TextField("Artifact", text: $vm.artifactInput, prompt: Text("X"))
-            Button("Cancel", role: .cancel) { viewModel.cancelArtifact() }
-            Button("OK") { viewModel.confirmArtifact() }
-        } message: {
-            Text("Artifact will be added on 'Record' timing")
-        }
-        .sheet(isPresented: $vm.showingCutDialog) {
-            CutFileDialogView()
                 .environment(viewModel)
         }
         .alert("Do you want to enter shelf mode?", isPresented: $vm.showingShelfDialog) {
@@ -65,43 +35,6 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { viewModel.cancelShelfMode() }
         } message: {
             Text("In shelf mode, all pairing capabilities are disabled and power consumption is reduced. To exit shelf mode, please recharge the device.")
-        }
-    }
-}
-
-// MARK: - Replay range cut dialog
-
-/// ドラッグ選択した区間をCSVへ切り出す際のファイル名入力ダイアログ。
-/// `.alert` はボタン押下で必ず閉じてしまうため、エラー表示を保持できるシートで実装する。
-private struct CutFileDialogView: View {
-
-    @Environment(MEMEViewModel.self) private var viewModel
-
-    var body: some View {
-        @Bindable var vm = viewModel
-
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Save selected range as CSV").font(.headline)
-            TextField("File name", text: $vm.cutFileNameInput)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 300)
-                .onSubmit { viewModel.confirmCutFile() }
-            if !viewModel.cutErrorMessage.isEmpty {
-                Text(viewModel.cutErrorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-            }
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { viewModel.cancelCutFile() }
-                Button("OK") { viewModel.confirmCutFile() }
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .onChange(of: vm.cutFileNameInput) {
-            // 入力し直したら前回のエラー表示を消す。
-            viewModel.cutErrorMessage = ""
         }
     }
 }
@@ -188,23 +121,10 @@ private struct LeftColumnView: View {
                     }
                 }
                 if viewModel.showReplayControls {
-                    Button(viewModel.replayButtonLabel) {
-                        viewModel.toggleReplay()
+                    Button("Save Artifacts") {
+                        viewModel.saveReplayArtifacts()
                     }
-                }
-                if viewModel.showReplayPause {
-                    Button(viewModel.replayPauseButtonLabel) {
-                        viewModel.toggleReplayPause()
-                    }
-                }
-                if viewModel.showXRangeControls {
-                    Button("＋") { viewModel.zoomInXRange() }
-                        .disabled(!viewModel.canZoomInXRange)
-                        .help("より狭いX軸レンジに拡大する")
-                    Button("－") { viewModel.zoomOutXRange() }
-                        .disabled(!viewModel.canZoomOutXRange)
-                        .help("より広いX軸レンジに縮小する")
-                    Text("\(viewModel.xRangeSeconds)s").foregroundStyle(.secondary).monospacedDigit()
+                    .help("グラフで付けた Artifact を再生中の CSV へ書き戻す（切断時にも書き戻す）")
                 }
             }
 
@@ -212,11 +132,6 @@ private struct LeftColumnView: View {
                 HStack(spacing: 8) {
                     Button("Free Marking") { viewModel.toggleFreeMarking() }
                 }
-            }
-
-            if viewModel.showReplayScrubber {
-                ReplayScrubberView()
-                    .environment(viewModel)
             }
 
             Divider()
@@ -266,26 +181,6 @@ private struct ConnectButton: View {
     }
 }
 
-private struct ReplayScrubberView: View {
-    @Environment(MEMEViewModel.self) private var viewModel
-
-    var body: some View {
-        @Bindable var vm = viewModel
-
-        VStack(alignment: .leading, spacing: 6) {
-            Slider(value: $vm.replayProgress, in: 0...100) { editing in
-                viewModel.replaySliderEditingChanged(editing)
-            }
-            HStack(spacing: 8) {
-                Button("<<") { viewModel.replayJumpBackward() }
-                Button(">>") { viewModel.replayJumpForward() }
-                Button(viewModel.replaySpeedLabel) { viewModel.cycleReplaySpeed() }
-                    .help("再生速度を切り替える（x1→x2→x4→x8→x16→x32→x1）")
-            }
-        }
-    }
-}
-
 private struct LabeledPicker: View {
     let title: String
     @Binding var selection: Int
@@ -331,104 +226,6 @@ private struct StatsDisplayView: View {
             Text(viewModel.localAddressText).font(.caption).foregroundStyle(.secondary)
             Text(viewModel.localPortText).font(.caption).foregroundStyle(.secondary)
             Text(viewModel.socketStatusText).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-}
-
-// MARK: - Chart panel
-
-private struct ChartPanelView: View {
-
-    @Environment(MEMEViewModel.self) private var viewModel
-
-    let index: Int
-    let title: String
-    @Binding var categoryBinding: Int
-    @Binding var eog: EogToggles
-    @Binding var gyro: GyroToggles
-    @Binding var accel: AccelToggles
-    @Binding var plot: ChartPlot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title).font(.headline)
-                Spacer()
-                YAxisZoomButtons(plot: $plot)
-                Picker("", selection: $categoryBinding) {
-                    ForEach(viewModel.chartCategoryOptions.indices, id: \.self) { i in
-                        Text(viewModel.chartCategoryOptions[i]).tag(i)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 180)
-                .disabled(viewModel.isInputDisabled)
-                Button("Apply") { viewModel.applyChartSelection() }
-                    .disabled(viewModel.isInputDisabled)
-            }
-
-            HStack(alignment: .center, spacing: 8) {
-                ChannelToggles(category: categoryBinding,
-                               eog: $eog, gyro: $gyro, accel: $accel,
-                               disabled: viewModel.isInputDisabled)
-                    .frame(width: 160)
-                RealtimeChartView(plot: plot,
-                                  onTapRow: { row in
-                    viewModel.chartTapped(row: row)
-                },
-                                  onRangeSelected: { start, end in
-                    viewModel.chartRangeSelected(startRow: start, endRow: end)
-                },
-                                  rangeSelectionEnabled: viewModel.isReplayRangeSelectable)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.windowBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-        )
-    }
-}
-
-private struct ChannelToggles: View {
-    let category: Int
-    @Binding var eog: EogToggles
-    @Binding var gyro: GyroToggles
-    @Binding var accel: AccelToggles
-    let disabled: Bool
-
-    var body: some View {
-        switch category {
-        case 0:
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Left", isOn: $eog.left).foregroundStyle(.yellow)
-                Toggle("Right", isOn: $eog.right).foregroundStyle(.green)
-                Toggle("ΔH", isOn: $eog.deltaH).foregroundStyle(.red)
-                Toggle("ΔV", isOn: $eog.deltaV).foregroundStyle(.blue)
-            }
-            .toggleStyle(.checkbox)
-            .disabled(disabled)
-        case 1:
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("X Axis", isOn: $gyro.x).foregroundStyle(.red)
-                Toggle("Y Axis", isOn: $gyro.y).foregroundStyle(.green)
-                Toggle("Z Axis", isOn: $gyro.z).foregroundStyle(.blue)
-            }
-            .toggleStyle(.checkbox)
-            .disabled(disabled)
-        case 2:
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("X Axis", isOn: $accel.x).foregroundStyle(.red)
-                Toggle("Y Axis", isOn: $accel.y).foregroundStyle(.green)
-                Toggle("Z Axis", isOn: $accel.z).foregroundStyle(.blue)
-            }
-            .toggleStyle(.checkbox)
-            .disabled(disabled)
-        default:
-            EmptyView()
         }
     }
 }

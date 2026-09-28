@@ -46,6 +46,9 @@ struct MEME_AcademicApp: App {
                     FileOpenCoordinator.shared.pendingURL = nil
                     viewModel.openReplayFile(url: url)
                 }
+                #if DEBUG
+                .onAppear { DebugAutoTest.startIfRequested(viewModel) }
+                #endif
         }
         .windowResizability(.contentSize)
     }

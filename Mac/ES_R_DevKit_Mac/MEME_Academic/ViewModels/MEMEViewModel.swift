@@ -4,7 +4,10 @@
 //
 //  SwiftUI 用 ViewModel。
 //  状態管理・アクション・delegate 振り分けに専念し、
-//  CSV 保存／チャート計算／通信統計は専用サービスへ委譲する。
+//  CSV 保存／通信統計は専用サービスへ委譲する。
+//  グラフは WebView(webview/ の標準版 zip、または設定で選んだ zip)が描く。受信したサンプルは
+//  WebBridge で流し、CSV 再生もページが受け持つ(アプリはファイルを仮想ホストに出すだけ)。
+//  アーティファクトはページで入力され、WebBridge.onArtifact で届く。CSV への書き戻しは従来どおり停止時。
 //
 
 import Foundation
@@ -25,7 +28,6 @@ final class MEMEViewModel: NSObject {
         case deviceFound
         case connected
         case measuring
-        case replayReady
         case replaying
     }
 
@@ -35,7 +37,9 @@ final class MEMEViewModel: NSObject {
     let transSpeedOptions = ["100Hz", "50Hz"]
     let accelRangeOptions = ["±2G", "±4G", "±8G", "±16G"]
     let gyroRangeOptions = ["±250dps", "±500dps", "±1000dps", "±2000dps"]
-    let chartCategoryOptions = ["Electrooculography", "Gyroscope", "Accelerometer"]
+    /// accelRange / gyroRange の番号 → g / dps(グラフの換算に渡す)
+    private static let accelG = [2, 4, 8, 16]
+    private static let gyroDps = [250, 500, 1000, 2000]
 
     // MARK: - Observable state
 
@@ -81,62 +85,18 @@ final class MEMEViewModel: NSObject {
     var localPortText: String = "Prot:"
     var socketStatusText: String = "Status : "
 
-    // Chart UI state
-    var chart1Category: Int = 0
-    var chart2Category: Int = 1
-    var chart3Category: Int = 2
-
-    var chart1Title: String = "Chart1：Electrooculography"
-    var chart2Title: String = "Chart2：Gyroscope"
-    var chart3Title: String = "Chart3：Accelerometer"
-
-    var chart1EogToggles = EogToggles()
-    var chart1GyroToggles = GyroToggles()
-    var chart1AccelToggles = AccelToggles()
-
-    var chart2EogToggles = EogToggles()
-    var chart2GyroToggles = GyroToggles()
-    var chart2AccelToggles = AccelToggles()
-
-    var chart3EogToggles = EogToggles()
-    var chart3GyroToggles = GyroToggles()
-    var chart3AccelToggles = AccelToggles()
-
-    // Chart rendered data
-    var chart1Plot = ChartPlot(baseYMin: -1200, baseYMax: 1200)
-    var chart2Plot = ChartPlot(baseYMin: -8000, baseYMax: 8000)
-    var chart3Plot = ChartPlot(baseYMin: -8000, baseYMax: 8000)
-
     // Settings sheet presentation
     var showingSettings: Bool = false
-
-    // Chart X-axis range (seconds)
-    let xRangeOptions: [Int] = [3, 7, 15, 30]
-    var xRangeIndex: Int = 1 // 7秒がデフォルト
-
-    // Replay scrubbing
-    var replayProgress: Double = 0 // 0...100
-
-    // Replay pause
-    var isReplayPaused: Bool = false
-
-    // Replay speed（x1/x2/x4/x8/x16/x32）
-    let replaySpeedOptions: [Int] = [1, 2, 4, 8, 16, 32]
-    var replaySpeedIndex: Int = 0
-
-    // Artifact tagging dialog
-    var showingArtifactDialog: Bool = false
-    var artifactInput: String = ""
-
-    // Replay range cut dialog（チャートのドラッグ範囲をCSVへ切り出す）
-    var showingCutDialog: Bool = false
-    var cutFileNameInput: String = ""
-    var cutErrorMessage: String = ""
 
     // Shelf mode（Disconnect 長押しで開く確認ダイアログ）
     var showingShelfDialog: Bool = false
     /// Shelf 移行コマンドの送信中。完了は端末側からの切断で判断する。
     var isEnteringShelf: Bool = false
+
+    /// グラフ画面(WebView)。中身の切り替えは設定から(WebContentStore)。
+    let web = WebBridge()
+    /// グラフ画面に今載っている中身(設定に出す)
+    var webContentText: String = ""
 
     // MARK: - Private state
 
@@ -149,36 +109,23 @@ final class MEMEViewModel: NSObject {
     private var socket: TCPSocket?
     private var socketDatas: [[String: Any]] = []
 
-    // File Replay
-    private var replayInfo: CsvReplayInfo?
-    private var currentReplayIndex: Int = 0
-    private var isScrubbingReplay = false
+    /// 再生中の CSV(ページが読んで再生する)
+    private var replayFile: URL?
 
-    /// タップで記録した Artifact（絶対チャートサンプル位置 → 文字列）。停止時にCSVへ書き戻す。
-    /// 再生中はサンプル位置＝データ行インデックス。計測中は先頭パケットを1件落とすため
-    /// データ行インデックス＝サンプル位置−1（書き戻し時に変換する。flushLiveArtifacts 参照）。
+    /// 計測中のサンプル番号(計測開始から 0, 1, 2 …。先頭パケットも数える)。グラフ画面へ渡し、
+    /// アーティファクトはこの番号で返ってくる。CSV は先頭パケットを 1 件落とすので、データ行 = 番号 − 1。
+    private var liveSampleIndex = 0
+
+    /// ページで付けた Artifact(計測中はサンプル番号、再生中は CSV のデータ行の番号 → 文字列)。停止時にCSVへ書き戻す。
     private var pendingArtifacts: [Int: String] = [:]
-    /// 計測中に Free Marking で付けた印（絶対チャートサンプル位置 → "x"）。CSV には
-    /// 受信時に書き込み済み（ingestPacket 参照）なので表示専用で、書き戻しはしない。
-    private var freeMarkings: [Int: String] = [:]
-    /// Artifact ダイアログの対象サンプル位置（絶対チャートサンプル位置）。
-    private var artifactTargetRow: Int = 0
-
-    /// 切り出しダイアログの対象区間（0始まりデータ行インデックス、両端含む）。
-    private var cutRange: (start: Int, end: Int) = (0, 0)
-
-    /// 描画スロットリング用カウンタ（appendChartSample で加算）。
-    private var chartRenderCounter: Int = 0
 
     /// SHELF 送信後、端末が自ら切断するのを待つタイマー。切断が来たら無効化する。
     private var shelfDisconnectTimer: Timer?
 
     // MARK: - Services
 
-    private let chartService = ChartService()
     private let persistence = DataPersistenceService()
     private let stats = CommunicationStatsTracker()
-    private let replayService = CsvReplayService()
 
     // MARK: - Init
 
@@ -196,6 +143,10 @@ final class MEMEViewModel: NSObject {
             self?.communicationValue = value
             self?.communicationText = text
         }
+
+        web.onArtifact = { [weak self] i, text in self?.receiveArtifact(i: i, text: text) }
+        web.onReplayInfo = { [weak self] info in self?.applyReplayInfo(info) }
+        web.onReady = { [weak self] name, version in self?.webContentText = "\(name) \(version)" }
 
         showAppVersion()
         showLocalAddress()
@@ -227,22 +178,7 @@ final class MEMEViewModel: NSObject {
         socketDatas = []
         socketStatusText = "Status : "
         isFreeMarking = false
-        isReplayPaused = false
         pendingArtifacts.removeAll()
-        freeMarkings.removeAll()
-        showingArtifactDialog = false
-        showingCutDialog = false
-    }
-
-    /// グラフ（描画バッファ・スロットルカウンタ・各プロット）をクリアする。
-    /// Stop Measurement / Record（再生停止）時ではなく、
-    /// 次の計測／ファイル再生が始まるタイミングで呼ぶ。
-    private func clearChart() {
-        chartService.reset()
-        chartRenderCounter = 0
-        chart1Plot.reset()
-        chart2Plot.reset()
-        chart3Plot.reset()
     }
 
     // MARK: - Scan / Connect actions
@@ -293,7 +229,7 @@ final class MEMEViewModel: NSObject {
         // Shelf mode の確認中／移行中は触らせない。長押しが成立したジェスチャの
         // クリックがここへ届いても切断しないための保険でもある（ConnectButton 参照）。
         guard !showingShelfDialog, !isEnteringShelf else { return }
-        if phase == .replayReady || phase == .replaying {
+        if phase == .replaying {
             disconnectReplay()
             return
         }
@@ -390,7 +326,7 @@ final class MEMEViewModel: NSObject {
             stopScan()
         }
         // 既存の再生セッションがあれば破棄してからダイアログを開く。
-        if phase == .replayReady || phase == .replaying {
+        if phase == .replaying {
             disconnectReplay()
         }
         let panel = NSOpenPanel()
@@ -409,7 +345,6 @@ final class MEMEViewModel: NSObject {
     }
 
     /// Finder の「このアプリで開く」など、外部から渡されたCSVを File Replay として読み込む。
-    /// 成功すれば .replayReady（Start measurement 可能）、形式が違えば loadReplayFile がエラーダイアログを出す。
     func openReplayFile(url: URL) {
         // BLE 接続中／計測中は再生に入れない。
         guard phase != .connected && phase != .measuring else {
@@ -424,182 +359,80 @@ final class MEMEViewModel: NSObject {
         if isScanning {
             stopScan()
         }
-        if phase == .replayReady || phase == .replaying {
+        if phase == .replaying {
             disconnectReplay()
         }
         loadReplayFile(url: url)
     }
 
+    /// 再生はグラフ画面(ページ)が受け持つ: ファイルを仮想ホストに出してページに読ませる。
+    /// 読み込み・再生・一時停止・速度・シークはページ側。形式が違えばページがその旨を表示する。
     private func loadReplayFile(url: URL) {
-        do {
-            let info = try CsvReplayService.parse(url: url)
-            replayInfo = info
-            pendingArtifacts.removeAll()
-            selectMode = Int(info.mode) - 1
-            transSpeed = info.transMode == MEMEQuality_High ? 0 : 1
-            accelRange = Int(info.accelRange)
-            gyroRange = Int(info.gyroRange)
-            connectionStateText = "State : \(info.fileName)"
-            phase = .replayReady
-            // ファイルを読み込んだら自動で再生を開始する（Start Replay ボタンは廃止）。
-            startReplay()
-        } catch {
-            NSLog("[Replay] failed to parse CSV: %@", url.path)
-            let alert = NSAlert()
-            alert.alertStyle = .warning
-            alert.messageText = "Not a valid MEME CSV file"
-            alert.informativeText = url.lastPathComponent
-            alert.runModal()
-        }
-    }
-
-    func toggleReplay() {
-        if phase == .replaying {
-            finishReplay()
-        } else {
-            startReplay()
-        }
-    }
-
-    private func startReplay() {
-        guard phase == .replayReady, let info = replayInfo else { return }
+        replayFile = url
+        pendingArtifacts.removeAll()
+        connectionStateText = "State : \(url.lastPathComponent)"
         phase = .replaying
-        isReplayPaused = false
-        replaySpeedIndex = 0
-        replayService.start(rows: info.rows,
-                            transMode: info.transMode,
-                            onRow: { [weak self] data, index, total in
-            self?.ingestReplayRow(data, mode: info.mode, index: index, total: total)
-        }, onFinished: { [weak self] in
-            self?.pauseReplayAtEnd()
-        })
-        // ウィンドウ幅（例: 7s なら 7s 分）のデータを先読みしてグラフを満たした状態から再生を始める。
-        // fillReplayWindow が描画バッファを作り直すため、前回のグラフはここでクリアされる。
-        fillReplayWindow(endingAt: xRangeSeconds * chartSampleRate - 1)
+        web.openReplay(file: url, extra: displayOptions())
     }
 
-    private func finishReplay() {
-        replayService.stop()
+    /// ページが CSV を読み終えたら、計測条件の表示(左の欄)を CSV に合わせる。
+    private func applyReplayInfo(_ info: [String: Any]) {
         guard phase == .replaying else { return }
-        // 停止時に、タップで記録した Artifact を再生元CSVへ書き戻す。
+        switch info["mode"] as? String {
+        case "standard": selectMode = Int(MEMEMode_Standard) - 1
+        case "full": selectMode = Int(MEMEMode_Full) - 1
+        case "quaternion": selectMode = Int(MEMEMode_Quaternion) - 1
+        default: break
+        }
+        if let cps = (info["cps"] as? NSNumber)?.intValue { transSpeed = cps == 100 ? 0 : 1 }
+        if let g = (info["accRange"] as? NSNumber)?.intValue, let k = Self.accelG.firstIndex(of: g) { accelRange = k }
+        if let d = (info["gyroRange"] as? NSNumber)?.intValue, let k = Self.gyroDps.firstIndex(of: d) { gyroRange = k }
+    }
+
+    /// 再生中に付けた Artifact を、今すぐ再生元CSVへ書き戻す(再生は続ける)。
+    func saveReplayArtifacts() {
+        guard phase == .replaying else { return }
         flushArtifacts()
-        phase = .replayReady
-        isReplayPaused = false
-        // グラフはリセットしない（Record／停止時は残し、次の計測・再生開始時にクリアする）。
-        stats.reset()
-        successRateValue = 0; successRateText = "0.0%"
-        communicationValue = 0; communicationText = "0.0%"
-        replayProgress = 0
-    }
-
-    /// 再生が最後まで到達したときに呼ぶ。Start Replay 状態には戻さず、末尾位置で一時停止した状態にする。
-    /// これにより末尾でも Record（グラフを残して停止）や << でのシークが行える。
-    private func pauseReplayAtEnd() {
-        guard phase == .replaying else { return }
-        isReplayPaused = true
-        // スロットルで最後の描画更新が漏れることがあるため、末尾サンプルまで確実に反映する。
-        updateChartPlots()
     }
 
     private func disconnectReplay() {
-        // 再生セッションを完全に終える。保持していた1ファイル分の行データもここで解放する。
-        replayService.clear()
         // 再生中に切断された場合も、記録済み Artifact は書き戻す。
-        // replayInfo はこの後破棄するため読み直しは不要。
-        flushArtifacts(reload: false)
-        replayInfo = nil
+        flushArtifacts()
+        web.closeReplay()
+        replayFile = nil
         phase = .idle
         connectionStateText = "State : Disconnected"
         reset()
     }
 
-    // MARK: - Replay pause
+    // MARK: - Artifact
 
-    func toggleReplayPause() {
-        guard phase == .replaying else { return }
-        if isReplayPaused {
-            // 末尾で一時停止中は再開する行が無いため、resume が失敗したら一時停止のままにする。
-            if replayService.resume() {
-                isReplayPaused = false
-            }
-        } else {
-            replayService.pause()
-            isReplayPaused = true
-        }
-    }
-
-    // MARK: - Replay speed
-
-    /// 現在の再生速度倍率（1/2/4/8/16）。
-    var replaySpeed: Int { replaySpeedOptions[replaySpeedIndex] }
-    /// 再生速度ボタンのラベル（例 "x2"）。
-    var replaySpeedLabel: String { "x\(replaySpeed)" }
-
-    /// 再生速度ボタン：タップするたびに x1→x2→x4→x8→x16→x32→x1 と循環する。
-    /// 描画周期は変えず、1周期で取り込むデータ量が速度倍になる。
-    func cycleReplaySpeed() {
-        guard phase == .replaying else { return }
-        replaySpeedIndex = (replaySpeedIndex + 1) % replaySpeedOptions.count
-        replayService.setSpeed(replaySpeed)
-    }
-
-    // MARK: - Artifact tagging
-
-    /// チャートタップ時に呼ぶ。再生中／計測中のどちらでも、対象サンプルを控えてダイアログを開く。
-    /// row は絶対チャートサンプル位置（右詰め描画の右端＝最新）。
-    func chartTapped(row: Int) {
-        switch phase {
-        case .replaying:
-            guard let info = replayInfo, !info.rows.isEmpty else { return }
-            artifactTargetRow = min(max(row, 0), info.rows.count - 1)
-        case .measuring:
-            // 計測中はストリームが開いており上限が無いため下限のみクランプする。
-            artifactTargetRow = max(row, 0)
-        default:
-            return
-        }
-        artifactInput = ""
-        showingArtifactDialog = true
-    }
-
-    /// ダイアログOK。空なら "X"、カンマ/改行は列崩れ防止のため除去してメモリに記録（同一行は上書き）。
-    func confirmArtifact() {
-        let sanitized = artifactInput
+    /// ページで付けた Artifact を控える。空なら "X"、カンマ/改行は列崩れ防止のため除去(同一行は上書き)。
+    private func receiveArtifact(i: Int, text: String) {
+        guard phase == .replaying || phase == .measuring else { return }
+        let sanitized = text
             .replacingOccurrences(of: ",", with: " ")
             .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespaces)
-        pendingArtifacts[artifactTargetRow] = sanitized.isEmpty ? "X" : sanitized
-        artifactInput = ""
-        showingArtifactDialog = false
-        // 一時停止中は次の tick が来ないため、付けた直後にチャートへ反映されるよう再描画する。
-        updateChartPlots()
+        pendingArtifacts[max(i, 0)] = sanitized.isEmpty ? "X" : sanitized
     }
 
-    func cancelArtifact() {
-        artifactInput = ""
-        showingArtifactDialog = false
-    }
-
-    /// 記録済み Artifact を再生元CSVの ARTIFACT 列へ書き戻す（停止/切断時）。
-    /// 書き戻し後、reload=true なら同じファイルを読み直して replayInfo を更新し、
-    /// 続けて Start した際に今書き込んだ Artifact がチャートへ反映されるようにする。
-    /// （切断時は replayInfo を破棄するため reload=false でよい。）
-    private func flushArtifacts(reload: Bool = true) {
-        guard !pendingArtifacts.isEmpty, let info = replayInfo else { return }
+    /// 再生中に付けた Artifact を再生元CSVの ARTIFACT 列へ書き戻す(Save Artifacts / 切断時)。
+    /// キーは CSV のデータ行の番号(ページが返す番号そのまま)。
+    private func flushArtifacts() {
+        guard !pendingArtifacts.isEmpty, let url = replayFile else { return }
         do {
-            try CsvReplayService.applyArtifacts(url: info.url, artifacts: pendingArtifacts)
-            if reload, let refreshed = try? CsvReplayService.parse(url: info.url) {
-                replayInfo = refreshed
-            }
+            try CsvArtifactWriter.apply(url: url, artifacts: pendingArtifacts)
         } catch {
             NSLog("[Artifact] failed to write: %@", error.localizedDescription)
         }
         pendingArtifacts.removeAll()
     }
 
-    /// 計測中にタップで付けた Artifact を、保存済みCSVの ARTIFACT 列へ書き戻す（停止時）。
-    /// pendingArtifacts のキーは絶対チャートサンプル位置。CSVは先頭パケットを1件落とすため、
-    /// データ行インデックス = サンプル位置 − 1（サンプル0はCSVに無いので除外する）。
+    /// 計測中に付けた Artifact を、保存済みCSVの ARTIFACT 列へ書き戻す（停止時）。
+    /// pendingArtifacts のキーはサンプル番号。CSVは先頭パケットを1件落とすため、
+    /// データ行インデックス = サンプル番号 − 1（サンプル0はCSVに無いので除外する）。
     private func flushLiveArtifacts() {
         defer { pendingArtifacts.removeAll() }
         guard !pendingArtifacts.isEmpty, let url = persistence.savedFileURL else { return }
@@ -608,174 +441,13 @@ final class MEMEViewModel: NSObject {
             rowKeyed[sampleIndex - 1] = text
         }
         do {
-            try CsvReplayService.applyArtifacts(url: url, artifacts: rowKeyed)
+            try CsvArtifactWriter.apply(url: url, artifacts: rowKeyed)
         } catch {
             NSLog("[Artifact] failed to write (live): %@", error.localizedDescription)
         }
     }
 
-    // MARK: - Replay range cut
-
-    /// 範囲選択（ドラッグ）を受け付けるか。ファイル再生中（一時停止中を含む）のみ有効。
-    var isReplayRangeSelectable: Bool { phase == .replaying }
-
-    /// チャート上のドラッグ範囲選択が終了したときに呼ぶ。行は絶対チャートサンプル位置
-    /// （再生中はデータ行インデックスと一致）。区間を控えて保存ダイアログを開く。
-    func chartRangeSelected(startRow: Int, endRow: Int) {
-        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
-        let maxRow = info.rows.count - 1
-        let start = min(max(min(startRow, endRow), 0), maxRow)
-        let end = min(max(max(startRow, endRow), 0), maxRow)
-        guard start < end else { return }
-        cutRange = (start, end)
-        cutFileNameInput = Self.defaultCutFileName(for: info.url)
-        cutErrorMessage = ""
-        showingCutDialog = true
-    }
-
-    /// 切り出し先のデフォルトファイル名。"current.csv" → "current_1.csv"、
-    /// それが既にあれば "current_2.csv" … と存在しない名前までインクリメントする。
-    /// 拡張子は元ファイルに揃える（.csv.gz なら切り出しも .csv.gz）。
-    private static func defaultCutFileName(for url: URL) -> String {
-        let base = CsvFile.baseName(of: url)
-        let ext = CsvFile.matchingExtension(of: url)
-        let dir = url.deletingLastPathComponent()
-        var n = 1
-        while FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(base)_\(n).\(ext)").path) {
-            n += 1
-        }
-        return "\(base)_\(n).\(ext)"
-    }
-
-    /// 切り出しダイアログOK。再生元CSVと同じフォルダへ、控えた区間のデータ行だけを書き出す。
-    /// 同名ファイルが既にある場合はダイアログ内へエラーを表示し、保存もダイアログを閉じることもしない。
-    func confirmCutFile() {
-        guard let info = replayInfo else {
-            showingCutDialog = false
-            return
-        }
-        var name = cutFileNameInput.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, !name.contains("/") else {
-            cutErrorMessage = "Invalid file name."
-            return
-        }
-        // 拡張子が無ければ元ファイルに揃える（.csv.gz なら圧縮して書き出される）。
-        if !CsvFile.isSupported(fileName: name) {
-            name += "." + CsvFile.matchingExtension(of: info.url)
-        }
-        let dest = info.url.deletingLastPathComponent().appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: dest.path) {
-            cutErrorMessage = "File already exists."
-            return
-        }
-        do {
-            try CsvReplayService.exportRange(from: info.url,
-                                             to: dest,
-                                             startRow: cutRange.start,
-                                             endRow: cutRange.end)
-            showingCutDialog = false
-        } catch {
-            NSLog("[Cut] failed to write: %@", error.localizedDescription)
-            cutErrorMessage = "Failed to save file."
-        }
-    }
-
-    func cancelCutFile() {
-        showingCutDialog = false
-    }
-
-    private func ingestReplayRow(_ data: AcademicData, mode: UInt32, index: Int, total: Int) {
-        displayBattLv = data.battLv
-        currentReplayIndex = index
-        if !isScrubbingReplay {
-            replayProgress = total > 1 ? Double(index) / Double(total - 1) * 100 : 0
-        }
-
-        switch mode {
-        case MEMEMode_Full:
-            guard let d = data as? AcademicFullData else { return }
-            ingestForDisplay(full: d)
-        case MEMEMode_Quaternion:
-            displayCnt = data.cnt
-            return
-        default:
-            guard let d = data as? AcademicStandardData else { return }
-            ingestForDisplay(standard: d)
-        }
-
-        appendChartSample(data)
-    }
-
-    // MARK: - Replay scrubbing (slider / jump)
-
-    /// スライダーの操作状態が変わったときに呼ぶ。ドラッグ終了時にシークする。
-    func replaySliderEditingChanged(_ editing: Bool) {
-        isScrubbingReplay = editing
-        if !editing {
-            seekReplay(toProgress: replayProgress)
-        }
-    }
-
-    /// << / >> の移動量（秒）。ウィンドウ幅から 2 秒引いた分だけ移動し、
-    /// 前後のウィンドウが 2 秒重なって連続して見えるようにする。
-    private var replayJumpSeconds: Int { max(1, xRangeSeconds - 2) }
-
-    /// >> ボタン：ウィンドウ幅−2秒分だけ再生位置を進める。
-    func replayJumpForward() {
-        jumpReplay(bySeconds: replayJumpSeconds)
-    }
-
-    /// << ボタン：ウィンドウ幅−2秒分だけ再生位置を戻す。
-    func replayJumpBackward() {
-        jumpReplay(bySeconds: -replayJumpSeconds)
-    }
-
-    private func jumpReplay(bySeconds seconds: Int) {
-        guard phase == .replaying, let info = replayInfo else { return }
-        let rowsPerSecond = info.transMode == MEMEQuality_High ? 100 : 50
-        seekReplay(toRow: currentReplayIndex + seconds * rowsPerSecond)
-    }
-
-    private func seekReplay(toProgress progress: Double) {
-        guard let info = replayInfo, info.rows.count > 1 else { return }
-        let clampedProgress = min(max(progress, 0), 100)
-        let index = Int((clampedProgress / 100) * Double(info.rows.count - 1))
-        seekReplay(toRow: index)
-    }
-
-    /// 再生中のシーク処理。一時停止中・再生中どちらも、シーク先で終わるウィンドウ幅分の
-    /// データを先読みしてグラフを満たしてから、続き（シーク先の次の行）を読み込む。
-    /// これにより << / >> ジャンプ後も右端から徐々に埋めるのではなく、
-    /// 最初からウィンドウ幅を満たした状態で描画を再開する。
-    private func seekReplay(toRow index: Int) {
-        guard phase == .replaying, let info = replayInfo, !info.rows.isEmpty else { return }
-        fillReplayWindow(endingAt: min(max(index, 0), info.rows.count - 1))
-    }
-
-    /// 指定行 endRow で終わるウィンドウ幅（現在のX軸レンジ）分のデータを先読みしてグラフを満たし、
-    /// 続きを endRow の次の行から読み込めるよう再生位置を進める。
-    /// 再生中なら次の tick から、一時停止中なら Resume 後に、endRow+1 以降が右端へ流れていく。
-    /// 再生開始時・シーク（<< / >> ・スライダー）時・一時停止中のX軸レンジ変更時に、
-    /// 右端から徐々に埋めるのではなく、最初からウィンドウ幅を満たした状態で描画を（再）開始するために使う。
-    private func fillReplayWindow(endingAt endRow: Int) {
-        guard let info = replayInfo, !info.rows.isEmpty else { return }
-        let windowSamples = max(1, xRangeSeconds * chartSampleRate)
-        // 右端（＝再生位置）はウィンドウ幅−1 行より手前へは戻さない。
-        // これより手前へ戻すと窓が [0…endRow] の部分窓になり、左端が負の時刻（−ウィンドウ長）に
-        // なってしまう。先頭付近では常に先頭ウィンドウ [0 … windowSamples−1] を表示し、左端を 0s にする。
-        let minEnd = min(windowSamples - 1, info.rows.count - 1)
-        let clamped = min(max(endRow, minEnd), info.rows.count - 1)
-        let start = max(0, clamped - windowSamples + 1)
-        chartRenderCounter = 0
-        currentReplayIndex = clamped
-        replayProgress = info.rows.count > 1 ? Double(clamped) / Double(info.rows.count - 1) * 100 : 0
-        chartService.reset(baseIndex: start)
-        for i in start...clamped {
-            chartService.append(info.rows[i])
-        }
-        updateChartPlots()
-        replayService.seek(to: clamped + 1)
-    }
+    // MARK: - Measurement
 
     func toggleMeasurement() {
         if !measurementFlag {
@@ -786,8 +458,6 @@ final class MEMEViewModel: NSObject {
     }
 
     private func startMeasurement() {
-        // 次の計測開始時に前回のグラフ（前回計測／再生の残り）をクリアする。
-        clearChart()
         stats.startMeasurement(quality: transSpeed + 1)
 
         memelib.setSelectMode(UInt32(selectMode + 1))
@@ -800,6 +470,9 @@ final class MEMEViewModel: NSObject {
             socket.writeHeader()
         }
 
+        liveSampleIndex = 0
+        web.start(liveCondition())
+
         measurementFlag = true
         phase = .measuring
         memelib.startDataReport()
@@ -808,6 +481,7 @@ final class MEMEViewModel: NSObject {
     private func stopMeasurement() {
         memelib.stopDataReport()
         stats.stopMeasurement()
+        web.stop()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
@@ -815,7 +489,7 @@ final class MEMEViewModel: NSObject {
             self.phase = .connected
 
             self.flushCsv()
-            // 確定したCSVファイルへ、計測中にタップで付けた Artifact を書き戻す。
+            // 確定したCSVファイルへ、計測中に付けた Artifact を書き戻す。
             // （保存ダイアログでファイルを移動する前に、元パスへ書き込んでおく。）
             self.flushLiveArtifacts()
 
@@ -832,6 +506,61 @@ final class MEMEViewModel: NSObject {
         isFreeMarking = true
     }
 
+    // MARK: - Graph (WebView)
+
+    /// 各モードで 1 サンプルぶんとしてページへ渡す列(CSV の列名と同じ)。
+    private static let fullColumns = ["ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V"]
+    private static let standardColumns = ["ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2",
+                                          "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2"]
+
+    /// 表示の設定(時刻の表示・加速度のオフセット・テーマ)。計測・再生どちらでもページへ渡す。
+    private func displayOptions() -> [String: Any] {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return [
+            "timeZone": UserSetting.getConvertToLocalTime() ? "local" : "utc",
+            "accOffset": [UserSetting.getXAxis(), UserSetting.getYAxis(), UserSetting.getZAxis()],
+            "theme": dark ? "dark" : "light",
+        ]
+    }
+
+    /// 計測の開始時にページへ渡す条件(webview/BRIDGE.md の start)。値は端末に設定したもの。
+    private func liveCondition() -> [String: Any] {
+        let mode = memelib.getSelectMode()
+        let modeName = mode == MEMEMode_Full ? "full" : mode == MEMEMode_Quaternion ? "quaternion" : "standard"
+        let columns: [String] = mode == MEMEMode_Full ? Self.fullColumns
+            : mode == MEMEMode_Standard ? Self.standardColumns : []
+        var cond = displayOptions()
+        cond["label"] = selectedDevice.isEmpty ? "JINS MEME" : selectedDevice
+        cond["mode"] = modeName
+        cond["cps"] = memelib.getTransMode() == MEMEQuality_High ? 100 : 50
+        cond["accRange"] = Self.accelG[min(max(Int(memelib.getAccelRange()), 0), 3)]
+        cond["gyroRange"] = Self.gyroDps[min(max(Int(memelib.getGyroRange()), 0), 3)]
+        cond["columns"] = columns
+        cond["startedAt"] = Date().timeIntervalSince1970 * 1000
+        return cond
+    }
+
+    /// 1 サンプルをグラフ画面へ。freeMarked なら、CSV に x を書いた行と同じ位置へ印を出す。
+    private func pushToGraph(_ data: AcademicData, freeMarked: Bool) {
+        let i = liveSampleIndex
+        liveSampleIndex += 1
+        if let f = data as? AcademicFullData {
+            web.push(i: i, values: [Int(f.accX), Int(f.accY), Int(f.accZ), Int(f.gyroX), Int(f.gyroY), Int(f.gyroZ),
+                                    Int(f.eogL), Int(f.eogR), Int(f.eogH), Int(f.eogV)])
+        } else if let s = data as? AcademicStandardData {
+            web.push(i: i, values: [Int(s.accX), Int(s.accY), Int(s.accZ), Int(s.eogL1), Int(s.eogR1), Int(s.eogL2), Int(s.eogR2),
+                                    Int(s.eogH1), Int(s.eogH2), Int(s.eogV1), Int(s.eogV2)])
+        }
+        if freeMarked {
+            web.mark(i: i, text: "x")
+        }
+    }
+
+    /// グラフ画面の中身が切り替わったら読み込み直す(設定から)。
+    func reloadGraph() {
+        web.load()
+    }
+
     // MARK: - Settings sheet
 
     func openSettings() {
@@ -842,20 +571,6 @@ final class MEMEViewModel: NSObject {
         socketStop()
         socketStart()
         showLocalPort()
-        // ローカルタイム変換の切り替えを、停止中／一時停止中の表示にも即反映する。
-        updateChartPlots()
-    }
-
-    // MARK: - Chart selection
-
-    func applyChartSelection() {
-        chart1Title = "Chart1：\(chartCategoryOptions[chart1Category])"
-        chart2Title = "Chart2：\(chartCategoryOptions[chart2Category])"
-        chart3Title = "Chart3：\(chartCategoryOptions[chart3Category])"
-
-        chart1Plot.applyCategory(chart1Category)
-        chart2Plot.applyCategory(chart2Category)
-        chart3Plot.applyCategory(chart3Category)
     }
 
     // MARK: - Data → dictionary
@@ -918,115 +633,6 @@ final class MEMEViewModel: NSObject {
         socketStatusText = "Status : "
     }
 
-    // MARK: - Chart update
-
-    /// チャート描画のサンプリング周波数（Hz）。時間軸ラベル（秒 = 行数 / 周波数）に使う。
-    /// 再生中は再生ファイルの設定、計測中はデバイスの Trans Speed に従う。
-    private var chartSampleRate: Int {
-        if let info = replayInfo, phase == .replaying || phase == .replayReady {
-            return info.transMode == MEMEQuality_High ? 100 : 50
-        }
-        return memelib?.getTransMode() == MEMEQuality_High ? 100 : 50
-    }
-
-    /// 再描画を間引く周期。データはフルレートで取り込みつつ、Canvas 再描画を抑える。
-    /// （2x/3x 再生でデータ取込が速くなっても描画負荷が線形に増えないようにするため。）
-    /// 描画点数が多い30秒窓のみ10Hz、それ以外（3/7/15秒窓）は25Hzで再描画する。
-    /// 再生速度に比例してストライドも伸ばすことで、速度を上げても描画周期（再描画Hz）は
-    /// x1 のときと同じままにし、1回の再描画で進むデータ量だけを増やす。
-    private var chartRenderStride: Int {
-        let targetHz: Double = xRangeSeconds >= 30 ? 10 : 25
-        let base = max(1, Int((Double(chartSampleRate) / targetHz).rounded()))
-        let speed = phase == .replaying ? replaySpeed : 1
-        return base * speed
-    }
-
-    /// 1サンプルをバッファへ追加し、スロットリング周期ごとにプロットを更新する。
-    /// ハム（50/60Hz）成分を残すため間引かず全サンプルを保持する。
-    /// freeMarked なら、CSV に x を書いた行と同じサンプル位置へ Free Marking の印を出す。
-    private func appendChartSample(_ data: AcademicData, freeMarked: Bool = false) {
-        let sampleIndex = chartService.append(data)
-        if freeMarked {
-            freeMarkings[sampleIndex] = "x"
-        }
-        chartRenderCounter += 1
-        if chartRenderCounter % chartRenderStride == 0 {
-            updateChartPlots()
-        }
-    }
-
-    private func updateChartPlots() {
-        chartService.updatePlots(chart1: &chart1Plot,
-                                 chart1Category: chart1Category,
-                                 chart1Eog: chart1EogToggles,
-                                 chart1Gyro: chart1GyroToggles,
-                                 chart1Accel: chart1AccelToggles,
-                                 chart2: &chart2Plot,
-                                 chart2Category: chart2Category,
-                                 chart2Eog: chart2EogToggles,
-                                 chart2Gyro: chart2GyroToggles,
-                                 chart2Accel: chart2AccelToggles,
-                                 chart3: &chart3Plot,
-                                 chart3Category: chart3Category,
-                                 chart3Eog: chart3EogToggles,
-                                 chart3Gyro: chart3GyroToggles,
-                                 chart3Accel: chart3AccelToggles,
-                                 sampleRate: chartSampleRate,
-                                 xRangeSeconds: xRangeSeconds,
-                                 artifacts: currentChartArtifacts())
-    }
-
-    /// 各グラフへ表示する Artifact（キー＝絶対チャートサンプル位置 → 文字列）。
-    /// 再生中：再生元CSVに記録済みのものと、この再生中にタップで付けた未書き戻しのものを併せて返す。
-    /// 計測中：Free Marking の印と、タップで付けた未書き戻しのもの（停止時にCSVへ書き戻す）を併せて返す。
-    /// それ以外は空。
-    private func currentChartArtifacts() -> [Int: String] {
-        switch phase {
-        case .replaying:
-            guard let info = replayInfo else { return [:] }
-            return Self.mergeArtifacts(info.artifacts, overrides: pendingArtifacts)
-        case .measuring:
-            return Self.mergeArtifacts(freeMarkings, overrides: pendingArtifacts)
-        default:
-            return [:]
-        }
-    }
-
-    /// 同じ行に両方あれば overrides を採る（タップ入力は書き戻し時にその行を上書きするので、
-    /// 表示もそれに合わせる）。片方が空なら複製せずそのまま返す。
-    private static func mergeArtifacts(_ baseline: [Int: String], overrides: [Int: String]) -> [Int: String] {
-        if overrides.isEmpty { return baseline }
-        if baseline.isEmpty { return overrides }
-        return baseline.merging(overrides) { _, tapped in tapped }
-    }
-
-    // MARK: - Chart X-axis range
-
-    var xRangeSeconds: Int { xRangeOptions[xRangeIndex] }
-    var canZoomInXRange: Bool { xRangeIndex > 0 }
-    var canZoomOutXRange: Bool { xRangeIndex < xRangeOptions.count - 1 }
-
-    /// + ボタン：より狭い（短い）X軸レンジへ。
-    func zoomInXRange() {
-        guard canZoomInXRange else { return }
-        xRangeIndex -= 1
-        refreshPausedWindowForRangeChange()
-    }
-
-    /// － ボタン：より広い（長い）X軸レンジへ。
-    func zoomOutXRange() {
-        guard canZoomOutXRange else { return }
-        xRangeIndex += 1
-        refreshPausedWindowForRangeChange()
-    }
-
-    /// 一時停止中のみ、X軸レンジ変更を現在位置の静的表示へ即反映する。
-    /// （再生中は次の tick が新しいレンジで描画するため何もしなくてよい。）
-    private func refreshPausedWindowForRangeChange() {
-        guard phase == .replaying, isReplayPaused else { return }
-        fillReplayWindow(endingAt: currentReplayIndex)
-    }
-
     // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
 
     private func syncDeviceSettings() {
@@ -1049,20 +655,16 @@ final class MEMEViewModel: NSObject {
     // スキャン中はデバイス選択（(no device) 表示）を触らせない。
     // デバイスが見つかったら選択できるようにする。
     var isDeviceSelectionDisabled: Bool { isInputDisabled || (isScanning && phase != .deviceFound) }
-    var showConnect: Bool { phase == .deviceFound || phase == .connected || phase == .replayReady || phase == .replaying }
+    var showConnect: Bool { phase == .deviceFound || phase == .connected || phase == .replaying }
     var connectButtonLabel: String {
-        (phase == .connected || phase == .replayReady || phase == .replaying) ? "Disconnect" : "Connect"
+        (phase == .connected || phase == .replaying) ? "Disconnect" : "Connect"
     }
     var showMeasurement: Bool { phase == .connected || phase == .measuring }
     var showFreeMarking: Bool { phase == .measuring }
-    // 再生中のみ Record ボタンを表示する（Start Replay は廃止し、読み込み時に自動再生する）。
+    /// 再生中は「Save Artifacts」(付けた Artifact を今すぐ CSV へ書き戻す)を出す。
+    /// 再生・一時停止・速度・シークはグラフ画面の中にある。
     var showReplayControls: Bool { phase == .replaying }
-    var replayButtonLabel: String { "Record" }
-    var showReplayPause: Bool { phase == .replaying }
-    var replayPauseButtonLabel: String { isReplayPaused ? "Resume" : "Pause" }
-    var isInputDisabled: Bool { phase == .measuring || phase == .replayReady || phase == .replaying }
-    var showXRangeControls: Bool { phase == .measuring || phase == .replaying }
-    var showReplayScrubber: Bool { phase == .replaying }
+    var isInputDisabled: Bool { phase == .measuring || phase == .replaying }
 }
 
 // =============================================================================
@@ -1132,6 +734,7 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         foundDevices.removeAll()
         selectedDevice = ""
         phase = .idle
+        web.stop()
         // SHELF 送信後の切断は端末が移行を受理した合図。
         if isEnteringShelf {
             finishShelfMode(entered: true)
@@ -1141,26 +744,25 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData) {
         let freeMarked = ingestPacket(data: data)
         ingestForDisplay(standard: data)
-        appendChartSample(data, freeMarked: freeMarked)
+        pushToGraph(data, freeMarked: freeMarked)
     }
 
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData) {
         let freeMarked = ingestPacket(data: data)
         ingestForDisplay(full: data)
-        appendChartSample(data, freeMarked: freeMarked)
+        pushToGraph(data, freeMarked: freeMarked)
     }
 
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData) {
-        // Quaternion はチャートを持たないので、Free Marking は CSV に書くだけで印は出さない。
+        // Quaternion はグラフを持たないので、Free Marking は CSV に書くだけで印は出さない。
         _ = ingestPacket(data: data)
         displayCnt = data.cnt
     }
 
     /// 受信パケットを CSV／ソケットへ流す。このパケットの行へ Free Marking の x を書いたら
-    /// true を返す（呼び出し側がチャートの同じサンプル位置へ印を出す）。
+    /// true を返す（呼び出し側がグラフの同じサンプル位置へ印を出す）。
     private func ingestPacket(data: AcademicData) -> Bool {
-        // 受信時刻をサンプル自身に持たせる。CSV/ソケットの DATE 列と、
-        // チャートX軸のタイムスタンプ表示はどちらもこの時刻を使う。
+        // 受信時刻をサンプル自身に持たせる。CSV/ソケットの DATE 列はこの時刻を使う。
         data.date = Date()
         var freeMarked = false
         // 最初の1パケットは前回カウンタの基準取得のみに使い、CSVには記録しない。
@@ -1209,107 +811,5 @@ extension MEMEViewModel: TcpSocketDelegate {
         NSLog("didDisconnect")
         socketStatusText = "Status : "
         socketStart()
-    }
-}
-
-// =============================================================================
-// MARK: - Supporting types
-// =============================================================================
-
-struct EogToggles {
-    var left: Bool = false
-    var right: Bool = false
-    var deltaH: Bool = true
-    var deltaV: Bool = true
-}
-
-struct GyroToggles {
-    var x: Bool = true
-    var y: Bool = true
-    var z: Bool = true
-}
-
-struct AccelToggles {
-    var x: Bool = true
-    var y: Bool = true
-    var z: Bool = true
-}
-
-struct ChartSeries: Identifiable {
-    var id: String { name }
-    let name: String
-    let color: Color
-    /// 波形の値。X軸位置は配列内インデックス（等間隔サンプリング前提）で表す。
-    var values: [Double]
-}
-
-/// 再生中にチャート上へ表示する Artifact（1件）。
-struct ChartArtifact {
-    /// 対象サンプルのストリーム全体での絶対位置（＝再生元CSVのデータ行インデックス）。
-    /// 波形と同じ右詰めロジックでX座標へ変換する。
-    let sampleIndex: Int
-    let text: String
-}
-
-struct ChartPlot {
-    /// カテゴリごとに決まる基準の縦軸範囲。実際の表示範囲はこれに yScale を掛けたもの。
-    var baseYMin: Double
-    var baseYMax: Double
-    /// 縦軸の拡大率。小さいほど拡大（max-min が狭い）。等倍を中央に、上下2段階ずつ持つ。
-    /// Gyro/Accel（基準 ±8000）では ±2000 / ±4000 / ±8000 / ±16000 / ±32000 になる。
-    /// 生値は符号付き16bitなので ±32000 が実質の上限。
-    static let yScaleOptions: [Double] = [0.25, 0.5, 1, 2, 4]
-    /// yScaleOptions のインデックス。既定は等倍（1）。
-    var yScaleIndex: Int = 2
-
-    var yScale: Double { Self.yScaleOptions[min(max(yScaleIndex, 0), Self.yScaleOptions.count - 1)] }
-    var yMin: Double { baseYMin * yScale }
-    var yMax: Double { baseYMax * yScale }
-
-    var canZoomInY: Bool { yScaleIndex > 0 }
-    var canZoomOutY: Bool { yScaleIndex < Self.yScaleOptions.count - 1 }
-
-    /// 拡大：縦軸の max-min を半分にする（下限 0.25 倍）。
-    mutating func zoomInY() {
-        guard canZoomInY else { return }
-        yScaleIndex -= 1
-    }
-
-    /// 縮小：縦軸の max-min を2倍にする（上限 4 倍）。
-    mutating func zoomOutY() {
-        guard canZoomOutY else { return }
-        yScaleIndex += 1
-    }
-
-    /// 表示ウィンドウの全幅（サンプル数）＝ xRangeSeconds × sampleRate。X座標の正規化に使う。
-    var windowSamples: Int = 7 * 100
-    /// 最新サンプル（＝右端）のストリーム全体での絶対サンプル位置。
-    /// 波形を右詰めで描画し、時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）を算出するために使う。
-    var latestSampleIndex: Int = 0
-    /// サンプリング周波数（Hz）。時間軸ラベル（秒 = 絶対サンプル位置 / 周波数）算出に使う。
-    var sampleRate: Int = 100
-    /// 最新サンプル（＝右端）の記録時刻（UTC基準の絶対時刻）。
-    /// X軸ラベルはこれを基準に、1サンプル = 1/sampleRate 秒として左方向へ遡って求める。
-    /// 時刻が分からない場合（DATE列が壊れているCSVなど）は nil で、経過時間表示へフォールバックする。
-    var latestSampleDate: Date? = nil
-    /// X軸のタイムスタンプをローカルタイムへ変換して表示するか（Setting 由来）。false ならUTCのまま表示する。
-    var convertToLocalTime: Bool = true
-    var series: [ChartSeries] = []
-    /// 可視ウィンドウ内に入る Artifact（再生中のみ設定。Y軸上限付近に文字列を描画する）。
-    var artifacts: [ChartArtifact] = []
-
-    mutating func reset() {
-        latestSampleIndex = 0
-        latestSampleDate = nil
-        series.removeAll()
-        artifacts.removeAll()
-    }
-
-    mutating func applyCategory(_ category: Int) {
-        switch category {
-        case 0: baseYMin = -1200; baseYMax = 1200
-        default: baseYMin = -8000; baseYMax = 8000
-        }
-        series.removeAll()
     }
 }

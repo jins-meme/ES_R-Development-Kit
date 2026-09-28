@@ -1,0 +1,115 @@
+/* 共通の見た目。色はトークンで持ち、ダークモードはアプリから setTheme("dark") で data-theme を付けるか OS に従う。
+   系列の色(--c-*)は light / dark それぞれ色覚多様性の検証を通したもの(python-processing-core docs/porting-html/zoom-ui-proposal.html)。 */
+:root {
+  --paper: #eef0f2; --surface: #ffffff; --chart: #ffffff; --ink: #1d2126; --muted: #5b6470; --faint: #8a939d;
+  --line: #d9dde2; --grid: rgba(29, 33, 38, .08); --accent: #c2127f; --on-accent: #ffffff; --press: #f6e3ee;
+  --live: #1f8a4c; --artifact: #e8590c; --focus: #2a6fc4; --sheet: #ffffff; --shadow: 0 8px 28px rgba(20, 24, 30, .16);
+  --c-vv: #2a6fc4; --c-vh: #d9731a; --c-x: #d9731a; --c-y: #7b57c8; --c-z: #008f6e;
+  --sans: -apple-system, "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #101214; --surface: #181b1f; --chart: #15181b; --ink: #e4e7eb; --muted: #98a1ac; --faint: #6c757f;
+    --line: #2b3036; --grid: rgba(228, 231, 235, .08); --accent: #e0529f; --on-accent: #101214; --press: #3a1f2e;
+    --live: #4cc07f; --artifact: #ff8a4c; --focus: #6aa3ea; --sheet: #1d2126; --shadow: 0 8px 28px rgba(0, 0, 0, .5);
+    --c-vv: #4a86d4; --c-vh: #c96f28; --c-x: #cc6d22; --c-y: #9377da; --c-z: #22a189;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #101214; --surface: #181b1f; --chart: #15181b; --ink: #e4e7eb; --muted: #98a1ac; --faint: #6c757f;
+  --line: #2b3036; --grid: rgba(228, 231, 235, .08); --accent: #e0529f; --on-accent: #101214; --press: #3a1f2e;
+  --live: #4cc07f; --artifact: #ff8a4c; --focus: #6aa3ea; --sheet: #1d2126; --shadow: 0 8px 28px rgba(0, 0, 0, .5);
+  --c-vv: #4a86d4; --c-vh: #c96f28; --c-x: #cc6d22; --c-y: #9377da; --c-z: #22a189;
+}
+
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
+body { font: 13px/1.5 var(--sans); padding-inline: 12px; padding-block: 10px 16px; -webkit-text-size-adjust: 100%; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.viewer { position: relative; display: grid; gap: 8px; }
+/* グリッドの子は既定で中身より狭くならない(min-width: auto)ので、グラフの canvas の幅がページを押し広げる。0 にして親の幅に合わせる */
+.viewer > *, .charts > * { min-width: 0; }
+.chart { overflow: hidden; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.group { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.group button { border: 0; border-right: 1px solid var(--line); background: transparent; padding: 0 10px; min-height: 32px; min-width: 40px; font: 600 12px/1 var(--mono); cursor: pointer; }
+.group button:last-child { border-right: 0; }
+.group button[hidden] { display: none; }
+.group button[aria-pressed="true"] { background: var(--press); color: var(--accent); }
+.readout { font: 500 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.speed { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; min-height: 32px; padding: 0 10px; font: 600 12px/1 var(--mono); cursor: pointer; }
+.live { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 0 10px; min-height: 32px; font: 600 12px/1 var(--mono); cursor: pointer; }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.live.on { color: var(--live); } .live.on::before { background: var(--live); }
+.live.off { color: var(--accent); border-color: var(--accent); }
+.reset { border: 1px solid var(--accent); color: var(--accent); background: var(--surface); border-radius: 7px; padding: 0 10px; min-height: 32px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.spacer { flex: 1; }
+.scrub { display: flex; align-items: center; gap: 10px; }
+.scrub input { flex: 1; accent-color: var(--accent); }
+.status { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; font: 12px/1.4 var(--mono); color: var(--muted); min-height: 17px; }
+.status .src { color: var(--ink); }
+.message { font-size: 13px; color: var(--muted); padding: 24px 8px; text-align: center; }
+.message[hidden] { display: none; }
+
+.charts { display: grid; gap: 8px; }
+.chart { background: var(--chart); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 2px; }
+.chead { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 0 4px 2px; min-height: 30px; }
+.ctitle { font-size: 13px; font-weight: 700; margin: 0; }
+.unit { font: 11px var(--mono); color: var(--faint); }
+.legend { display: inline-flex; gap: 10px; font: 11px var(--mono); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+.val { font: 11px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.chip { border: 1px solid var(--accent); color: var(--accent); background: var(--press); border-radius: 999px; padding: 1px 9px; font: 600 11px/20px var(--mono); cursor: pointer; }
+.chip[hidden] { display: none; }
+.ytools { display: inline-flex; gap: 4px; opacity: .6; transition: opacity .15s; }
+.chart:hover .ytools, .ytools:focus-within { opacity: 1; }
+.ytools button, .yopen, .fold { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 0 8px; min-height: 26px; font: 500 11px/1 var(--mono); cursor: pointer; }
+.ytools button[aria-pressed="true"] { background: var(--press); color: var(--accent); border-color: var(--accent); }
+.yopen { min-height: 30px; padding: 0 10px; }
+.fold { min-height: 28px; font-family: var(--sans); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.fold::before { content: "▾"; font-size: 11px; color: var(--muted); }
+.chart.collapsed .fold::before { content: "▸"; }
+.chart.collapsed { padding-bottom: 6px; }
+.chart.collapsed .plot, .chart.collapsed .val, .chart.collapsed .ytools, .chart.collapsed .yopen { display: none; }
+html:not(.compact) .yopen { display: none; }
+html.compact .ytools { display: none; }
+.plot { position: relative; }
+.plot .u-over { cursor: grab; touch-action: pan-y; }
+.plot .u-over.dragging { cursor: grabbing; }
+.gutter { position: absolute; cursor: ns-resize; touch-action: pan-y; }
+.gutter:hover { background: var(--grid); }
+
+/* uPlot(スタイルシートの必要な部分だけ。vendor/uPlot.min.css の写し + 上書き) */
+.uplot, .uplot *, .uplot *::before, .uplot *::after { box-sizing: border-box; }
+.uplot { font-family: var(--mono); line-height: 1.5; width: min-content; }
+.u-wrap { position: relative; user-select: none; }
+.u-over, .u-under { position: absolute; }
+.u-under { overflow: hidden; }
+.uplot canvas { display: block; position: relative; width: 100%; height: 100%; }
+.u-axis { position: absolute; }
+.u-legend { display: none; }
+.u-select { position: absolute; pointer-events: none; }
+.u-cursor-x, .u-cursor-y { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.u-hz .u-cursor-x { height: 100%; border-right: 1px dashed var(--faint); }
+.u-cursor-y, .u-cursor-pt { display: none; }
+.u-cursor-x.u-off { display: none; }
+
+.sheet { position: sticky; bottom: 10px; background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: grid; gap: 10px; z-index: 5; }
+.sheet[hidden] { display: none; }
+.sheet h3 { font-size: 14px; margin: 0; }
+.sheet .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sheet .sub { font: 12px var(--mono); color: var(--muted); }
+.sheet button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; min-height: 40px; padding: 0 14px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.sheet button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.sheet input { flex: 1; min-width: 120px; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 0 10px; font: 14px var(--sans); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: min(92vw, 560px);
+         background: var(--ink); color: var(--paper); border-radius: 10px; padding: 10px 16px; font-size: 13px; box-shadow: var(--shadow); z-index: 10; }
+.toast[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .ytools { transition: none; } }

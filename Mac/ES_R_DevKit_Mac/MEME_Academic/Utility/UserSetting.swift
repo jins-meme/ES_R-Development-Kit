@@ -133,4 +133,12 @@ class UserSetting: NSObject {
     class func getLocalPort() -> String {
         return UserDefaults.standard.object(forKey: kConst_LocalPort) as? String ?? ""
     }
+
+    /// グラフ画面(WebView)の中身。"bundled"(同梱の標準版、既定)か "custom"(設定で選んだ zip)。
+    class func setWebContentSource(_ value: String) {
+        UserDefaults.standard.set(value, forKey: kConst_WebContentSource)
+    }
+    class func getWebContentSource() -> String {
+        return UserDefaults.standard.string(forKey: kConst_WebContentSource) ?? "bundled"
+    }
 }

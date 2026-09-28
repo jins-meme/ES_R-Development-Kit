@@ -1,0 +1,7 @@
+{
+  "name": "standard",
+  "title": "Standard",
+  "version": "1.0.0",
+  "bridgeApi": 1,
+  "entry": "index.html"
+}

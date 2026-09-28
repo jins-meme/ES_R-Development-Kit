@@ -18,3 +18,5 @@ let kConst_ExtermalOutputSocket = "ExtermalOutputSocket"
 let kConst_LocalPort = "LocalPort"
 let kConst_ConvertToLocalTime = "ConvertToLocalTime"
 let kConst_CompressSaveFile = "CompressSaveFile"
+/// グラフ画面(WebView)の中身: "bundled"(同梱の標準版)/ "custom"(設定で選んだ zip)。WebContentStore 参照。
+let kConst_WebContentSource = "WebContentSource"
