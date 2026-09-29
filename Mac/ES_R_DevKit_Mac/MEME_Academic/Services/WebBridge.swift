@@ -9,6 +9,9 @@
 //  - アプリ → ページ: evaluateJavaScript("jmasHost.xxx(JSON)")。ページが ready を返すまでは溜めておく。
 //  - 受信したサンプルは 0.05 秒ごとにまとめて push する(1 件ずつ呼ぶと重い)。
 //  - ページ → アプリ: window.webkit.messageHandlers.jmas.postMessage({kind, …})。
+//  - **ページから外へは通信させない**(zip は任意の JS を動かせるので、計測データを外へ送らせない。webview/BRIDGE.md の Limits):
+//    全応答に Content-Security-Policy を付け(fetch・WebSocket・画像・Worker の中まで自分のオリジンだけ)、CSP の外にある
+//    WebRTC は読み込みの最初に消し、外のページへの移動は断る。アプリ自身の通信(外部出力のソケットなど)はネイティブなので関係ない。
 //
 
 import Foundation
@@ -38,6 +41,7 @@ final class WebBridge: NSObject {
         cfg.setURLSchemeHandler(scheme, forURLScheme: WebSchemeHandler.scheme)
         // メッセージの受け口は WKWebView を作る前に足す(作った後に足しても効かない。設定は作るときに写される)
         let ucc = WKUserContentController()
+        ucc.addUserScript(WKUserScript(source: Self.noWebRTC, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         cfg.userContentController = ucc
         // 裏に回っても間引かない(計測中にグラフの窓を他の窓の後ろへ回すことがあるため)
         if #available(macOS 14.0, *) { cfg.preferences.inactiveSchedulingPolicy = .none }
@@ -45,10 +49,20 @@ final class WebBridge: NSObject {
         super.init()
         ucc.add(WeakScriptHandler(self), name: "jmas")
         webView.navigationDelegate = self
+        #if DEBUG
+        // Safari の Web インスペクタはデバッグビルドだけ(Android の WebView のデバッグと揃える。リリースでは中を覗かせない)
         if #available(macOS 13.3, *) { webView.isInspectable = true }
+        #endif
         webView.setValue(false, forKey: "drawsBackground")   // 地はページが塗る(読み込み中の白い点滅を避ける)
         load()
     }
+
+    /// WebRTC(RTCPeerConnection)は CSP の connect-src が効かず、STUN で外へ出られるので、ページのスクリプトより先に消す
+    static let noWebRTC = """
+        for (const k of ["RTCPeerConnection", "webkitRTCPeerConnection", "RTCDataChannel", "RTCSessionDescription", "RTCIceCandidate"]) {
+          try { Object.defineProperty(window, k, { value: undefined, writable: false, configurable: false }); } catch (e) {}
+        }
+        """
 
     /// 中身を読み込み直す(設定で zip を切り替えたとき)
     func load() {
@@ -157,7 +171,7 @@ extension WebBridge: WKScriptMessageHandler {
     }
 }
 
-// MARK: - ナビゲーション(中身以外は既定のブラウザで開く)
+// MARK: - ナビゲーション(中身の外へは移動させない)
 
 extension WebBridge: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
@@ -166,7 +180,8 @@ extension WebBridge: WKNavigationDelegate {
         if url.scheme == WebSchemeHandler.scheme || url.scheme == "blob" || url.scheme == "about" {
             decisionHandler(.allow)
         } else {
-            if url.scheme == "https" || url.scheme == "http" { NSWorkspace.shared.open(url) }
+            // URL に載せて外へ出せるので、既定のブラウザでも開かない
+            NSLog("[WebBridge] blocked navigation to %@://%@", url.scheme ?? "", url.host ?? "")
             decisionHandler(.cancel)
         }
     }
@@ -195,6 +210,10 @@ final class WebSchemeHandler: NSObject, WKURLSchemeHandler {
 
     static let scheme = "memeview"
     static let origin = "memeview://app"
+    /// 全応答に付ける Content-Security-Policy(3 アプリで同じ。webview/BRIDGE.md の Limits)
+    static let csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; " +
+        "media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'"
 
     private var replayToken: String?
     private var replayFile: URL?
@@ -245,7 +264,7 @@ final class WebSchemeHandler: NSObject, WKURLSchemeHandler {
 
     private func respond(_ task: any WKURLSchemeTask, url: URL, type: String, data: Data) {
         let headers = ["Content-Type": type, "Content-Length": "\(data.count)", "Cache-Control": "no-store",
-                       "Access-Control-Allow-Origin": "*"]
+                       "Access-Control-Allow-Origin": "*", "Content-Security-Policy": Self.csp]
         let id = ObjectIdentifier(task)
         guard !stopped.contains(id) else { stopped.remove(id); return }
         task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)

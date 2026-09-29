@@ -408,13 +408,19 @@ final class MEMEViewModel: NSObject {
     // MARK: - Artifact
 
     /// ページで付けた Artifact を控える。空なら "X"、カンマ/改行は列崩れ防止のため除去(同一行は上書き)。
+    /// 表計算ソフトで数式として読まれる書き出し(= + - @)は受けない(CSV 注入。ページも入力時に断る。webview/BRIDGE.md)。
     private func receiveArtifact(i: Int, text: String) {
         guard phase == .replaying || phase == .measuring else { return }
-        let sanitized = text
+        let sanitized = String(text
             .replacingOccurrences(of: ",", with: " ")
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespaces)
+            .prefix(64))
+        if let c = sanitized.first, "=+-@".contains(c) {
+            NSLog("[Artifact] refused (formula-like): %@", sanitized)
+            return
+        }
         pendingArtifacts[max(i, 0)] = sanitized.isEmpty ? "X" : sanitized
     }
 

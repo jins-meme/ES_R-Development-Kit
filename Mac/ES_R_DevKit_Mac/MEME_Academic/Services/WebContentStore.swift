@@ -7,8 +7,8 @@
 //
 //  - 展開先: ~/Library/Application Support/<bundle id>/WebContent/{bundled,custom}/
 //  - 同梱の標準版は、アプリに入っている zip の中身が変わったとき(SHA-256 で見る)だけ展開し直す。
-//  - 選んだ zip は一時フォルダへ展開して検査(manifest.json・bridgeApi・パスの抜け・大きさ)してから差し替える。
-//    通らなければ元のまま。展開は /usr/bin/ditto に任せる。
+//  - 選んだ zip は ZipExtractor で検査しながら一時フォルダへ展開し(zip slip・zip 爆弾・リンクなど。展開する前に目次で弾く)、
+//    manifest.json・bridgeApi・入口を確かめてから差し替える。通らなければ元のまま。規則は webview/BRIDGE.md の Limits。
 //
 
 import Foundation
@@ -31,7 +31,6 @@ enum WebContentError: LocalizedError {
     case unsupportedBridge(Int)
     case missingEntry(String)
     case unsafePath(String)
-    case tooLarge(Int64)
 
     var errorDescription: String? {
         switch self {
@@ -41,7 +40,6 @@ enum WebContentError: LocalizedError {
         case .unsupportedBridge(let v): return "This zip needs bridge API \(v), but this app supports \(WebContentStore.bridgeApi)."
         case .missingEntry(let s): return "The entry page \(s) is missing."
         case .unsafePath(let s): return "The zip contains a link or path outside itself: \(s)"
-        case .tooLarge(let n): return "The zip is too large (\(n / 1_000_000) MB, limit \(WebContentStore.maxBytes / 1_000_000) MB)."
         }
     }
 }
@@ -53,7 +51,6 @@ final class WebContentStore {
 
     /// このアプリが話せるブリッジの版(webview/BRIDGE.md)。zip の manifest.json の bridgeApi と一致しないものは読まない。
     nonisolated static let bridgeApi = 1
-    nonisolated static let maxBytes: Int64 = 200_000_000
 
     enum Source: String { case bundled, custom }
 
@@ -132,24 +129,16 @@ final class WebContentStore {
     // MARK: - 展開と検査
 
     private func extractAndValidate(_ zip: URL) throws -> URL {
-        let size = (try? fm.attributesOfItem(atPath: zip.path)[.size] as? Int64) ?? 0
-        if size > Self.maxBytes { throw WebContentError.tooLarge(size) }
         let tmp = root.appendingPathComponent("tmp-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
         do {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            p.arguments = ["-x", "-k", "--norsrc", zip.path, tmp.path]
-            let err = Pipe(); p.standardError = err
-            try p.run(); p.waitUntilExit()
-            guard p.terminationStatus == 0 else {
-                let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                throw WebContentError.unzipFailed(msg)
-            }
+            do { _ = try ZipExtractor.extract(zip, to: tmp) }
+            catch let e as ZipExtractor.Failure { throw WebContentError.unzipFailed(e.localizedDescription) }
             try checkTree(tmp)
             let m = try Self.readManifest(in: tmp)
             guard m.bridgeApi == Self.bridgeApi else { throw WebContentError.unsupportedBridge(m.bridgeApi) }
-            guard !m.entry.contains(".."), fm.fileExists(atPath: tmp.appendingPathComponent(m.entry).path) else {
+            guard (try? ZipExtractor.checkName(m.entry, raw: m.entry, limits: .init())) != nil,
+                  fm.fileExists(atPath: tmp.appendingPathComponent(m.entry).path) else {
                 throw WebContentError.missingEntry(m.entry)
             }
             return tmp
@@ -159,30 +148,46 @@ final class WebContentStore {
         }
     }
 
-    /// 展開したものにシンボリックリンクや外へ出るパスが無いこと、合計の大きさが上限以下であること。
+    /// 念押し: 展開したものにシンボリックリンクや外へ出るパスが無いこと(ZipExtractor が目次で弾いているので、通常は何も見つからない)。
     private func checkTree(_ dir: URL) throws {
         let base = dir.resolvingSymlinksInPath().path + "/"
-        var total: Int64 = 0
-        let keys: [URLResourceKey] = [.isSymbolicLinkKey, .fileSizeKey]
+        let keys: [URLResourceKey] = [.isSymbolicLinkKey]
         guard let e = fm.enumerator(at: dir, includingPropertiesForKeys: keys) else { return }
         for case let url as URL in e {
             let v = try url.resourceValues(forKeys: Set(keys))
             if v.isSymbolicLink == true { throw WebContentError.unsafePath(url.lastPathComponent) }
             if !url.resolvingSymlinksInPath().path.hasPrefix(base) { throw WebContentError.unsafePath(url.path) }
-            total += Int64(v.fileSize ?? 0)
-            if total > Self.maxBytes { throw WebContentError.tooLarge(total) }
         }
     }
 
+    /// 前の中身は新しいものを置けてから消す(置けなければ元へ戻す)
     private func replace(_ dest: URL, with tmp: URL) throws {
-        if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-        try fm.moveItem(at: tmp, to: dest)
+        let old = root.appendingPathComponent("old-\(UUID().uuidString)", isDirectory: true)
+        let hadOld = fm.fileExists(atPath: dest.path)
+        if hadOld { try fm.moveItem(at: dest, to: old) }
+        do {
+            try fm.moveItem(at: tmp, to: dest)
+        } catch {
+            if hadOld { try? fm.moveItem(at: old, to: dest) }
+            try? fm.removeItem(at: tmp)
+            throw error
+        }
+        if hadOld { try? fm.removeItem(at: old) }
     }
 
     static func readManifest(in dir: URL) throws -> WebContentManifest {
         let url = dir.appendingPathComponent("manifest.json")
         guard let data = try? Data(contentsOf: url) else { throw WebContentError.noManifest }
-        do { return try JSONDecoder().decode(WebContentManifest.self, from: data) }
+        guard data.count <= 64_000 else { throw WebContentError.badManifest("too large") }
+        let m: WebContentManifest
+        do { m = try JSONDecoder().decode(WebContentManifest.self, from: data) }
         catch { throw WebContentError.badManifest(error.localizedDescription) }
+        // 設定画面にそのまま出すので、短く・制御文字なし
+        for (k, v) in [("name", m.name), ("title", m.title ?? ""), ("version", m.version)] {
+            if v.count > 64 || v.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+                throw WebContentError.badManifest("\(k) must be at most 64 characters without control characters")
+            }
+        }
+        return m
     }
 }

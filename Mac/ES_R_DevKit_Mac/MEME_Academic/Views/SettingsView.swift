@@ -13,6 +13,8 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(MEMEViewModel.self) private var viewModel
+    /// 計測中・再生中は Display Engine の zip を切り替えられない
+    private var graphBusy: Bool { viewModel.phase == .measuring || viewModel.phase == .replaying }
 
     @State private var saveFilePath: String = ""
     @State private var xAxis: String = "0"
@@ -82,21 +84,24 @@ struct SettingsView: View {
                 }
 
                 GridRow {
-                    Text("Graph Display")
+                    Text("Display Engine")
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
                             Text(graphContent).monospacedDigit()
                             Spacer()
+                            // 計測中・再生中は切り替えない(グラフ画面を読み込み直すと表示中のものが消えるため。Android と同じ)
                             Button("Choose zip…") { chooseGraphZip() }
+                                .disabled(graphBusy)
                             Button("Use Built-in") { useBuiltInGraph() }
-                                .disabled(!graphIsCustom)
+                                .disabled(!graphIsCustom || graphBusy)
                         }
-                        Text(graphMessage.isEmpty
-                             ? "The graph area shows a web page packaged as a zip. Choose a zip to switch it (applies immediately)."
-                             : graphMessage)
-                            .font(.callout)
-                            .foregroundStyle(graphMessage.isEmpty ? Color.secondary : Color.red)
-                            .fixedSize(horizontal: false, vertical: true)
+                        // 取り込みに失敗したときだけ理由を出す(Android と同じ)
+                        if !graphMessage.isEmpty {
+                            Text(graphMessage)
+                                .font(.callout)
+                                .foregroundStyle(Color.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
 
@@ -159,6 +164,7 @@ struct SettingsView: View {
 
     /// zip を選んで取り込み、グラフ画面を読み込み直す。検査に通らなければ今の中身のまま、理由を出す。
     private func chooseGraphZip() {
+        guard !graphBusy else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -176,6 +182,7 @@ struct SettingsView: View {
     }
 
     private func useBuiltInGraph() {
+        guard !graphBusy else { return }
         WebContentStore.shared.useBundled()
         graphMessage = ""
         viewModel.reloadGraph()
