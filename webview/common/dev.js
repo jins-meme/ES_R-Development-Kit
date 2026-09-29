@@ -5,13 +5,13 @@
 const host = window.jmasHost;
 const panel = document.createElement("div");
 panel.style.cssText = "max-width:100%;box-sizing:border-box;overflow:hidden;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px;border:1px dashed var(--line);border-radius:8px;margin-bottom:8px;font-size:12px";
-panel.innerHTML = `<b>開発用</b>
+panel.innerHTML = `<b>Dev</b>
   <select id="devMode"><option>full</option><option>standard</option><option>quaternion</option></select>
-  <button id="devStart" type="button">模擬の計測を始める</button>
-  <button id="devStop" type="button">止める</button>
-  <button id="devGap" type="button">途切れ</button>
+  <button id="devStart" type="button">Start simulated measurement</button>
+  <button id="devStop" type="button">Stop</button>
+  <button id="devGap" type="button">Gap</button>
   <button id="devMark" type="button">Free Marking</button>
-  <label style="max-width:100%">CSV を開く <input id="devCsv" type="file" accept=".csv,.gz" style="max-width:100%"></label>`;
+  <label style="max-width:100%">Open CSV <input id="devCsv" type="file" accept=".csv,.gz" style="max-width:100%"></label>`;
 document.body.prepend(panel);
 
 const COLS = {
@@ -36,12 +36,12 @@ document.getElementById("devStart").onclick = () => {
   clearInterval(timer);
   mode = document.getElementById("devMode").value; i = 0;
   const cps = 100, cols = COLS[mode], t0 = performance.now();
-  host.start(JSON.stringify({ label: `模擬 ${mode}`, mode, cps, accRange: 8, gyroRange: 1000, columns: cols, startedAt: Date.now(), timeZone: "local" }));
+  host.start(JSON.stringify({ label: `Simulated ${mode}`, mode, cps, accRange: 8, gyroRange: 1000, columns: cols, startedAt: Date.now(), timeZone: "local" }));
   timer = setInterval(() => {
     const due = Math.floor((performance.now() - t0) / 1000 * cps), rows = [];
     for (; i < due; i++) { const s = sample(i / cps); rows.push([i + 1000, ...cols.map((c) => Math.round(s[c]))]); }
     if (rows.length) host.push(JSON.stringify(rows));
-    host.status(`受信 ${cps} Hz · 電池 4`);
+    host.status(`${cps} Hz · battery 4`);
   }, 50);
 };
 document.getElementById("devStop").onclick = () => { clearInterval(timer); host.stop(); };

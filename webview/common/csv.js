@@ -50,7 +50,7 @@ export async function readCsv(stream, { total = 0, onProgress = () => {} } = {})
       artCol = colIndex.ARTIFACT ?? -1; dateCol = colIndex.DATE ?? -1;
       const mode = MODE[header.mode];
       const speed = header.speed || (header.quality === "High" ? "100Hz" : header.quality === "Standard" ? "50Hz" : "");
-      if (!mode || !speed) throw new Error("DevKit の CSV ではありません(ヘッダの Data mode / Transmission speed が読めません)");
+      if (!mode || !speed) throw new Error("Not a MEME CSV file (Data mode / Transmission speed not found in the header)");
       store = new RowStore(cols, speed === "100Hz" ? 100 : 50);
       store.meta = { mode, accRange: parseInt(header.acc, 10) || 8, gyroRange: parseInt(header.gyro, 10) || 1000 };
       vals = new Array(cols.length).fill(0);
@@ -116,9 +116,9 @@ export async function readCsv(stream, { total = 0, onProgress = () => {} } = {})
     if (carry.length) line(carry, 0, carry.length);
   } catch (e) {
     if (!store) throw e;
-    warning = `ファイルの末尾が途中で切れていたので、読めたところまでを開きました(${e.message})`;
+    warning = `The end of the file is cut off; opened what could be read (${e.message})`;
   }
-  if (!store) throw new Error("DevKit の CSV ではありません(//ARTIFACT の行がありません)");
+  if (!store) throw new Error("Not a MEME CSV file (no //ARTIFACT header line)");
   onProgress(read, total, store.n);
   return { ...store.meta, cps: store.cps, columns: cols, store, artifacts, startedAt, warning };
 }

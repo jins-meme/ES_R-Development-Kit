@@ -17,6 +17,9 @@ import posixpath
 import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; "
+       "media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'")
 ROOT = os.path.dirname(HERE)
 
 
@@ -49,6 +52,7 @@ def main():
 
         def end_headers(self):
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", CSP)   # アプリと同じ(BRIDGE.md の Limits)。外への通信はここでも塞がる
             super().end_headers()
 
     print(f"http://{a.host}:{a.port}/?dev")

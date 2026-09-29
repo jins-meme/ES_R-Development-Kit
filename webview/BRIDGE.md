@@ -13,12 +13,40 @@ index.html      the entry page (manifest.entry)
 ```
 
 - The app refuses a zip whose `bridgeApi` differs from the one it supports (currently `1`), a zip without
-  `manifest.json` or its entry page, and a zip containing symbolic links or paths leaving the zip.
+  `manifest.json` or its entry page, and a zip that breaks the limits below.
+- `manifest.json` may carry more keys (for example `build: {date, commit, …}`); the app ignores them.
+
+### Limits
+
+Every app checks the zip's central directory **before writing anything**, and refuses the whole zip if one entry fails.
+Nothing is written outside the app's folder for pages. `webview/tools/make_bad_zips.py` makes zips that must be refused.
+
+| What | Limit |
+| :--- | :--- |
+| zip file | 100 MB |
+| Extracted, total / one file | 100 MB / 50 MB (sizes in the directory; extraction stops if an entry produces more than it declares) |
+| Entries | 2000 |
+| Compression ratio | 200× for a file over 1 MB |
+| Paths | UTF-8, relative, at most 255 bytes and 16 levels. Not allowed: `/…`, `C:…`, `\`, `:`, control characters, `.` or `..` as a part, a part ending in `.` or a space, Windows device names (`con`, `nul`, `com1` …) |
+| Duplicates | Refused, also when two paths differ only in upper / lower case or Unicode normalization, or when a file and a folder share a path |
+| Entry kinds | Only files and folders: no symbolic links, no encryption, no ZIP64 or split zips, compression "stored" or "deflate" only. CRC-32 is checked |
+| `manifest.json` | At most 64 KB. `name`, `title`, `version`: at most 64 characters, no control characters. `entry`: a path allowed above |
+
+A new zip replaces the current one only after it has been fully extracted and checked; if anything fails, the current page stays.
 - The page is served from a fixed https-like origin (Mac `memeview://app/`, Windows `https://app.memeview.example/`,
   Android `https://appassets.androidplatform.net/`), never from `file://`, so ES modules, module workers and
   WebAssembly work. Refer to your own files with relative paths, or with root paths such as `/pyodide/`
   (a relative path inside a Worker resolves from the Worker's location).
-- The page must work offline. Do not load scripts from the network.
+- The page must work offline, and **cannot reach the network**: the app answers every request with the
+  Content-Security-Policy below, removes WebRTC before the page's scripts run, and does not navigate away from the page
+  (Android opens a link the user taps in the browser; Mac does not). Only the app's own origin (and `blob:` / `data:`) can be loaded.
+
+  ```text
+  default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline';
+  img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:;
+  media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'
+  ```
+- To inspect the page (Safari's Web Inspector on Mac, `chrome://inspect` for Android), use a Debug build of the app. Release builds do not allow it.
 
 ## App → page
 
@@ -61,7 +89,7 @@ Every argument may be a value or its JSON string.
 | Message | Meaning |
 | :--- | :--- |
 | `{kind: "ready", bridgeApi, name, version}` | The page is ready. **The app holds its calls until this arrives.** |
-| `{kind: "artifact", i, text}` | The user added an artifact. `i` is the sample number during a measurement, or the 0-based data row of the CSV during replay. The app writes it to the CSV's `ARTIFACT` column (when the measurement stops, or on Save Artifacts / disconnect during replay). |
+| `{kind: "artifact", i, text}` | The user added an artifact. `text` must not start with `=` `+` `-` `@` (a spreadsheet would read it as a formula): the page refuses it at input and the app ignores it. Commas and line breaks become spaces; at most 64 characters. `i` is the sample number during a measurement, or the 0-based data row of the CSV during replay. The app writes it to the CSV's `ARTIFACT` column (when the measurement stops, or on Save Artifacts / disconnect during replay). |
 | `{kind: "replay-info", mode, cps, accRange, gyroRange, rows, startedAt, warning}` | The page finished reading the replayed CSV (the app shows its conditions). |
 | `{kind: "log", level, message}` | Written to the app log (errors in the page are sent here). |
 

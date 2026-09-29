@@ -43,7 +43,7 @@ button { font: inherit; color: inherit; }
 .group button[hidden] { display: none; }
 .group button[aria-pressed="true"] { background: var(--press); color: var(--accent); }
 .readout { font: 500 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.speed { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; min-height: 32px; padding: 0 10px; font: 600 12px/1 var(--mono); cursor: pointer; }
+.speed { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 7px; min-height: 32px; padding: 0 8px; font: 600 12px/1 var(--mono); cursor: pointer; }
 .live { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 0 10px; min-height: 32px; font: 600 12px/1 var(--mono); cursor: pointer; }
 .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .live.on { color: var(--live); } .live.on::before { background: var(--live); }
@@ -65,7 +65,12 @@ button { font: inherit; color: inherit; }
 .legend { display: inline-flex; gap: 10px; font: 11px var(--mono); color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 4px; }
 .legend i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
-.val { font: 11px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* カーソル位置の値: 見出しに入れると幅が変わって折り返し、グラフがずれるので、グラフの右上に重ねる(PC。スマホは出さない) */
+.chart { position: relative; }
+.val { position: absolute; top: 40px; right: 16px; z-index: 3; pointer-events: none; white-space: nowrap;
+       font: 11px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums;
+       background: color-mix(in srgb, var(--chart) 85%, transparent); border-radius: 4px; padding: 1px 6px; }
+.val:empty { display: none; }
 .chip { border: 1px solid var(--accent); color: var(--accent); background: var(--press); border-radius: 999px; padding: 1px 9px; font: 600 11px/20px var(--mono); cursor: pointer; }
 .chip[hidden] { display: none; }
 .ytools { display: inline-flex; gap: 4px; opacity: .6; transition: opacity .15s; }
@@ -73,9 +78,13 @@ button { font: inherit; color: inherit; }
 .ytools button, .yopen, .fold { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 0 8px; min-height: 26px; font: 500 11px/1 var(--mono); cursor: pointer; }
 .ytools button[aria-pressed="true"] { background: var(--press); color: var(--accent); border-color: var(--accent); }
 .yopen { min-height: 30px; padding: 0 10px; }
+/* 記号だけのボタン(− + ↺ ▾ ↕)は文字を大きく。Auto は文字のボタンなのでそのまま */
+.ytools button.icon, .yopen.icon { font-size: 17px; font-weight: 600; min-width: 32px; padding: 0 6px; line-height: 1; }
+.fold.icon { min-width: 32px; justify-content: center; padding: 0 6px; }
 .fold { min-height: 28px; font-family: var(--sans); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
-.fold::before { content: "▾"; font-size: 11px; color: var(--muted); }
-.chart.collapsed .fold::before { content: "▸"; }
+/* 畳む・開くの印は線で描く山形(文字の ▾ ▸ は小さく見えるため)。見出しの左端。開いているとき ∧(押すと畳む)、畳んだとき ∨(押すと開く) */
+.fold::before { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(2px) rotate(-135deg); }
+.chart.collapsed .fold::before { transform: translateY(-2px) rotate(45deg); }
 .chart.collapsed { padding-bottom: 6px; }
 .chart.collapsed .plot, .chart.collapsed .val, .chart.collapsed .ytools, .chart.collapsed .yopen { display: none; }
 html:not(.compact) .yopen { display: none; }
@@ -113,3 +122,39 @@ html.compact .ytools { display: none; }
          background: var(--ink); color: var(--paper); border-radius: 10px; padding: 10px 16px; font-size: 13px; box-shadow: var(--shadow); z-index: 10; }
 .toast[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .ytools { transition: none; } }
+
+.sheet .sub.warn { color: var(--artifact); font-weight: 600; }
+
+/* スマホ表示: 外枠とグラフの間を詰めてグラフを大きく、見出し(畳む・名前・凡例・操作)は 1 行。凡例は残りの幅だけ見せ、
+   見切れていれば右端をぼかし、タップで折り返して全部を見せる(charts.js)。カーソルの値(.val)はタッチでは出ないので隠す */
+html.compact body { padding-inline: 8px; padding-block: 6px 10px; }   /* 画面の左右の端との余白(本人指示で 4 → 8px) */
+html.compact .viewer { gap: 6px; }
+html.compact .charts { gap: 6px; }
+html.compact .chart { padding: 4px 2px 0; border-radius: 6px; }
+html.compact .chart.collapsed { padding-bottom: 4px; }
+html.compact .chead { flex-wrap: nowrap; gap: 6px; padding: 0 2px 2px; min-height: 32px; }
+html.compact .chead > * { flex: none; }
+html.compact .chead .spacer, html.compact .chead .val { display: none; }
+html.compact .chead .legend { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; gap: 8px; cursor: pointer; }
+html.compact .chead .legend.clipped { -webkit-mask-image: linear-gradient(to right, #000 80%, transparent); mask-image: linear-gradient(to right, #000 80%, transparent); }
+html.compact .chead .legend.open { white-space: normal; flex-wrap: wrap; row-gap: 2px; overflow: visible; }
+html.compact .chead .legend span { white-space: nowrap; }
+
+/* スマホのグラフの設定ボタン(歯車の SVG を真ん中に) */
+.yopen svg { display: block; margin: auto; }
+
+/* PC 表示の見出し: 畳む・名前・凡例・ボタン類を 1 行に並べる。凡例は残りの幅に収め、はみ出すときは 2 行まで折り返す
+   (3 行目以降は隠す)。ボタン類(− + Auto ↺)は折り返さず右端に 1 行で置く(本人指示、2026-09-29。スマホは html.compact 側) */
+html:not(.compact) .chead { flex-wrap: nowrap; align-items: center; }
+html:not(.compact) .chead > * { flex: none; }
+html:not(.compact) .chead .spacer { display: none; }
+html:not(.compact) .chead .legend { flex: 1 1 0; min-width: 0; flex-wrap: wrap; column-gap: 10px; row-gap: 0; line-height: 16px; max-height: 32px; overflow: hidden; }
+html:not(.compact) .chead .legend span { white-space: nowrap; }
+html:not(.compact) .chead .ytools { flex-wrap: nowrap; margin-left: auto; }
+
+/* PC 表示の操作バー: 再生速度のドロップダウン・LIVE・Reset view をボタンの枠(ボタン 32px + 上下の線 = 34px)と同じ高さに。
+   Mac の WebKit は <select> を OS の見た目で描いて高さの指定を無視するので、見た目を自前にして ▼ を描く(本人指示、2026-09-29。PC だけ) */
+html:not(.compact) .bar .speed, html:not(.compact) .bar .live, html:not(.compact) .bar .reset { box-sizing: border-box; height: 34px; min-height: 34px; }
+html:not(.compact) .bar select.speed { -webkit-appearance: none; appearance: none; padding: 0 26px 0 10px; line-height: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 13px center, right 8px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }

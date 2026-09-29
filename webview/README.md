@@ -2,7 +2,7 @@
 
 The Mac / Windows / Android apps show their graphs with a web page in a WebView, drawn with
 [uPlot](https://github.com/leeoniya/uPlot). The page is packaged as a zip: the apps bundle `standard.zip`, and
-Settings → Graph Display lets you load another zip (for example one that runs your own signal processing).
+Settings → Display Engine lets you load another zip (for example one that runs your own signal processing).
 
 ```text
 webview/
@@ -14,26 +14,28 @@ webview/
 │   ├── view.js        visible time range (live / history / replay head)
 │   ├── store.js       received rows as Int16 blocks (live keeps 30 min, replay keeps the whole file)
 │   ├── csv.js         streaming reader for recorded .csv / .csv.gz (fflate)
+│   ├── raw_specs.js   the raw waveform charts (EOG / accelerometer / gyroscope) used by the standard page
 │   ├── ui.css         look, light and dark
 │   ├── dev.js         development panel (loaded only with ?dev in a browser)
 │   └── vendor/        uPlot 1.6.32, fflate 0.8.3 (MIT)
 ├── standard/          the built-in page: index.html + manifest.json
 └── tools/
     ├── serve.py       local server for development (same layout as the zip)
-    └── make_zip.py    builds dist/<page>.zip; --install copies standard.zip into the apps
+    ├── make_zip.py    builds dist/<page>.zip; --install copies standard.zip into the apps
+    └── make_bad_zips.py  zips the apps must refuse (limits in BRIDGE.md)
 ```
 
 ## Using the graph
 
 | To | PC (mouse / trackpad) | Phone (touch) |
 | :--- | :--- | :--- |
-| Zoom time (all charts) | Ctrl (⌘) + wheel, or trackpad pinch · 60 / 30 / 15 / 10 s buttons | Pinch horizontally · same buttons |
+| Zoom time (all charts) | Ctrl (⌘) + wheel, or trackpad pinch · 60 / 30 / 15 / 10 s buttons | Pinch horizontally · window menu (60 / 30 / 15 / 10 s) |
 | Move in time | Drag · Shift + wheel · horizontal swipe · ◀◀ ▶▶ | Drag horizontally · ◀◀ ▶▶ |
-| Zoom one chart vertically | Wheel over its y axis · 縦 − / 縦 + | Pinch vertically · ↕ 縦 |
+| Zoom one chart vertically | Wheel over its y axis · − / + | Pinch vertically · ⚙ (chart settings) |
 | Move vertically | Drag its y axis | — |
-| Fit to the waveform | 自動 (keeps fitting until pressed again) | same |
-| Reset | The chip next to the title (one chart) · 表示を戻す (everything) · key 0 | same |
-| Collapse a chart | 畳む / 開く | same |
+| Fit to the waveform | Auto (keeps fitting until pressed again) | same |
+| Reset | ↺ or the chip next to the title (one chart) · Reset view (everything) · key 0 | same |
+| Collapse a chart | ∧ / ∨ left of the title | same |
 | Add an artifact | Click without dragging | Tap |
 | Scroll the page | Wheel without modifiers | Vertical drag |
 
@@ -57,3 +59,19 @@ MEME_AUTOTEST_DIR=/tmp/autotest Mac/ES_R_DevKit_Mac/build/…/MEME_Academic.app/
 ```
 
 `-mock` is required; without it the app uses real Bluetooth and would connect to a nearby device.
+
+Add `MEME_AUTOTEST_ZIP=<zip>` to run the same check with another page (it is loaded the way Settings → Display Engine loads it,
+and the built-in page is restored afterwards). To check that bad zips are refused:
+
+```sh
+python3 webview/tools/make_bad_zips.py /tmp/badzips
+MEME_AUTOTEST_DIR=/tmp/autotest MEME_AUTOTEST_SUITE=zip MEME_AUTOTEST_BADZIPS=/tmp/badzips …/MEME_Academic -mock
+```
+
+On Windows, a Debug build has the same kind of check behind command-line arguments (no Bluetooth is used: the rows of a
+recorded CSV are fed into the app's receive path at 100 Hz). See `windows/ES_R_DevKit_Windows/README.md` for all options.
+
+```bat
+JINS_MEME_DataLogger.exe --autotest C:\autotest --csv <recorded CSV> [--zip <zip>]
+JINS_MEME_DataLogger.exe --autotest C:\autotest --suite zip --badzips C:\badzips
+```

@@ -23,6 +23,8 @@ REPO = os.path.dirname(ROOT)
 INSTALL = {
     "standard": [
         os.path.join(REPO, "Mac", "ES_R_DevKit_Mac", "MEME_Academic", "App", "WebContent", "standard.zip"),
+        os.path.join(REPO, "android", "ES_R_DevKit_Android2", "core", "src", "main", "assets", "webview", "standard.zip"),
+        os.path.join(REPO, "windows", "ES_R_DevKit_Windows", "MEME_Academic_Sample", "WebContent", "standard.zip"),
     ],
 }
 SKIP = {"dev.js", ".DS_Store"}
