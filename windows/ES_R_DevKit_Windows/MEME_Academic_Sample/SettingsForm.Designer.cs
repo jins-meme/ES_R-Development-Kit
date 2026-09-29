@@ -39,6 +39,11 @@ namespace MEME_Academic_Sample
             this.lb_LocalPort = new System.Windows.Forms.Label();
             this.tb_LocalPort = new System.Windows.Forms.TextBox();
             this.lb_LocalIp = new System.Windows.Forms.Label();
+            this.lb_DisplayEngine = new System.Windows.Forms.Label();
+            this.lb_WebContent = new System.Windows.Forms.Label();
+            this.bt_ChooseZip = new MEME_Academic_Sample.UI.RoundedButton();
+            this.bt_UseBuiltIn = new MEME_Academic_Sample.UI.RoundedButton();
+            this.lb_WebContentError = new System.Windows.Forms.Label();
             this.separator = new System.Windows.Forms.Panel();
             this.bt_Cancel = new MEME_Academic_Sample.UI.RoundedButton();
             this.bt_Apply = new MEME_Academic_Sample.UI.RoundedButton();
@@ -220,17 +225,61 @@ namespace MEME_Academic_Sample
             this.lb_LocalIp.Size = new System.Drawing.Size(300, 20);
             this.lb_LocalIp.Text = "Local IP:";
             //
+            // lb_DisplayEngine
+            //
+            this.lb_DisplayEngine.Location = new System.Drawing.Point(20, 282);
+            this.lb_DisplayEngine.Name = "lb_DisplayEngine";
+            this.lb_DisplayEngine.Size = new System.Drawing.Size(140, 20);
+            this.lb_DisplayEngine.Text = "Display Engine";
+            //
+            // lb_WebContent
+            //
+            this.lb_WebContent.AutoEllipsis = true;
+            this.lb_WebContent.Location = new System.Drawing.Point(165, 282);
+            this.lb_WebContent.Name = "lb_WebContent";
+            this.lb_WebContent.Size = new System.Drawing.Size(320, 20);
+            this.lb_WebContent.Text = "";
+            //
+            // bt_ChooseZip
+            //
+            this.bt_ChooseZip.Location = new System.Drawing.Point(493, 277);
+            this.bt_ChooseZip.Name = "bt_ChooseZip";
+            this.bt_ChooseZip.Size = new System.Drawing.Size(110, 28);
+            this.bt_ChooseZip.TabIndex = 9;
+            this.bt_ChooseZip.Text = "Choose zip…";
+            this.bt_ChooseZip.UseVisualStyleBackColor = true;
+            this.bt_ChooseZip.Click += new System.EventHandler(this.bt_ChooseZip_Click);
+            //
+            // bt_UseBuiltIn
+            //
+            this.bt_UseBuiltIn.Location = new System.Drawing.Point(609, 277);
+            this.bt_UseBuiltIn.Name = "bt_UseBuiltIn";
+            this.bt_UseBuiltIn.Size = new System.Drawing.Size(120, 28);
+            this.bt_UseBuiltIn.TabIndex = 10;
+            this.bt_UseBuiltIn.Text = "Use Built-in";
+            this.bt_UseBuiltIn.UseVisualStyleBackColor = true;
+            this.bt_UseBuiltIn.Click += new System.EventHandler(this.bt_UseBuiltIn_Click);
+            //
+            // lb_WebContentError
+            //
+            this.lb_WebContentError.ForeColor = System.Drawing.Color.Firebrick;
+            this.lb_WebContentError.Location = new System.Drawing.Point(165, 310);
+            this.lb_WebContentError.Name = "lb_WebContentError";
+            this.lb_WebContentError.Size = new System.Drawing.Size(564, 36);
+            this.lb_WebContentError.Text = "";
+            this.lb_WebContentError.Visible = false;
+            //
             // separator
             //
             this.separator.BackColor = System.Drawing.SystemColors.ControlDark;
-            this.separator.Location = new System.Drawing.Point(20, 280);
+            this.separator.Location = new System.Drawing.Point(20, 356);
             this.separator.Name = "separator";
             this.separator.Size = new System.Drawing.Size(709, 1);
             //
             // bt_Cancel
             //
             this.bt_Cancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.bt_Cancel.Location = new System.Drawing.Point(559, 293);
+            this.bt_Cancel.Location = new System.Drawing.Point(559, 369);
             this.bt_Cancel.Name = "bt_Cancel";
             this.bt_Cancel.Size = new System.Drawing.Size(80, 28);
             this.bt_Cancel.TabIndex = 12;
@@ -239,7 +288,7 @@ namespace MEME_Academic_Sample
             //
             // bt_Apply
             //
-            this.bt_Apply.Location = new System.Drawing.Point(649, 293);
+            this.bt_Apply.Location = new System.Drawing.Point(649, 369);
             this.bt_Apply.Name = "bt_Apply";
             this.bt_Apply.Size = new System.Drawing.Size(80, 28);
             this.bt_Apply.TabIndex = 11;
@@ -253,10 +302,15 @@ namespace MEME_Academic_Sample
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.bt_Cancel;
-            this.ClientSize = new System.Drawing.Size(749, 335);
+            this.ClientSize = new System.Drawing.Size(749, 411);
             this.Controls.Add(this.bt_Apply);
             this.Controls.Add(this.bt_Cancel);
             this.Controls.Add(this.separator);
+            this.Controls.Add(this.lb_WebContentError);
+            this.Controls.Add(this.bt_UseBuiltIn);
+            this.Controls.Add(this.bt_ChooseZip);
+            this.Controls.Add(this.lb_WebContent);
+            this.Controls.Add(this.lb_DisplayEngine);
             this.Controls.Add(this.lb_LocalIp);
             this.Controls.Add(this.tb_LocalPort);
             this.Controls.Add(this.lb_LocalPort);
@@ -314,6 +368,11 @@ namespace MEME_Academic_Sample
         private System.Windows.Forms.Label lb_LocalPort;
         private System.Windows.Forms.TextBox tb_LocalPort;
         private System.Windows.Forms.Label lb_LocalIp;
+        private System.Windows.Forms.Label lb_DisplayEngine;
+        private System.Windows.Forms.Label lb_WebContent;
+        private MEME_Academic_Sample.UI.RoundedButton bt_ChooseZip;
+        private MEME_Academic_Sample.UI.RoundedButton bt_UseBuiltIn;
+        private System.Windows.Forms.Label lb_WebContentError;
         private System.Windows.Forms.Panel separator;
         private MEME_Academic_Sample.UI.RoundedButton bt_Cancel;
         private MEME_Academic_Sample.UI.RoundedButton bt_Apply;

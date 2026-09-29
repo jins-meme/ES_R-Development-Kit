@@ -53,6 +53,9 @@ public sealed class UserSetting
     /// <summary>待ち受けポート。Mac 版の既定値に合わせて 88。</summary>
     public string LocalPort { get; set; } = "88";
 
+    /// <summary>グラフ画面の中身。"bundled"(同梱の標準版)か "custom"(設定で選んだ zip)。</summary>
+    public string WebContentSource { get; set; } = "bundled";
+
     public static string DefaultSaveDirectory() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "JINS", "MEME_Academic");
 

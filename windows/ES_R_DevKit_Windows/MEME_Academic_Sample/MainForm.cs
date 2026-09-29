@@ -1,5 +1,5 @@
+using System.Text.Json;
 using MEMELib_Academic;
-using MEME_Academic_Sample.Charting;
 using MEME_Academic_Sample.Services;
 using MEME_Academic_Sample.Utility;
 
@@ -7,22 +7,26 @@ namespace MEME_Academic_Sample;
 
 /// <summary>
 /// フル機能ロガーのメイン画面。Mac 版 ContentView / MEMEViewModel に対応する。
+/// グラフは WebView2(webview/ の標準版 zip、または設定で選んだ zip)が描く。受信したサンプルは
+/// <see cref="WebBridge"/> で流し、CSV 再生もページが受け持つ(アプリはファイルを仮想ホストに出すだけ)。
+/// アーティファクトはページで入力され、<see cref="WebBridge.Artifact"/> で届く。CSV への書き戻しは従来どおり停止時。
 /// </summary>
 public partial class MainForm : Form
 {
-    /// <summary>画面更新の間隔。センサーは最大 100Hz で届くので、描画は間引く。</summary>
-    private const int UiRefreshIntervalMs = 50;
-
-    private static readonly int[] XRangeOptions = [3, 7, 15, 30];
-
     private static readonly MEMEMode[] SelectableModes =
         [MEMEMode.Standard, MEMEMode.Full, MEMEMode.Quaternion];
 
-    /// <summary>再生速度倍率。ボタンを押すたびに順に切り替える。</summary>
-    private static readonly int[] ReplaySpeedOptions = [1, 2, 4, 8, 16, 32];
+    /// <summary>accelRange / gyroRange の番号 → g / dps(グラフの換算に渡す)</summary>
+    private static readonly int[] AccelG = [2, 4, 8, 16];
 
-    /// <summary>再生位置スライダーの目盛り数。</summary>
-    private const int ScrubberResolution = 1000;
+    private static readonly int[] GyroDps = [250, 500, 1000, 2000];
+
+    /// <summary>各モードで 1 サンプルぶんとしてページへ渡す列(CSV の列名と同じ)。</summary>
+    private static readonly string[] FullColumns =
+        ["ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V"];
+
+    private static readonly string[] StandardColumns =
+        ["ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2", "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2"];
 
     /// <summary>Disconnect を押しっぱなしにして Shelf mode の確認ダイアログが出るまでの時間。</summary>
     private const int ShelfLongPressMs = 5000;
@@ -32,15 +36,13 @@ public partial class MainForm : Form
 
     private readonly UserSetting setting = UserSetting.Load();
     private readonly MEMELib memeLib = new();
-    private readonly ChartService chartService = new();
     private readonly CommunicationStatsTracker stats = new();
     private readonly DataPersistenceService persistence = new();
     private readonly TcpOutputServer tcpServer = new();
-    private readonly CsvReplayService replayService = new();
-    private readonly System.Windows.Forms.Timer uiTimer;
     private readonly System.Windows.Forms.Timer shelfLongPressTimer;
     private readonly System.Windows.Forms.Timer shelfDisconnectTimer;
-    private readonly ChartPanel[] chartPanels;
+    private readonly WebContentStore webContent;
+    private readonly WebBridge web;
 
     private Phase phase = Phase.Idle;
     private bool isScanning;
@@ -56,28 +58,23 @@ public partial class MainForm : Form
     private bool suppressConnectClick;
 
     /// <summary>
-    /// タップで付けた未書き戻しの Artifact(絶対チャートサンプル位置 → 文字列)。
-    /// 計測停止時・再生停止時に CSV の ARTIFACT 列へ書き戻す。
+    /// ページで付けた未書き戻しの Artifact(計測中はサンプル番号、再生中は CSV のデータ行の番号 → 文字列)。
+    /// 計測停止時・再生の Save Artifacts / Disconnect で CSV の ARTIFACT 列へ書き戻す。
     /// </summary>
     private readonly Dictionary<int, string> pendingArtifacts = [];
 
     /// <summary>
-    /// 計測中に Free Marking で付けた印(絶対チャートサンプル位置 → "x")。CSV には
-    /// <see cref="HandleSample"/> で書き込み済みなので表示専用で、書き戻しはしない。
+    /// 計測中のサンプル番号(計測開始から 0, 1, 2 …。先頭パケットも数える)。グラフ画面へ渡し、
+    /// アーティファクトはこの番号で返ってくる。CSV は先頭パケットを 1 件落とすので、データ行 = 番号 − 1。
+    /// 受信スレッドだけが進める。
     /// </summary>
-    private readonly Dictionary<int, string> freeMarkings = [];
+    private int liveSampleIndex;
 
     /// <summary>起動引数で渡された CSV。<see cref="OnShown"/> で一度だけ読み込む。</summary>
     private string? initialReplayPath;
 
-    private CsvReplayInfo? replayInfo;
-    private int currentReplayIndex;
-    private bool isReplayPaused;
-    private bool isScrubbingReplay;
-    private int replaySpeedIndex;
-
-    /// <summary>X 軸レンジ(秒)。既定は 7 秒。</summary>
-    private int xRangeIndex = 1;
+    /// <summary>再生中の CSV(ページが読んで再生する)</summary>
+    private string? replayFile;
 
     private MEMEMode mode = MEMEMode.Full;
     private MEMEQuality quality = MEMEQuality.High;
@@ -93,17 +90,10 @@ public partial class MainForm : Form
         InitializeComponent();
         Icon = AppInfo.LoadIcon();
 
-        chartPanels = [chartPanel1, chartPanel2, chartPanel3];
-        chartPanel1.SelectedCategory = ChartCategory.Electrooculography;
-        chartPanel2.SelectedCategory = ChartCategory.Gyroscope;
-        chartPanel3.SelectedCategory = ChartCategory.Accelerometer;
-        foreach (var panel in chartPanels)
-        {
-            panel.ApplySelectedCategory();
-            panel.ApplyRequested += (_, _) => ApplyChartSelection();
-            panel.RowTapped += ChartTapped;
-            panel.RangeSelected += ChartRangeSelected;
-        }
+        webContent = new WebContentStore(setting);
+        web = new WebBridge(webContent, webHost);
+        web.Artifact += ReceiveArtifact;
+        web.ReplayInfo += ApplyReplayInfo;
 
         SetupOptions();
         lb_AppVersion.Text = $"Version {AppInfo.Version}";
@@ -133,10 +123,6 @@ public partial class MainForm : Form
 
         ApplySettings();
 
-        uiTimer = new System.Windows.Forms.Timer { Interval = UiRefreshIntervalMs };
-        uiTimer.Tick += (_, _) => RefreshCharts();
-        uiTimer.Start();
-
         // Disconnect の長押しで Shelf mode へ。隠し操作なので、押している間の表示は変えない。
         shelfLongPressTimer = new System.Windows.Forms.Timer { Interval = ShelfLongPressMs };
         shelfLongPressTimer.Tick += (_, _) => OnShelfLongPress();
@@ -151,17 +137,21 @@ public partial class MainForm : Form
     }
 
     /// <summary>
-    /// 起動引数で CSV を渡されていれば読み込む。ウィンドウが出てから実行するので、
+    /// グラフ画面(WebView2)を用意し、起動引数で CSV を渡されていれば読み込む。ウィンドウが出てから実行するので、
     /// 形式が違ったときのエラーダイアログにも親ウィンドウが付く。
     /// </summary>
-    protected override void OnShown(EventArgs e)
+    protected override async void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        await web.InitializeAsync();
         if (initialReplayPath is { } path)
         {
             initialReplayPath = null;
             LoadReplayFile(path);
         }
+#if DEBUG
+        StartAutoTestIfRequested(this, Program.Args);
+#endif
     }
 
     private enum Phase
@@ -170,19 +160,8 @@ public partial class MainForm : Form
         DeviceFound,
         Connected,
         Measuring,
-        ReplayReady,
         Replaying,
     }
-
-    /// <summary>チャートの時間軸に使う周波数。再生中は再生元 CSV の Trans Speed に従う。</summary>
-    private int SampleRate =>
-        replayInfo is not null && phase is Phase.ReplayReady or Phase.Replaying
-            ? (replayInfo.Quality == MEMEQuality.High ? 100 : 50)
-            : (quality == MEMEQuality.High ? 100 : 50);
-
-    private int ReplaySpeed => ReplaySpeedOptions[replaySpeedIndex];
-
-    private int XRangeSeconds => XRangeOptions[xRangeIndex];
 
     #region Setup
 
@@ -212,11 +191,6 @@ public partial class MainForm : Form
     /// <summary>Setting の内容をチャート・TCP 出力へ反映する。</summary>
     private void ApplySettings()
     {
-        chartService.AccelOffsetX = setting.AccOffsetX;
-        chartService.AccelOffsetY = setting.AccOffsetY;
-        chartService.AccelOffsetZ = setting.AccOffsetZ;
-        chartService.ConvertToLocalTime = setting.ConvertToLocalTime;
-
         lb_LocalPort.Text = $"Port:{setting.LocalPort}";
 
         if (setting.ExternalOutputSocket)
@@ -227,8 +201,6 @@ public partial class MainForm : Form
         {
             tcpServer.Stop();
         }
-
-        RefreshCharts();
     }
 
     #endregion
@@ -311,10 +283,16 @@ public partial class MainForm : Form
         var wasMeasuring = phase == Phase.Measuring;
         stats.StopMeasurement();
         persistence.End();
-        FlushLiveArtifacts();
 
         RunOnUi(() =>
         {
+            // pendingArtifacts は UI スレッドで持つので、書き戻しもここで(CSV は上で閉じ済み)
+            FlushLiveArtifacts();
+            if (wasMeasuring)
+            {
+                web.Stop();
+            }
+
             phase = cb_DeviceList.Items.Count > 0 ? Phase.DeviceFound : Phase.Idle;
             lb_ConnectionState.Text = result == MEMEStatus.MEMELIB_OK
                 ? "State : Disconnected"
@@ -333,10 +311,19 @@ public partial class MainForm : Form
         });
     }
 
-    /// <summary>Standard / Full / Quaternion で共通の受信処理。</summary>
+    /// <summary>Standard / Full / Quaternion で共通の受信処理(受信スレッド)。</summary>
     private void HandleSample(AcademicData data)
     {
         data.RecordedUtc = DateTime.UtcNow;
+        var measuring = phase == Phase.Measuring;
+
+        // グラフへは先頭パケットも渡す(サンプル番号は計測開始からの全パケットの通し番号。BRIDGE.md の push)
+        var i = -1;
+        if (measuring)
+        {
+            i = liveSampleIndex++;
+            PushToGraph(data, i);
+        }
 
         // 1 件目は端末カウンタの基準取得だけに使い、記録しない。
         if (!stats.RegisterPacket(data.Cnt))
@@ -345,9 +332,8 @@ public partial class MainForm : Form
         }
 
         stats.BumpDataCount();
-        var sampleIndex = chartService.Append(data);
 
-        if (phase != Phase.Measuring)
+        if (!measuring)
         {
             return;
         }
@@ -356,11 +342,24 @@ public partial class MainForm : Form
         isFreeMarking = false;
         persistence.Append(data, stats.TotalCount, freeMarking);
 
-        if (freeMarking)
+        // CSV に x を書いた行と同じサンプル位置へ印を出す(Quaternion はグラフが無いので出さない)
+        if (freeMarking && data is not AcademicQuaternionData)
         {
-            // CSV に x を書いた行と同じサンプル位置へ印を出す。freeMarkings は UI スレッドが
-            // 描画のたびに読むので、受信スレッドから直接触らずに渡す。
-            RunOnUi(() => freeMarkings[sampleIndex] = "x");
+            RunOnUi(() => web.Mark(i, "x"));
+        }
+    }
+
+    /// <summary>1 サンプルをグラフ画面へ(値は start の columns の並び)。</summary>
+    private void PushToGraph(AcademicData data, int i)
+    {
+        switch (data)
+        {
+            case AcademicFullData f:
+                web.Push(i, [f.AccX, f.AccY, f.AccZ, f.GyroX, f.GyroY, f.GyroZ, f.EogL, f.EogR, f.EogH, f.EogV]);
+                break;
+            case AcademicStandardData d:
+                web.Push(i, [d.AccX, d.AccY, d.AccZ, d.EogL1, d.EogR1, d.EogL2, d.EogR2, d.EogH1, d.EogH2, d.EogV1, d.EogV2]);
+                break;
         }
     }
 
@@ -389,9 +388,8 @@ public partial class MainForm : Form
     {
         var measuring = phase == Phase.Measuring;
         var connected = phase is Phase.Connected or Phase.Measuring;
-        var replaying = phase == Phase.Replaying;
-        var inReplaySession = phase is Phase.ReplayReady or Phase.Replaying;
-        // 計測中・再生中は端末パラメータやチャート構成を触らせない(Mac 版 isInputDisabled)。
+        var inReplaySession = phase == Phase.Replaying;
+        // 計測中・再生中は端末パラメータを触らせない(Mac 版 isInputDisabled)。
         var inputDisabled = measuring || inReplaySession;
 
         bt_Scan.Text = isScanning ? "Stop Scan" : "Scan";
@@ -407,16 +405,14 @@ public partial class MainForm : Form
         // BLE 接続中は CSV 再生に入れない。
         bt_FileReplay.Enabled = !connected;
 
-        bt_Measurement.Visible = !replaying;
+        bt_Measurement.Visible = !inReplaySession;
         bt_Measurement.Enabled = connected && !isEnteringShelf;
         bt_Measurement.Text = measuring ? "Stop Measurement" : "Start Measurement";
         bt_FreeMarking.Enabled = measuring;
 
-        bt_ReplayRecord.Visible = replaying;
-        bt_ReplayPause.Visible = replaying;
-        bt_ReplayPause.Text = isReplayPaused ? "Resume" : "Pause";
-        replayPanel.Visible = replaying;
-        bt_ReplaySpeed.Text = $"x{ReplaySpeed}";
+        // 再生中は、ページで付けた Artifact を今すぐ CSV へ書き戻すボタンを出す(Disconnect でも書き戻す)。
+        // 再生・一時停止・速度・位置の操作はグラフ画面(ページ)の中にある。
+        bt_SaveArtifacts.Visible = inReplaySession;
 
         settingToolStripMenuItem.Enabled = !measuring;
         cb_SelectMode.Enabled = !inputDisabled;
@@ -424,35 +420,6 @@ public partial class MainForm : Form
         cb_AccelRange.Enabled = !inputDisabled;
         cb_GyroRange.Enabled = !inputDisabled;
 
-        bt_XRangeIn.Enabled = xRangeIndex > 0;
-        bt_XRangeOut.Enabled = xRangeIndex < XRangeOptions.Length - 1;
-        lb_XRange.Text = $"{XRangeSeconds}s";
-
-        foreach (var panel in chartPanels)
-        {
-            panel.InputDisabled = inputDisabled;
-            // 区間の切り出しは再生元 CSV が要るので、ファイル再生中だけ受け付ける。
-            panel.RangeSelectionEnabled = replaying;
-        }
-    }
-
-    private void RefreshCharts()
-    {
-        chartService.UpdatePlots(chartPanels, SampleRate, XRangeSeconds, CurrentChartArtifacts());
-        foreach (var panel in chartPanels)
-        {
-            panel.Redraw();
-        }
-    }
-
-    private void ApplyChartSelection()
-    {
-        foreach (var panel in chartPanels)
-        {
-            panel.ApplySelectedCategory();
-        }
-
-        RefreshCharts();
     }
 
     #endregion
@@ -500,7 +467,7 @@ public partial class MainForm : Form
             return;
         }
 
-        if (phase is Phase.ReplayReady or Phase.Replaying)
+        if (phase == Phase.Replaying)
         {
             EndReplaySession();
             return;
@@ -649,22 +616,18 @@ public partial class MainForm : Form
         memeLib.setAccelRange(accelRange);
         memeLib.setGyroRange(gyroRange);
 
-        chartService.Reset();
-        foreach (var panel in chartPanels)
-        {
-            panel.Plot.Reset();
-        }
-
         stats.Reset();
         stats.StartMeasurement((int)quality);
         isFreeMarking = false;
         pendingArtifacts.Clear();
-        freeMarkings.Clear();
 
         var header = DataPersistenceService.BuildHeader(mode, quality, accelRange, gyroRange);
         persistence.Begin(
             setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, quality, setting.CompressSaveFile);
         tcpServer.SetHeader(header);
+
+        liveSampleIndex = 0;
+        web.Start(LiveCondition());
 
         memeLib.startDataReport();
         phase = Phase.Measuring;
@@ -675,6 +638,7 @@ public partial class MainForm : Form
     {
         memeLib.stopDataReport();
         stats.StopMeasurement();
+        web.Stop();
         persistence.End();
         FlushLiveArtifacts();
         phase = Phase.Connected;
@@ -728,41 +692,19 @@ public partial class MainForm : Form
 
     private void bt_FreeMarking_Click(object sender, EventArgs e) => isFreeMarking = true;
 
-    private void bt_XRangeIn_Click(object sender, EventArgs e)
-    {
-        if (xRangeIndex > 0)
-        {
-            xRangeIndex--;
-            OnXRangeChanged();
-        }
-    }
-
-    private void bt_XRangeOut_Click(object sender, EventArgs e)
-    {
-        if (xRangeIndex < XRangeOptions.Length - 1)
-        {
-            xRangeIndex++;
-            OnXRangeChanged();
-        }
-    }
-
-    private void OnXRangeChanged()
-    {
-        UpdateUiState();
-        if (phase == Phase.Replaying)
-        {
-            // レンジが変わったら、新しい幅ぶんを再生位置で終わるように詰め直す。
-            FillReplayWindow(currentReplayIndex);
-            return;
-        }
-
-        RefreshCharts();
-    }
-
     private void settingToolStripMenuItem_Click(object sender, EventArgs e)
     {
-        using var form = new SettingsForm(setting);
-        if (form.ShowDialog(this) == DialogResult.OK)
+        // 計測中・再生中は Display Engine の zip を切り替えさせない(Mac・Android と同じ)
+        var before = (webContent.Source, webContent.Manifest);
+        using var form = new SettingsForm(setting, webContent, canSwitchEngine: phase is not (Phase.Measuring or Phase.Replaying));
+        var ok = form.ShowDialog(this) == DialogResult.OK;
+        if (before != (webContent.Source, webContent.Manifest))
+        {
+            // 中身が切り替わったら読み込み直す(zip の取り込みは設定画面の中で済んでいる)
+            web.Load();
+        }
+
+        if (ok)
         {
             ApplySettings();
         }
@@ -782,7 +724,6 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
     {
-        uiTimer.Stop();
         shelfLongPressTimer.Stop();
         shelfDisconnectTimer.Stop();
         if (phase == Phase.Measuring)
@@ -790,11 +731,48 @@ public partial class MainForm : Form
             memeLib.stopDataReport();
         }
 
-        replayService.Dispose();
+        web.Dispose();
         persistence.Dispose();
         tcpServer.Dispose();
         stats.Dispose();
         memeLib.Dispose();
+    }
+
+    #endregion
+
+    #region Graph (WebView)
+
+    /// <summary>表示の設定(時刻の表示・加速度のオフセット・テーマ)。計測・再生どちらでもページへ渡す。</summary>
+    private Dictionary<string, object?> DisplayOptions() => new()
+    {
+        ["timeZone"] = setting.ConvertToLocalTime ? "local" : "utc",
+        ["accOffset"] = new[] { setting.AccOffsetX, setting.AccOffsetY, setting.AccOffsetZ },
+        // この画面はライトだけ(WinForms を OS のダークモードに合わせていない)
+        ["theme"] = "light",
+    };
+
+    /// <summary>計測の開始時にページへ渡す条件(webview/BRIDGE.md の start)。値は端末に設定したもの。</summary>
+    private Dictionary<string, object?> LiveCondition()
+    {
+        var cond = DisplayOptions();
+        cond["label"] = cb_DeviceList.SelectedItem is MEMEDevice d && d.Name.Length > 0 ? d.Name : "JINS MEME";
+        cond["mode"] = mode switch
+        {
+            MEMEMode.Full => "full",
+            MEMEMode.Quaternion => "quaternion",
+            _ => "standard",
+        };
+        cond["cps"] = quality == MEMEQuality.High ? 100 : 50;
+        cond["accRange"] = AccelG[Math.Clamp((int)accelRange, 0, 3)];
+        cond["gyroRange"] = GyroDps[Math.Clamp((int)gyroRange, 0, 3)];
+        cond["columns"] = mode switch
+        {
+            MEMEMode.Full => FullColumns,
+            MEMEMode.Standard => StandardColumns,
+            _ => Array.Empty<string>(),
+        };
+        cond["startedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return cond;
     }
 
     #endregion
@@ -809,11 +787,6 @@ public partial class MainForm : Form
             isScanning = false;
         }
 
-        if (phase is Phase.ReplayReady or Phase.Replaying)
-        {
-            EndReplaySession();
-        }
-
         using var dialog = new OpenFileDialog
         {
             Filter = CsvFile.OpenFilter,
@@ -826,83 +799,87 @@ public partial class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// 再生はグラフ画面(ページ)が受け持つ: ファイルを仮想ホストに出してページに読ませる。
+    /// 読み込み・再生・一時停止・速度・シークはページ側。形式が違えばページがその旨を表示する。
+    /// </summary>
     private void LoadReplayFile(string path)
     {
-        if (!CsvReplayService.TryParse(path, out var info, out var error) || info is null)
+        if (phase is Phase.Connected or Phase.Measuring)
         {
-            MessageBox.Show(this, $"{Path.GetFileName(path)}\n{error}", "File Replay",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, "Disconnect the BLE device before opening a CSV for replay.", "File Replay",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        replayInfo = info;
-
-        // 再生元の計測条件を画面へ反映する。
-        var modeIndex = Array.IndexOf(SelectableModes, info.Mode);
-        if (modeIndex >= 0)
+        if (phase == Phase.Replaying)
         {
-            cb_SelectMode.SelectedIndex = modeIndex;
+            EndReplaySession();
         }
 
-        cb_TransSpeed.SelectedIndex = info.Quality == MEMEQuality.High ? 0 : 1;
-        cb_AccelRange.SelectedIndex = (int)info.AccelRange;
-        cb_GyroRange.SelectedIndex = (int)info.GyroRange;
-        lb_ConnectionState.Text = $"State : {info.FileName}";
-
-        phase = Phase.ReplayReady;
-        // Mac 版と同じく、読み込んだらそのまま再生を始める(Start Replay ボタンは持たない)。
-        StartReplay();
-    }
-
-    private void StartReplay()
-    {
-        if (phase != Phase.ReplayReady || replayInfo is null)
-        {
-            return;
-        }
-
-        phase = Phase.Replaying;
-        isReplayPaused = false;
-        replaySpeedIndex = 0;
+        replayFile = path;
         pendingArtifacts.Clear();
-        replayService.Start(replayInfo.Rows, replayInfo.Quality, OnReplayRow, OnReplayFinished);
-
-        // ウィンドウ幅ぶんを先読みして、最初から埋まった状態で再生を始める。
-        FillReplayWindow(XRangeSeconds * SampleRate - 1);
+        lb_ConnectionState.Text = $"State : {Path.GetFileName(path)}";
+        phase = Phase.Replaying;
+        web.OpenReplay(path, DisplayOptions());
         UpdateUiState();
     }
 
-    /// <summary>Record ボタン。再生を止めるがグラフは残す(Mac 版 finishReplay)。</summary>
-    private void bt_ReplayRecord_Click(object sender, EventArgs e)
+    /// <summary>ページが CSV を読み終えたら、計測条件の表示(左の欄)を CSV に合わせる。</summary>
+    private void ApplyReplayInfo(JsonElement info)
     {
         if (phase != Phase.Replaying)
         {
             return;
         }
 
-        replayService.Stop();
-        // 停止時に、タップで付けた Artifact を再生元 CSV へ書き戻す。
-        FlushReplayArtifacts(reload: true);
-        phase = Phase.ReplayReady;
-        isReplayPaused = false;
-        ResetStatsDisplay();
-        tb_ReplayProgress.Value = 0;
-        UpdateUiState();
+        var modeName = info.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+        var modeIndex = modeName switch
+        {
+            "standard" => Array.IndexOf(SelectableModes, MEMEMode.Standard),
+            "full" => Array.IndexOf(SelectableModes, MEMEMode.Full),
+            "quaternion" => Array.IndexOf(SelectableModes, MEMEMode.Quaternion),
+            _ => -1,
+        };
+        if (modeIndex >= 0)
+        {
+            cb_SelectMode.SelectedIndex = modeIndex;
+        }
+
+        if (info.TryGetProperty("cps", out var c) && c.TryGetInt32(out var cps))
+        {
+            cb_TransSpeed.SelectedIndex = cps == 100 ? 0 : 1;
+        }
+
+        if (info.TryGetProperty("accRange", out var a) && a.TryGetInt32(out var g) && Array.IndexOf(AccelG, g) is var k and >= 0)
+        {
+            cb_AccelRange.SelectedIndex = k;
+        }
+
+        if (info.TryGetProperty("gyroRange", out var y) && y.TryGetInt32(out var dps) && Array.IndexOf(GyroDps, dps) is var j and >= 0)
+        {
+            cb_GyroRange.SelectedIndex = j;
+        }
     }
 
-    /// <summary>再生セッションを完全に終える。保持している行データも解放する。</summary>
+    /// <summary>Save Artifacts: 再生中に付けた Artifact を、今すぐ再生元 CSV へ書き戻す(再生は続ける)。</summary>
+    private void bt_SaveArtifacts_Click(object sender, EventArgs e)
+    {
+        if (phase == Phase.Replaying)
+        {
+            FlushReplayArtifacts();
+        }
+    }
+
+    /// <summary>再生セッションを終える(Disconnect)。付けた Artifact は書き戻す。</summary>
     private void EndReplaySession()
     {
-        replayService.Clear();
-        // replayInfo はこの後捨てるので読み直しは要らない。
-        FlushReplayArtifacts(reload: false);
-        replayInfo = null;
-        currentReplayIndex = 0;
-        isReplayPaused = false;
+        FlushReplayArtifacts();
+        web.CloseReplay();
+        replayFile = null;
         phase = Phase.Idle;
         lb_ConnectionState.Text = "State : Disconnected";
         ResetStatsDisplay();
-        tb_ReplayProgress.Value = 0;
         UpdateUiState();
     }
 
@@ -915,244 +892,50 @@ public partial class MainForm : Form
         pb_Communication.Value = 0;
     }
 
-    /// <summary>再生タイマーから 1 行ぶん渡される(UI スレッド)。</summary>
-    private void OnReplayRow(AcademicData data, int index, int total)
-    {
-        currentReplayIndex = index;
-        if (!isScrubbingReplay)
-        {
-            UpdateScrubber(index, total);
-        }
-
-        chartService.Append(data);
-    }
-
-    /// <summary>末尾に到達。Record 状態には戻さず、末尾で一時停止した状態にする。</summary>
-    private void OnReplayFinished()
-    {
-        if (phase != Phase.Replaying)
-        {
-            return;
-        }
-
-        isReplayPaused = true;
-        UpdateUiState();
-        RefreshCharts();
-    }
-
-    private void bt_ReplayPause_Click(object sender, EventArgs e)
-    {
-        if (phase != Phase.Replaying)
-        {
-            return;
-        }
-
-        if (isReplayPaused)
-        {
-            if (replayService.Resume())
-            {
-                isReplayPaused = false;
-            }
-        }
-        else
-        {
-            replayService.Pause();
-            isReplayPaused = true;
-        }
-
-        UpdateUiState();
-    }
-
-    private void bt_ReplaySpeed_Click(object sender, EventArgs e)
-    {
-        if (phase != Phase.Replaying)
-        {
-            return;
-        }
-
-        replaySpeedIndex = (replaySpeedIndex + 1) % ReplaySpeedOptions.Length;
-        replayService.SetSpeed(ReplaySpeed);
-        UpdateUiState();
-    }
-
-    /// <summary>&lt;&lt; / &gt;&gt; の移動量。前後のウィンドウが 2 秒重なって連続して見えるようにする。</summary>
-    private int ReplayJumpSeconds => Math.Max(1, XRangeSeconds - 2);
-
-    private void bt_ReplayBack_Click(object sender, EventArgs e) => JumpReplay(-ReplayJumpSeconds);
-
-    private void bt_ReplayForward_Click(object sender, EventArgs e) => JumpReplay(ReplayJumpSeconds);
-
-    private void JumpReplay(int seconds)
-    {
-        if (phase != Phase.Replaying)
-        {
-            return;
-        }
-
-        FillReplayWindow(currentReplayIndex + seconds * SampleRate);
-    }
-
-    private void tb_ReplayProgress_Scroll(object sender, EventArgs e) => isScrubbingReplay = true;
-
-    private void tb_ReplayProgress_Released(object sender, MouseEventArgs e) => FinishScrub();
-
-    private void tb_ReplayProgress_KeyUp(object sender, KeyEventArgs e) => FinishScrub();
-
-    private void FinishScrub()
-    {
-        if (!isScrubbingReplay)
-        {
-            return;
-        }
-
-        isScrubbingReplay = false;
-        if (phase != Phase.Replaying || replayInfo is null || replayInfo.Rows.Count < 2)
-        {
-            return;
-        }
-
-        var progress = tb_ReplayProgress.Value / (double)ScrubberResolution;
-        FillReplayWindow((int)(progress * (replayInfo.Rows.Count - 1)));
-    }
-
-    private void UpdateScrubber(int index, int total)
-    {
-        var value = total > 1
-            ? (int)Math.Round(index / (double)(total - 1) * ScrubberResolution)
-            : 0;
-        tb_ReplayProgress.Value = Math.Clamp(value, tb_ReplayProgress.Minimum, tb_ReplayProgress.Maximum);
-    }
-
-    /// <summary>
-    /// 指定行で終わるウィンドウ幅ぶんを先読みしてグラフを満たし、続きをその次の行から読ませる。
-    /// 再生開始・シーク・レンジ変更のいずれでも、右端から徐々に埋めるのではなく
-    /// 最初から満たした状態で描画を再開できる。
-    /// </summary>
-    private void FillReplayWindow(int endRow)
-    {
-        if (replayInfo is null || replayInfo.Rows.Count == 0)
-        {
-            return;
-        }
-
-        var rows = replayInfo.Rows;
-        var windowSamples = Math.Max(1, XRangeSeconds * SampleRate);
-        // 先頭付近では常に先頭ウィンドウを表示する。これより手前へ戻すと左端が負の時刻になる。
-        var minEnd = Math.Min(windowSamples - 1, rows.Count - 1);
-        var clamped = Math.Clamp(endRow, minEnd, rows.Count - 1);
-        var start = Math.Max(0, clamped - windowSamples + 1);
-
-        currentReplayIndex = clamped;
-        UpdateScrubber(clamped, rows.Count);
-
-        chartService.Reset(start);
-        for (var i = start; i <= clamped; i++)
-        {
-            chartService.Append(rows[i]);
-        }
-
-        RefreshCharts();
-        replayService.Seek(clamped + 1);
-    }
-
     #endregion
 
-    #region Artifact / range cut
+    #region Artifact
 
     /// <summary>
-    /// 各チャートへ重ねる Artifact。再生中は CSV に記録済みのものとタップで付けたものを、
-    /// 計測中は Free Marking の印とタップで付けたものを併せて返す。
+    /// ページで付けた Artifact を控える(UI スレッド)。空なら "X"、カンマ/改行は列崩れ防止のため空白に(同じ行は上書き)。
+    /// 表計算ソフトで数式として読まれる書き出し(= + - @)は受けない(CSV 注入。ページも入力時に断る。webview/BRIDGE.md)。
     /// </summary>
-    private IReadOnlyDictionary<int, string>? CurrentChartArtifacts()
+    private void ReceiveArtifact(int i, string text)
     {
-        return phase switch
-        {
-            Phase.Replaying or Phase.ReplayReady when replayInfo is not null =>
-                MergeArtifacts(replayInfo.Artifacts, pendingArtifacts),
-            Phase.Measuring => MergeArtifacts(freeMarkings, pendingArtifacts),
-            _ => null,
-        };
-    }
-
-    /// <summary>
-    /// 同じ行に両方あれば <paramref name="overrides"/> を採る(タップ入力は書き戻し時に
-    /// その行を上書きするので、表示もそれに合わせる)。片方が空なら複製せずそのまま返す。
-    /// </summary>
-    private static IReadOnlyDictionary<int, string> MergeArtifacts(
-        IReadOnlyDictionary<int, string> baseline, IReadOnlyDictionary<int, string> overrides)
-    {
-        if (overrides.Count == 0)
-        {
-            return baseline;
-        }
-
-        if (baseline.Count == 0)
-        {
-            return overrides;
-        }
-
-        var merged = new Dictionary<int, string>(baseline);
-        foreach (var (row, text) in overrides)
-        {
-            merged[row] = text;
-        }
-
-        return merged;
-    }
-
-    /// <summary>チャートがクリックされた。対象サンプルに Artifact を付ける。</summary>
-    private void ChartTapped(int row)
-    {
-        int target;
-        switch (phase)
-        {
-            case Phase.Replaying:
-                if (replayInfo is null || replayInfo.Rows.Count == 0)
-                {
-                    return;
-                }
-
-                target = Math.Clamp(row, 0, replayInfo.Rows.Count - 1);
-                break;
-
-            case Phase.Measuring:
-                // 計測中はストリームに上限が無いので下限だけ丸める。
-                target = Math.Max(row, 0);
-                break;
-
-            default:
-                return;
-        }
-
-        using var dialog = new ArtifactForm();
-        if (dialog.ShowDialog(this) != DialogResult.OK)
+        if (phase is not (Phase.Replaying or Phase.Measuring))
         {
             return;
         }
 
-        pendingArtifacts[target] = dialog.ArtifactText;
-        // 一時停止中は次の tick が来ないため、付けた直後に反映されるよう描き直す。
-        RefreshCharts();
+        var sanitized = text.Replace(',', ' ').Replace('\n', ' ').Replace('\r', ' ').Trim(' ');
+        if (sanitized.Length > 64)
+        {
+            sanitized = sanitized[..64];
+        }
+
+        if (sanitized.Length > 0 && "=+-@".Contains(sanitized[0]))
+        {
+            System.Diagnostics.Debug.WriteLine($"[Artifact] refused (formula-like): {sanitized}");
+            return;
+        }
+
+        pendingArtifacts[Math.Max(i, 0)] = sanitized.Length == 0 ? "X" : sanitized;
     }
 
     /// <summary>
-    /// 再生中にタップで付けた Artifact を再生元 CSV へ書き戻す。
-    /// <paramref name="reload"/> が true なら読み直して、続けて再生したときに反映されるようにする。
+    /// 再生中に付けた Artifact を再生元 CSV の ARTIFACT 列へ書き戻す(Save Artifacts / Disconnect)。
+    /// キーは CSV のデータ行の番号(ページが返す番号そのまま)。
     /// </summary>
-    private void FlushReplayArtifacts(bool reload)
+    private void FlushReplayArtifacts()
     {
-        if (pendingArtifacts.Count == 0 || replayInfo is null)
+        if (pendingArtifacts.Count == 0 || replayFile is null)
         {
             return;
         }
 
         try
         {
-            CsvReplayService.ApplyArtifacts(replayInfo.FilePath, pendingArtifacts);
-            if (reload && CsvReplayService.TryParse(replayInfo.FilePath, out var refreshed, out _) && refreshed is not null)
-            {
-                replayInfo = refreshed;
-            }
+            CsvArtifactWriter.Apply(replayFile, pendingArtifacts);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -1164,9 +947,9 @@ public partial class MainForm : Form
     }
 
     /// <summary>
-    /// 計測中にタップで付けた Artifact を、保存した CSV の ARTIFACT 列へ書き戻す。
-    /// pendingArtifacts のキーは絶対チャートサンプル位置。端末カウンタの基準取りに使う先頭 1 件は
-    /// <see cref="HandleSample"/> がチャート・CSV の両方から落とすので、サンプル位置 = データ行番号。
+    /// 計測中に付けた Artifact を、保存した CSV の ARTIFACT 列へ書き戻す(停止時)。
+    /// pendingArtifacts のキーはサンプル番号。CSV は先頭パケットを 1 件落とすため、
+    /// データ行 = サンプル番号 − 1(サンプル 0 は CSV に無いので除く)。
     /// </summary>
     private void FlushLiveArtifacts()
     {
@@ -1176,82 +959,22 @@ public partial class MainForm : Form
         }
 
         var path = persistence.CurrentFilePath;
+        var rowKeyed = pendingArtifacts.Where(kv => kv.Key >= 1).ToDictionary(kv => kv.Key - 1, kv => kv.Value);
+        pendingArtifacts.Clear();
         if (path is null || !File.Exists(path))
         {
-            pendingArtifacts.Clear();
             return;
         }
 
         try
         {
-            CsvReplayService.ApplyArtifacts(path, pendingArtifacts);
+            CsvArtifactWriter.Apply(path, rowKeyed);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{e.Message}", "Artifact",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-
-        pendingArtifacts.Clear();
-    }
-
-    /// <summary>チャート上でドラッグ選択された区間を、別の CSV として切り出す。</summary>
-    private void ChartRangeSelected(int startRow, int endRow)
-    {
-        if (phase != Phase.Replaying || replayInfo is null || replayInfo.Rows.Count == 0)
-        {
-            return;
-        }
-
-        var maxRow = replayInfo.Rows.Count - 1;
-        var start = Math.Clamp(Math.Min(startRow, endRow), 0, maxRow);
-        var end = Math.Clamp(Math.Max(startRow, endRow), 0, maxRow);
-        if (start >= end)
-        {
-            return;
-        }
-
-        var directory = Path.GetDirectoryName(replayInfo.FilePath) ?? ".";
-        using var dialog = new CutFileForm(
-            directory,
-            DefaultCutFileName(replayInfo.FilePath),
-            end - start + 1,
-            CsvFile.MatchingExtension(replayInfo.FilePath));
-        if (dialog.ShowDialog(this) != DialogResult.OK)
-        {
-            return;
-        }
-
-        try
-        {
-            CsvReplayService.ExportRange(replayInfo.FilePath, dialog.DestinationPath, start, end);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            MessageBox.Show(this, $"切り出せませんでした。\n{e.Message}", "Save selected range",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-    }
-
-    /// <summary>
-    /// "current.csv" なら "current_1.csv"、既にあれば "current_2.csv" … と空きを探す。
-    /// 拡張子は元ファイルに揃える(.csv.gz なら切り出しも .csv.gz)。
-    /// </summary>
-    private static string DefaultCutFileName(string sourcePath)
-    {
-        var directory = Path.GetDirectoryName(sourcePath) ?? ".";
-        var baseName = CsvFile.BaseName(sourcePath);
-        var extension = CsvFile.MatchingExtension(sourcePath);
-        for (var n = 1; n < 1000; n++)
-        {
-            var candidate = $"{baseName}_{n}{extension}";
-            if (!File.Exists(Path.Combine(directory, candidate)))
-            {
-                return candidate;
-            }
-        }
-
-        return $"{baseName}_cut{extension}";
     }
 
     #endregion

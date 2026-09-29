@@ -1,5 +1,3 @@
-using MEME_Academic_Sample.Charting;
-
 namespace MEME_Academic_Sample
 {
     partial class MainForm
@@ -49,18 +47,8 @@ namespace MEME_Academic_Sample
             this.cb_GyroRange = new System.Windows.Forms.ComboBox();
             this.measureRow = new System.Windows.Forms.FlowLayoutPanel();
             this.bt_Measurement = new MEME_Academic_Sample.UI.RoundedButton();
-            this.bt_XRangeIn = new MEME_Academic_Sample.UI.RoundedButton();
-            this.bt_XRangeOut = new MEME_Academic_Sample.UI.RoundedButton();
-            this.lb_XRange = new System.Windows.Forms.Label();
-            this.bt_ReplayRecord = new MEME_Academic_Sample.UI.RoundedButton();
-            this.bt_ReplayPause = new MEME_Academic_Sample.UI.RoundedButton();
+            this.bt_SaveArtifacts = new MEME_Academic_Sample.UI.RoundedButton();
             this.bt_FreeMarking = new MEME_Academic_Sample.UI.RoundedButton();
-            this.replayPanel = new System.Windows.Forms.Panel();
-            this.tb_ReplayProgress = new System.Windows.Forms.TrackBar();
-            this.replayButtonRow = new System.Windows.Forms.FlowLayoutPanel();
-            this.bt_ReplayBack = new MEME_Academic_Sample.UI.RoundedButton();
-            this.bt_ReplayForward = new MEME_Academic_Sample.UI.RoundedButton();
-            this.bt_ReplaySpeed = new MEME_Academic_Sample.UI.RoundedButton();
             this.separator3 = new System.Windows.Forms.Panel();
             this.row_SuccessRate = new System.Windows.Forms.Panel();
             this.lb_SuccessRateTitle = new System.Windows.Forms.Label();
@@ -73,10 +61,7 @@ namespace MEME_Academic_Sample
             this.lb_LocalAddress = new System.Windows.Forms.Label();
             this.lb_LocalPort = new System.Windows.Forms.Label();
             this.lb_SocketStatus = new System.Windows.Forms.Label();
-            this.chartsTable = new System.Windows.Forms.TableLayoutPanel();
-            this.chartPanel1 = new MEME_Academic_Sample.Charting.ChartPanel();
-            this.chartPanel2 = new MEME_Academic_Sample.Charting.ChartPanel();
-            this.chartPanel3 = new MEME_Academic_Sample.Charting.ChartPanel();
+            this.webHost = new System.Windows.Forms.Panel();
             this.menuStrip1.SuspendLayout();
             this.leftPanel.SuspendLayout();
             this.leftFlow.SuspendLayout();
@@ -86,12 +71,8 @@ namespace MEME_Academic_Sample
             this.row_AccelRange.SuspendLayout();
             this.row_GyroRange.SuspendLayout();
             this.measureRow.SuspendLayout();
-            this.replayPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.tb_ReplayProgress)).BeginInit();
-            this.replayButtonRow.SuspendLayout();
             this.row_SuccessRate.SuspendLayout();
             this.row_Communication.SuspendLayout();
-            this.chartsTable.SuspendLayout();
             this.SuspendLayout();
             //
             // menuStrip1
@@ -155,7 +136,6 @@ namespace MEME_Academic_Sample
             this.leftFlow.Controls.Add(this.row_GyroRange);
             this.leftFlow.Controls.Add(this.measureRow);
             this.leftFlow.Controls.Add(this.bt_FreeMarking);
-            this.leftFlow.Controls.Add(this.replayPanel);
             this.leftFlow.Controls.Add(this.separator3);
             this.leftFlow.Controls.Add(this.row_SuccessRate);
             this.leftFlow.Controls.Add(this.pb_SuccessRate);
@@ -365,11 +345,7 @@ namespace MEME_Academic_Sample
             this.measureRow.AutoSize = true;
             this.measureRow.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.measureRow.Controls.Add(this.bt_Measurement);
-            this.measureRow.Controls.Add(this.bt_ReplayRecord);
-            this.measureRow.Controls.Add(this.bt_ReplayPause);
-            this.measureRow.Controls.Add(this.bt_XRangeIn);
-            this.measureRow.Controls.Add(this.bt_XRangeOut);
-            this.measureRow.Controls.Add(this.lb_XRange);
+            this.measureRow.Controls.Add(this.bt_SaveArtifacts);
             this.measureRow.Margin = new System.Windows.Forms.Padding(0);
             this.measureRow.Name = "measureRow";
             this.measureRow.Size = new System.Drawing.Size(258, 34);
@@ -385,52 +361,15 @@ namespace MEME_Academic_Sample
             this.bt_Measurement.UseVisualStyleBackColor = true;
             this.bt_Measurement.Click += new System.EventHandler(this.bt_Measurement_Click);
             //
-            // bt_XRangeIn
+            // bt_SaveArtifacts
             //
-            this.bt_XRangeIn.Name = "bt_XRangeIn";
-            this.bt_XRangeIn.Size = new System.Drawing.Size(32, 28);
-            this.bt_XRangeIn.TabIndex = 1;
-            this.bt_XRangeIn.Text = "＋";
-            this.bt_XRangeIn.UseVisualStyleBackColor = true;
-            this.bt_XRangeIn.Click += new System.EventHandler(this.bt_XRangeIn_Click);
-            //
-            // bt_XRangeOut
-            //
-            this.bt_XRangeOut.Name = "bt_XRangeOut";
-            this.bt_XRangeOut.Size = new System.Drawing.Size(32, 28);
-            this.bt_XRangeOut.TabIndex = 2;
-            this.bt_XRangeOut.Text = "－";
-            this.bt_XRangeOut.UseVisualStyleBackColor = true;
-            this.bt_XRangeOut.Click += new System.EventHandler(this.bt_XRangeOut_Click);
-            //
-            // lb_XRange
-            //
-            this.lb_XRange.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.lb_XRange.Margin = new System.Windows.Forms.Padding(3, 9, 3, 0);
-            this.lb_XRange.Name = "lb_XRange";
-            this.lb_XRange.Size = new System.Drawing.Size(34, 18);
-            this.lb_XRange.TabIndex = 3;
-            this.lb_XRange.Text = "7s";
-            //
-            // bt_ReplayRecord
-            //
-            this.bt_ReplayRecord.Name = "bt_ReplayRecord";
-            this.bt_ReplayRecord.Size = new System.Drawing.Size(76, 28);
-            this.bt_ReplayRecord.TabIndex = 4;
-            this.bt_ReplayRecord.Text = "Record";
-            this.bt_ReplayRecord.UseVisualStyleBackColor = true;
-            this.bt_ReplayRecord.Visible = false;
-            this.bt_ReplayRecord.Click += new System.EventHandler(this.bt_ReplayRecord_Click);
-            //
-            // bt_ReplayPause
-            //
-            this.bt_ReplayPause.Name = "bt_ReplayPause";
-            this.bt_ReplayPause.Size = new System.Drawing.Size(76, 28);
-            this.bt_ReplayPause.TabIndex = 5;
-            this.bt_ReplayPause.Text = "Pause";
-            this.bt_ReplayPause.UseVisualStyleBackColor = true;
-            this.bt_ReplayPause.Visible = false;
-            this.bt_ReplayPause.Click += new System.EventHandler(this.bt_ReplayPause_Click);
+            this.bt_SaveArtifacts.Name = "bt_SaveArtifacts";
+            this.bt_SaveArtifacts.Size = new System.Drawing.Size(120, 28);
+            this.bt_SaveArtifacts.TabIndex = 1;
+            this.bt_SaveArtifacts.Text = "Save Artifacts";
+            this.bt_SaveArtifacts.UseVisualStyleBackColor = true;
+            this.bt_SaveArtifacts.Visible = false;
+            this.bt_SaveArtifacts.Click += new System.EventHandler(this.bt_SaveArtifacts_Click);
             //
             // bt_FreeMarking
             //
@@ -441,70 +380,6 @@ namespace MEME_Academic_Sample
             this.bt_FreeMarking.Text = "Free Marking";
             this.bt_FreeMarking.UseVisualStyleBackColor = true;
             this.bt_FreeMarking.Click += new System.EventHandler(this.bt_FreeMarking_Click);
-            //
-            // replayPanel
-            //
-            this.replayPanel.Controls.Add(this.replayButtonRow);
-            this.replayPanel.Controls.Add(this.tb_ReplayProgress);
-            this.replayPanel.Margin = new System.Windows.Forms.Padding(0, 8, 0, 0);
-            this.replayPanel.Name = "replayPanel";
-            this.replayPanel.Size = new System.Drawing.Size(258, 72);
-            this.replayPanel.TabIndex = 15;
-            this.replayPanel.Visible = false;
-            //
-            // tb_ReplayProgress
-            //
-            this.tb_ReplayProgress.AutoSize = false;
-            this.tb_ReplayProgress.Location = new System.Drawing.Point(0, 0);
-            this.tb_ReplayProgress.Maximum = 1000;
-            this.tb_ReplayProgress.Name = "tb_ReplayProgress";
-            this.tb_ReplayProgress.Size = new System.Drawing.Size(252, 30);
-            this.tb_ReplayProgress.TabIndex = 0;
-            this.tb_ReplayProgress.TickStyle = System.Windows.Forms.TickStyle.None;
-            this.tb_ReplayProgress.Scroll += new System.EventHandler(this.tb_ReplayProgress_Scroll);
-            this.tb_ReplayProgress.MouseUp += new System.Windows.Forms.MouseEventHandler(this.tb_ReplayProgress_Released);
-            this.tb_ReplayProgress.KeyUp += new System.Windows.Forms.KeyEventHandler(this.tb_ReplayProgress_KeyUp);
-            //
-            // replayButtonRow
-            //
-            this.replayButtonRow.Controls.Add(this.bt_ReplayBack);
-            this.replayButtonRow.Controls.Add(this.bt_ReplayForward);
-            this.replayButtonRow.Controls.Add(this.bt_ReplaySpeed);
-            this.replayButtonRow.Location = new System.Drawing.Point(0, 34);
-            this.replayButtonRow.Name = "replayButtonRow";
-            this.replayButtonRow.Size = new System.Drawing.Size(258, 34);
-            this.replayButtonRow.TabIndex = 1;
-            this.replayButtonRow.WrapContents = false;
-            //
-            // bt_ReplayBack
-            //
-            this.bt_ReplayBack.Margin = new System.Windows.Forms.Padding(0, 0, 6, 0);
-            this.bt_ReplayBack.Name = "bt_ReplayBack";
-            this.bt_ReplayBack.Size = new System.Drawing.Size(56, 28);
-            this.bt_ReplayBack.TabIndex = 0;
-            this.bt_ReplayBack.Text = "<<";
-            this.bt_ReplayBack.UseVisualStyleBackColor = true;
-            this.bt_ReplayBack.Click += new System.EventHandler(this.bt_ReplayBack_Click);
-            //
-            // bt_ReplayForward
-            //
-            this.bt_ReplayForward.Margin = new System.Windows.Forms.Padding(0, 0, 6, 0);
-            this.bt_ReplayForward.Name = "bt_ReplayForward";
-            this.bt_ReplayForward.Size = new System.Drawing.Size(56, 28);
-            this.bt_ReplayForward.TabIndex = 1;
-            this.bt_ReplayForward.Text = ">>";
-            this.bt_ReplayForward.UseVisualStyleBackColor = true;
-            this.bt_ReplayForward.Click += new System.EventHandler(this.bt_ReplayForward_Click);
-            //
-            // bt_ReplaySpeed
-            //
-            this.bt_ReplaySpeed.Margin = new System.Windows.Forms.Padding(0);
-            this.bt_ReplaySpeed.Name = "bt_ReplaySpeed";
-            this.bt_ReplaySpeed.Size = new System.Drawing.Size(60, 28);
-            this.bt_ReplaySpeed.TabIndex = 2;
-            this.bt_ReplaySpeed.Text = "x1";
-            this.bt_ReplaySpeed.UseVisualStyleBackColor = true;
-            this.bt_ReplaySpeed.Click += new System.EventHandler(this.bt_ReplaySpeed_Click);
             //
             // separator3
             //
@@ -608,50 +483,20 @@ namespace MEME_Academic_Sample
             this.lb_SocketStatus.TabIndex = 22;
             this.lb_SocketStatus.Text = "Status : ";
             //
-            // chartsTable
+            // webHost
             //
-            this.chartsTable.ColumnCount = 1;
-            this.chartsTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.chartsTable.Controls.Add(this.chartPanel1, 0, 0);
-            this.chartsTable.Controls.Add(this.chartPanel2, 0, 1);
-            this.chartsTable.Controls.Add(this.chartPanel3, 0, 2);
-            this.chartsTable.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.chartsTable.Name = "chartsTable";
-            this.chartsTable.Padding = new System.Windows.Forms.Padding(0, 12, 12, 12);
-            this.chartsTable.RowCount = 3;
-            this.chartsTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.34F));
-            this.chartsTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33F));
-            this.chartsTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33F));
-            this.chartsTable.Size = new System.Drawing.Size(980, 796);
-            this.chartsTable.TabIndex = 2;
-            //
-            // chartPanel1
-            //
-            this.chartPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.chartPanel1.Index = 1;
-            this.chartPanel1.Name = "chartPanel1";
-            this.chartPanel1.TabIndex = 0;
-            //
-            // chartPanel2
-            //
-            this.chartPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.chartPanel2.Index = 2;
-            this.chartPanel2.Name = "chartPanel2";
-            this.chartPanel2.TabIndex = 1;
-            //
-            // chartPanel3
-            //
-            this.chartPanel3.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.chartPanel3.Index = 3;
-            this.chartPanel3.Name = "chartPanel3";
-            this.chartPanel3.TabIndex = 2;
+            this.webHost.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.webHost.Name = "webHost";
+            this.webHost.Padding = new System.Windows.Forms.Padding(0, 12, 12, 12);
+            this.webHost.Size = new System.Drawing.Size(960, 714);
+            this.webHost.TabIndex = 2;
             //
             // MainForm
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1280, 738);
-            this.Controls.Add(this.chartsTable);
+            this.Controls.Add(this.webHost);
             this.Controls.Add(this.leftPanel);
             this.Controls.Add(this.menuStrip1);
             this.Font = new System.Drawing.Font("Segoe UI", 9F);
@@ -671,12 +516,8 @@ namespace MEME_Academic_Sample
             this.row_AccelRange.ResumeLayout(false);
             this.row_GyroRange.ResumeLayout(false);
             this.measureRow.ResumeLayout(false);
-            this.replayPanel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.tb_ReplayProgress)).EndInit();
-            this.replayButtonRow.ResumeLayout(false);
             this.row_SuccessRate.ResumeLayout(false);
             this.row_Communication.ResumeLayout(false);
-            this.chartsTable.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
         }
@@ -713,18 +554,8 @@ namespace MEME_Academic_Sample
         private System.Windows.Forms.ComboBox cb_GyroRange;
         private System.Windows.Forms.FlowLayoutPanel measureRow;
         private MEME_Academic_Sample.UI.RoundedButton bt_Measurement;
-        private MEME_Academic_Sample.UI.RoundedButton bt_XRangeIn;
-        private MEME_Academic_Sample.UI.RoundedButton bt_XRangeOut;
-        private System.Windows.Forms.Label lb_XRange;
-        private MEME_Academic_Sample.UI.RoundedButton bt_ReplayRecord;
-        private MEME_Academic_Sample.UI.RoundedButton bt_ReplayPause;
+        private MEME_Academic_Sample.UI.RoundedButton bt_SaveArtifacts;
         private MEME_Academic_Sample.UI.RoundedButton bt_FreeMarking;
-        private System.Windows.Forms.Panel replayPanel;
-        private System.Windows.Forms.TrackBar tb_ReplayProgress;
-        private System.Windows.Forms.FlowLayoutPanel replayButtonRow;
-        private MEME_Academic_Sample.UI.RoundedButton bt_ReplayBack;
-        private MEME_Academic_Sample.UI.RoundedButton bt_ReplayForward;
-        private MEME_Academic_Sample.UI.RoundedButton bt_ReplaySpeed;
         private System.Windows.Forms.Panel separator3;
         private System.Windows.Forms.Panel row_SuccessRate;
         private System.Windows.Forms.Label lb_SuccessRateTitle;
@@ -737,9 +568,6 @@ namespace MEME_Academic_Sample
         private System.Windows.Forms.Label lb_LocalAddress;
         private System.Windows.Forms.Label lb_LocalPort;
         private System.Windows.Forms.Label lb_SocketStatus;
-        private System.Windows.Forms.TableLayoutPanel chartsTable;
-        private ChartPanel chartPanel1;
-        private ChartPanel chartPanel2;
-        private ChartPanel chartPanel3;
+        private System.Windows.Forms.Panel webHost;
     }
 }

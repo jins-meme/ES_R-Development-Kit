@@ -21,7 +21,7 @@ BLE の接続処理とプロトコル(`MEMELib_Academic`)は両者で共通の�
 
 | 項目 | 内容 |
 |---|---|
-| OS | Windows 10 バージョン 1809 以降 / Windows 11 |
+| OS | フル機能版: Windows 11 以降（グラフ画面に WebView2 ランタイムを使うため。Windows 11 には最初から入っている）/ Simple: Windows 10 バージョン 1809 以降 / Windows 11 |
 | ハードウェア | BLE 対応の Bluetooth アダプタ(内蔵で可) |
 | SDK | .NET 10 SDK (`winget install Microsoft.DotNet.SDK.10`) |
 | IDE | 不要。VS Code + コマンドラインで完結する |

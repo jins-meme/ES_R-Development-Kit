@@ -15,11 +15,23 @@
     <Product>JINS MEME DataLogger</Product>
     <AssemblyTitle>JINS MEME DataLogger</AssemblyTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- WebView2 の NuGet が WPF 用の dll も参照に載せ、WindowsBase の版の食い違い(MSB3277)を出す。WinForms しか使わないので黙らせる。 -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- ウィンドウのアイコンとして実行時に読み込む(Form.Icon)。 -->
     <EmbeddedResource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- グラフ画面(WebView2)。ランタイムは Windows 11 に入っているので同梱しない(docs: devkit-webview.md §10 の 8)。 -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 同梱の標準版グラフ画面。webview/tools/make_zip.py(install の指定)が作って写す。実行ファイルの隣の WebContent\ に置く。 -->
+    <None Include="WebContent\standard.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

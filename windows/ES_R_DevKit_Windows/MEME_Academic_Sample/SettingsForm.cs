@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using MEME_Academic_Sample.Services;
 using MEME_Academic_Sample.Utility;
 
 namespace MEME_Academic_Sample;
@@ -8,13 +9,20 @@ namespace MEME_Academic_Sample;
 public partial class SettingsForm : Form
 {
     private readonly UserSetting setting;
+    private readonly WebContentStore webContent;
 
-    public SettingsForm(UserSetting setting)
+    /// <summary>計測中・再生中は Display Engine の zip を切り替えさせない(グラフ画面を読み込み直すと表示中のものが消えるため)</summary>
+    private readonly bool canSwitchEngine;
+
+    public SettingsForm(UserSetting setting, WebContentStore webContent, bool canSwitchEngine)
     {
         this.setting = setting;
+        this.webContent = webContent;
+        this.canSwitchEngine = canSwitchEngine;
         InitializeComponent();
         Icon = AppInfo.LoadIcon();
         LoadSettings();
+        ShowWebContent();
     }
 
     private void LoadSettings()
@@ -97,4 +105,61 @@ public partial class SettingsForm : Form
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
+
+    #region Display Engine(グラフ画面の zip)
+
+    private void ShowWebContent()
+    {
+        var m = webContent.Manifest;
+        lb_WebContent.Text = m is null ? "(none)" : m.DisplayName;
+        bt_ChooseZip.Enabled = canSwitchEngine;
+        bt_UseBuiltIn.Enabled = canSwitchEngine && webContent.Source == WebContentStore.ContentSource.Custom;
+    }
+
+    /// <summary>zip を選んだらその場で取り込む(Apply を待たない。Mac・Android と同じ)。失敗したときだけ理由を出す。</summary>
+    private void bt_ChooseZip_Click(object sender, EventArgs e)
+    {
+        if (!canSwitchEngine)
+        {
+            return;
+        }
+
+        using var dialog = new OpenFileDialog { Filter = "zip (*.zip)|*.zip" };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            Cursor = Cursors.WaitCursor;
+            webContent.ImportZip(dialog.FileName);
+            lb_WebContentError.Visible = false;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            lb_WebContentError.Text = ex.Message;
+            lb_WebContentError.Visible = true;
+        }
+        finally
+        {
+            Cursor = Cursors.Default;
+        }
+
+        ShowWebContent();
+    }
+
+    private void bt_UseBuiltIn_Click(object sender, EventArgs e)
+    {
+        if (!canSwitchEngine)
+        {
+            return;
+        }
+
+        webContent.UseBundled();
+        lb_WebContentError.Visible = false;
+        ShowWebContent();
+    }
+
+    #endregion
 }
