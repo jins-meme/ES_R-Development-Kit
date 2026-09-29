@@ -7,11 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -19,6 +16,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,12 +27,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.data.CSV_GZ_MIME
 import com.jins_jp.meme.core.data.CSV_MIME
+import com.jins_jp.meme.core.web.WebChartsPane
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -42,12 +44,23 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(
     viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory),
-    charts: @Composable ColumnScope.(MainUiState) -> Unit = { ui -> SensorChartsPane(viewModel, ui) },
+    charts: @Composable ColumnScope.(MainUiState) -> Unit = { _ -> WebChartsPane(viewModel.web, Modifier.weight(1f)) },
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // アプリが裏に回っている間はグラフ画面への push をやめる(戻ったら途切れを知らせる)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_START) viewModel.setForeground(true)
+            if (e == Lifecycle.Event.ON_STOP) viewModel.setForeground(false)
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
 
     // 計測完了時、設定が有効なら本体データCSV・分類CSVを「その他のアプリと共有」で開く。
     LaunchedEffect(ui.shareRequest) {
@@ -84,50 +97,28 @@ fun MainScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         modifier = Modifier.fillMaxSize(),
     ) { inner ->
+        // グラフ画面(WebView)は残りの高さを取り、中で縦にスクロールする(外側はスクロールさせない)。
+        // 余白はカードにだけ付け、グラフ画面は画面の端まで使う(ページ側も余白を詰めてある)
         Column(
             modifier = Modifier
                 .padding(inner)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (!ui.isMeasuring) {
-                ConnectCard(ui, viewModel)
-            }
-            if (ui.connection == ConnectionState.ServicesReady) {
-                MeasureCard(ui, viewModel)
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (!ui.isMeasuring) {
+                    ConnectCard(ui, viewModel)
+                }
+                if (ui.connection == ConnectionState.ServicesReady) {
+                    MeasureCard(ui, viewModel)
+                }
             }
             charts(ui)
         }
-    }
-
-    // チャートタップのラベル入力。OK で入力文字列（空なら "X"）を記録し、
-    // Stop Measurement / Stop Replay 時にデータCSVの ARTIFACT 列へ統合される。
-    ui.labelDialog?.let { prompt ->
-        var text by remember(prompt) { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissLabelDialog() },
-            title = { Text(stringResource(R.string.label_dialog_title, prompt.num)) },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.label_dialog_hint)) },
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmLabel(text) }) {
-                    Text(stringResource(R.string.button_dialog_ok))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissLabelDialog() }) {
-                    Text(stringResource(R.string.button_dialog_cancel))
-                }
-            },
-        )
     }
 
     if (ui.mockError != null) {

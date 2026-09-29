@@ -34,6 +34,11 @@ import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.data.movedAtLeast
 import com.jins_jp.meme.core.plugin.AlgoPlugin
 import com.jins_jp.meme.core.service.MeasurementService
+import com.jins_jp.meme.core.web.WebBridge
+import com.jins_jp.meme.core.web.WebContentStore
+import android.provider.OpenableColumns
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,7 +61,6 @@ import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
-import kotlin.math.roundToLong
 
 private const val TAG = "MainViewModel"
 
@@ -97,11 +101,11 @@ data class MainUiState(
     val successRate: Double = 1.0,
     val commRate: Double = 1.0,
     val toast: String? = null,
+    // CSV 再生中か（再生はグラフ画面のページが受け持つ。devkit-webview.md §5）。名前は旧実装（モックの BLE で
+    // 再生していた）のまま。
     val mockEnabled: Boolean = false,
-    val isPlaybackPaused: Boolean = false,
-    // CSV 再生の現在位置/総時間（秒）。再生モード中のチャート X 軸と位置表示に使う。
-    val replayPositionSec: Double = 0.0,
-    val replayDurationSec: Double = 0.0,
+    // 再生中のファイル名（状態の表示用）
+    val replayName: String? = null,
     val mockError: String? = null,
     val bluetoothError: Boolean = false,
     val autoConnect: Boolean = false,
@@ -110,12 +114,10 @@ data class MainUiState(
     // 計測完了時に「その他のアプリと共有」を自動で開くか（モックでない実機計測のみ対象）。
     val openSharingOnComplete: Boolean = false,
     val shareRequest: ShareRequest? = null,
-    // チャートタップで開くラベル入力ダイアログ。null なら非表示。
-    val labelDialog: LabelPrompt? = null,
-    // 全チャートへオレンジの縦線＋文字で重ね描きする ARTIFACT イベント。
-    // 再生ではソースCSVの ARTIFACT 列由来＋このセッションで確定したラベル、
-    // 実機計測ではこのセッションで確定したラベル。
-    val artifactEvents: List<ArtifactEvent> = emptyList(),
+    // 設定の Display Engine: 今のグラフ画面(zip)の名前と、取り込みに失敗したときの理由
+    val graphContent: String = "",
+    val graphIsCustom: Boolean = false,
+    val graphMessage: String? = null,
     // 計測中、大まかな現在地を ARTIFACT 列へ残すか（既定 OFF）。
     val locationLogging: Boolean = false,
     // 本体データCSVを gz 圧縮して保存するか（既定 ON）。形式は計測開始時に確定する。
@@ -126,17 +128,8 @@ data class MainUiState(
     val isEnteringShelf: Boolean = false,
 )
 
-/** チャートに縦線で示す ARTIFACT イベント。[sec] はデータ先頭からの経過秒。 */
-data class ArtifactEvent(val sec: Double, val text: String)
-
 /** 計測完了後に共有シートへ渡す CSV（本体データ＋サイドカーのうち存在するもの）の URI。 */
 data class ShareRequest(val uris: List<Uri>)
-
-/**
- * チャートタップで開くラベル入力ダイアログの状態。[num] は実機計測ではサンプル
- * 通し番号(NUM)、CSV 再生ではソースCSVのデータ行番号(1 始まり ≒ NUM 列の値)。
- */
-data class LabelPrompt(val num: Long)
 
 sealed class GraphEvent {
     data class Eog(val x: Long, val vh: Float, val vv: Float) : GraphEvent()
@@ -172,6 +165,11 @@ class MainViewModel(
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
 
+    // グラフ画面(WebView)。中身は zip(同梱の標準版か、設定で選んだもの)。描画・再生の操作・アーティファクトの入力は
+    // ページ側で、アプリは計測の値を push し、ページで付けたアーティファクトを CSV へ書き戻す(DevKit webview/BRIDGE.md)。
+    private val webStore = WebContentStore(application)
+    val web = WebBridge(application, webStore)
+
     private val _graph = MutableSharedFlow<GraphEvent>(extraBufferCapacity = 1024)
     val graph: SharedFlow<GraphEvent> = _graph.asSharedFlow()
 
@@ -193,7 +191,7 @@ class MainViewModel(
     // 自動接続：1スキャンにつき一度だけ発火（再接続ループを防ぐ）
     private var autoConnectAttempted = false
 
-    // チャートタップで確定したラベル。計測/再生停止時にデータCSVの ARTIFACT 列へ
+    // グラフ画面で付けたアーティファクトと Free Marking。計測/再生停止時にデータCSVの ARTIFACT 列へ
     // 統合する（実機計測は NUM、再生はソース行番号で対応付け）。
     private val tapLabels = mutableListOf<LabelMerger.Entry>()
 
@@ -208,13 +206,15 @@ class MainViewModel(
     )
     private val playback = PlaybackController(
         scope = viewModelScope,
-        repo = repo,
         ui = _ui,
         reconnect = reconnect,
-        onSuppressAutoConnect = { autoConnectAttempted = true },
         stopMeasurement = ::stopMeasurement,
-        openInput = { uri -> application.contentResolver.openInputStream(uri) },
-        saveSettings = settingsStore::save,
+        displayName = ::displayName,
+        openReplay = { uri, name ->
+            web.openReplay(uri, name, JSONObject().put("timeZone", "local").put("accOffset", JSONArray(listOf(0, 0, 0))))
+        },
+        closeReplay = { web.closeReplay() },
+        mergeLabels = { uri -> mergeTapLabels(target = uri, byRowIndex = true) },
     )
 
     // Comm-rate periodic job
@@ -248,13 +248,67 @@ class MainViewModel(
         viewModelScope.launch { collectConnection() }
         viewModelScope.launch { collectIncoming() }
         viewModelScope.launch { collectDescriptorWritten() }
-        viewModelScope.launch { collectPlaybackPosition() }
+        web.onArtifact = ::receiveArtifact
+        web.onReplayInfo = { info ->
+            _ui.update { it.copy(toast = "再生データを読み込みました（${info.optLong("rows")} 行）") }
+        }
+        refreshGraphContent()
     }
 
-    private suspend fun collectPlaybackPosition() {
-        repo.playbackPosition.collect { p ->
-            _ui.update { it.copy(replayPositionSec = p.positionSec, replayDurationSec = p.durationSec) }
+    // ---- グラフ画面(WebView)の中身 ----
+
+    private fun refreshGraphContent(message: String? = null) {
+        val name = webStore.manifest?.displayName ?: "(none)"
+        val custom = webStore.source == WebContentStore.Source.Custom
+        _ui.update {
+            it.copy(graphContent = if (custom) "$name (zip)" else "$name (built-in)", graphIsCustom = custom, graphMessage = message)
         }
+    }
+
+    /** 設定の Display Engine「Choose zip…」。検査に通らなければ今の中身のまま、理由を出す */
+    fun chooseGraphZip(uri: Uri?) {
+        if (uri == null) return
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { runCatching { webStore.importZip(uri) } }
+            r.onSuccess { web.load(); refreshGraphContent() }
+                .onFailure { e -> refreshGraphContent(e.message ?: e.toString()) }
+        }
+    }
+
+    /** 取り込み(自己テスト用。ファイルから)。結果の manifest か、断られた理由を返す */
+    internal suspend fun importGraphZipFile(file: java.io.File): Result<WebContentStore.Manifest> {
+        val r = withContext(Dispatchers.IO) { runCatching { webStore.importZip(file) } }
+        if (r.isSuccess) web.load()
+        refreshGraphContent(r.exceptionOrNull()?.message)
+        return r
+    }
+
+    internal val graphStore: WebContentStore get() = webStore
+
+    /** 今つないでいる(つなごうとしている)端末のアドレス（自己テスト用） */
+    internal fun currentAddress(): String? = repo.currentAddress()
+
+    /** 最後に停止した計測の本体CSV と、停止(書き戻しまで)を終えた回数（自己テスト用） */
+    internal var lastSaved: Pair<Uri?, Int> = null to 0
+        private set
+
+    /** 設定の Display Engine「Use Built-in」 */
+    fun useBuiltInGraph() {
+        webStore.useBundled()
+        web.load()
+        refreshGraphContent()
+    }
+
+    /** アプリが前に出た / 裏に回った（裏の間はページへの push をやめ、戻ったら途切れを知らせる） */
+    fun setForeground(foreground: Boolean) = web.setForeground(foreground)
+
+    private fun displayName(uri: Uri): String {
+        val app = getApplication<Application>()
+        return runCatching {
+            app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "replay.csv"
     }
 
     override fun onCleared() {
@@ -312,17 +366,10 @@ class MainViewModel(
     fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }
 
     /**
-     * Play-button entry point（詳細は [PlaybackController.start]）。CSV を検証して
-     * 再生（mock）モードへ入り、mock デバイスへのスキャン→接続をエミュレートする。
+     * Play-button entry point（詳細は [PlaybackController.start]）。選んだ CSV をグラフ画面のページに再生させる
+     * （読み込み・再生・巻き戻し・再生速度はページ側）。終わりは Disconnect。
      */
     fun startPlayback(uri: Uri?) = playback.start(uri)
-
-    /** Pause/Resume ボタン（詳細は [PlaybackController.pause]/[PlaybackController.resume]）。 */
-    fun pausePlayback() = playback.pause()
-    fun resumePlayback() = playback.resume()
-
-    /** << / >> ボタン。[deltaSeconds] が負なら巻き戻し、正なら早送り。 */
-    fun seekPlayback(deltaSeconds: Double) = playback.seek(deltaSeconds)
 
     fun dismissMockError() { _ui.update { it.copy(mockError = null) } }
 
@@ -387,6 +434,7 @@ class MainViewModel(
                                 "battery=${_ui.value.batteryLevel}/5 rows=${csv.recordedRows}",
                         )
                     }
+                    if (wasMeasuring) web.stop()
                     val dropResult = csv.stop()
                     // 予期しない切断でもタップラベルを失わないよう本体CSVへ統合する。
                     // 再生停止(Stop Replay/Disconnect)は stopMeasurement 側で統合済み。
@@ -404,7 +452,6 @@ class MainViewModel(
                             batteryLevel = -1,
                             successRate = 1.0,
                             commRate = 1.0,
-                            labelDialog = null,
                         )
                     }
                     // 計測中の予期しない切断のみ、従来どおり自動再接続する(reconnect 設定 ON 時)。
@@ -470,12 +517,13 @@ class MainViewModel(
 
     fun connectOrDisconnect() {
         val st = ui.value
+        // 再生中の Disconnect は再生を終える(ページで付けたアーティファクトを再生元の CSV へ書き戻す)
+        if (st.mockEnabled) { playback.exit(); return }
         if (st.connection != ConnectionState.Disconnected && st.connection != ConnectionState.Disconnecting) {
             // Mark the disconnect as deliberate so it does not trigger reconnect.
             reconnect.noteUserDisconnect()
             reconnect.cancel()
-            // Disconnecting from playback returns to the initial live-BLE state.
-            if (st.mockEnabled) playback.exit() else repo.disconnect()
+            repo.disconnect()
         } else {
             // A manual connect overrides any auto-reconnect in progress.
             reconnect.cancel()
@@ -587,9 +635,6 @@ class MainViewModel(
                 return@launch
             }
             if (!ui.value.mockEnabled) {
-                // 実機計測は新しいセッション＝前回のイベント表示をクリアする。
-                // 再生はソースCSV由来のイベントを Start/Stop をまたいで表示し続ける。
-                _ui.update { it.copy(artifactEvents = emptyList()) }
                 csv.start(addr, ui.value.settings, ui.value.gzipCompression)
                 // 実機計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
                 // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
@@ -607,12 +652,12 @@ class MainViewModel(
             delay(500); sendSetParams()
             delay(1000)
             sendEncoded(MemeCommands.startStop(true))
+            web.start(startCondition(addr))
             _ui.update {
                 it.copy(
                     isMeasuring = true,
                     isStarting = false,
                     recordingRows = 0L,
-                    isPlaybackPaused = false,
                 )
             }
             startCommTicker()
@@ -620,13 +665,26 @@ class MainViewModel(
         }
     }
 
+    /** グラフ画面へ渡す計測条件(BRIDGE.md の start)。値は端末へ送った設定 */
+    private fun startCondition(address: String): JSONObject {
+        val s = ui.value.settings
+        val mode = when (s.mode) { MemeMode.Full -> "full"; MemeMode.Standard -> "standard"; else -> "quaternion" }
+        return JSONObject()
+            .put("label", address)
+            .put("mode", mode)
+            .put("cps", s.quality.hz)
+            .put("accRange", s.accRange.g)
+            .put("gyroRange", s.gyroRange.dps)
+            .put("columns", WebBridge.columns(mode))
+            .put("startedAt", System.currentTimeMillis())
+            .put("timeZone", "local")
+            .put("accOffset", JSONArray(listOf(0, 0, 0)))
+    }
+
     private fun stopMeasurement() {
-        // Disconnect 経由（playback.exit → stopMeasurement）では直後に mockEnabled が
-        // false へ戻るため、再生停止かどうかはコルーチン開始前にここで確定させる。
-        val wasMock = ui.value.mockEnabled
-        val replaySource = playback.sourceUri
         viewModelScope.launch {
             sendEncoded(MemeCommands.startStop(false))
+            web.stop()
             // 未確定の検出結果（1 秒未満の区間など）をプラグインが書き切ってから閉じる。
             for (p in plugins) p.onMeasurementStop(csv)
             val stopResult = csv.stop()
@@ -639,21 +697,16 @@ class MainViewModel(
                 it.copy(
                     isMeasuring = false,
                     recordingRows = 0L,
-                    isPlaybackPaused = false,
-                    labelDialog = null,
                 )
             }
-            // Stop Measurement / Stop Replay: タップラベルをデータCSVへ統合する。
-            // 実機計測はこのセッションで書いた本体CSV、再生は再生元のCSVが対象。
-            mergeTapLabels(
-                target = if (wasMock) replaySource else stopResult.dataUri,
-                byRowIndex = wasMock,
-            )
+            // Stop Measurement: アーティファクトをこのセッションで書いた本体CSVへ統合する
+            // (再生のぶんは再生を終えるとき [PlaybackController.exit] が再生元へ書き戻す)。
+            mergeTapLabels(target = stopResult.dataUri, byRowIndex = false)
+            lastSaved = stopResult.dataUri to (lastSaved.second + 1)
             // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
             // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。
-            // 再生停止かどうかは Disconnect 経由で mockEnabled が戻る前の値で判定する。
             val shareUris = listOfNotNull(stopResult.dataUri, stopResult.classificationUri)
-            if (!wasMock && shareUris.isNotEmpty() && ui.value.openSharingOnComplete) {
+            if (shareUris.isNotEmpty() && ui.value.openSharingOnComplete) {
                 _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
             }
         }
@@ -666,67 +719,33 @@ class MainViewModel(
      */
     fun marking() {
         if (!ui.value.isMeasuring) return
-        addLabel(currentLabelKey(), "X")
+        val key = currentLabelKey()
+        addLabel(key, "X")
+        web.mark(key, "X")
     }
 
+    /** いまラベルを載せるサンプル位置（[LabelMerger.Entry.key] の座標系 = 受信サンプル通し番号 NUM）。 */
+    private fun currentLabelKey(): Long = counter.totalCount.coerceAtLeast(0L)
+
     /**
-     * いまラベルを載せるサンプル位置（[LabelMerger.Entry.key] の座標系）。実機計測は
-     * 受信サンプル通し番号(NUM)、再生はシークで NUM とソース位置がずれるため
-     * ソースCSVのデータ行番号(1 始まり)。
+     * グラフ画面で付けたアーティファクト（ページ → アプリ）。空なら "X"（ページが入れてくる）。CSV の列を
+     * 壊さないよう区切り文字・改行は空白に置き換え、長さを切り詰める。数式として読まれる書き出しは捨てる。ライブの i は受信サンプル通し番号(NUM)、
+     * 再生の i は再生元 CSV のデータ行の番号（0 始まり）で、LabelMerger の行番号（1 始まり）へは +1 する。
      */
-    private fun currentLabelKey(): Long {
-        val base = if (ui.value.mockEnabled) {
-            (ui.value.replayPositionSec * replaySampleRateHz()).roundToLong()
-        } else {
-            counter.totalCount
+    private fun receiveArtifact(i: Long, text: String) {
+        val st = ui.value
+        val clean = text.replace(Regex("[,\\r\\n]"), " ").trim().take(64).ifEmpty { "X" }
+        // 表計算ソフトで数式として読まれる書き出し(= + - @)は受けない(CSV 注入。ページも入力時に断る。webview/BRIDGE.md)
+        if (clean.first() in "=+-@") { Log.w(TAG, "artifact refused (formula-like): $clean"); return }
+        when {
+            st.mockEnabled -> tapLabels += LabelMerger.Entry(i + 1, clean)
+            st.isMeasuring -> tapLabels += LabelMerger.Entry(i, clean)
         }
-        return base.coerceAtLeast(0L)
     }
 
-    /**
-     * グラフ上のタップ位置（0..1 の横位置と可視プロット点数）をサンプル位置へ換算し、
-     * ラベル入力ダイアログを開く。実機計測は NUM（受信サンプル通し番号）、再生は
-     * シークで NUM とソース位置がずれるためソースCSVのデータ行番号(1 始まり)を
-     * 基準にする（replayPositionSec×レート = 消費済み行数 = 最後に再生した行の
-     * 1 始まり行番号。取りこぼしの無いCSVでは NUM 列の値と一致する）。
-     */
-    fun markTap(fraction: Float, visiblePoints: Int) {
-        if (!ui.value.isMeasuring) return
-        val f = fraction.coerceIn(0f, 1f)
-        val samplesBack = ((1f - f) * (visiblePoints - 1) * graphSkipCount).toLong()
-        val markNum = (currentLabelKey() - samplesBack).coerceAtLeast(0L)
-        _ui.update { it.copy(labelDialog = LabelPrompt(markNum)) }
-    }
-
-    /**
-     * ラベル入力ダイアログの OK。入力が空なら "X" を記録する。CSV 構造を壊さない
-     * よう区切り文字・改行は空白に置き換える。
-     */
-    fun confirmLabel(input: String) {
-        val prompt = ui.value.labelDialog ?: return
-        val text = input.replace(Regex("[,\r\n]"), " ").trim().ifEmpty { "X" }
-        addLabel(prompt.num, text)
-        _ui.update { it.copy(labelDialog = null) }
-    }
-
-    /**
-     * ラベル 1 件（タップラベル/Free Marking の "X"）を記録する。停止時の CSV 統合用
-     * に蓄積しつつ、その瞬間からチャートに縦線イベントとして表示する。秒換算は
-     * チャートの X 軸と同じ基準（実機=NUM/受信Hz、再生=行番号/行消費レート）。
-     */
+    /** ラベル 1 件（Free Marking の "X" など）を停止時の CSV 統合用に控える。 */
     private fun addLabel(num: Long, text: String) {
         tapLabels += LabelMerger.Entry(num, text)
-        val hz = if (ui.value.mockEnabled) replaySampleRateHz() else ui.value.settings.quality.hz
-        val event = ArtifactEvent(num.toDouble() / hz, text)
-        _ui.update { it.copy(artifactEvents = it.artifactEvents + event) }
-    }
-
-    fun dismissLabelDialog() { _ui.update { it.copy(labelDialog = null) } }
-
-    /** 再生時の CSV 行消費レート(行/秒)。MockMemeBleEngine.sampleRateHz と同じ規則。 */
-    private fun replaySampleRateHz(): Int {
-        val s = ui.value.settings
-        return if (s.quality == MemeQuality.Hz100 && s.mode != MemeMode.Quaternion) 100 else 50
     }
 
     /**
@@ -828,6 +847,11 @@ class MainViewModel(
             // 最初のパケットは前回カウンタの基準取得のみに使い、記録・検出しない。
             if (!counter.countUp(packet.packetCount)) continue
             prevTimeMs = recvTimeMs + index * intervalMs
+
+            // グラフ画面へ(値の並びは CSV の列の並び = start の columns)。Quaternion は描くものが無い
+            if (packet.type == MemeBleConstants.AUP_REPORT_ACADEMIA1 || packet.type == MemeBleConstants.AUP_REPORT_ACADEMIA2) {
+                web.push(counter.totalCount, packet.values)
+            }
 
             // 全サンプル（間引き前）をプラグインへ渡す。検出器はプロットより
             // 高い分解能で回し、確定結果だけを GraphEvent.Custom で発行させる。
@@ -995,13 +1019,8 @@ class MainViewModel(
         val text = formatLocationArtifact(fix.latitude, fix.longitude) ?: return
         lastLocationFix = fix
         pendingLocationArtifact = text
-        // タップラベルと同じようにチャートへも縦線で出す（CSV への書き込みは
-        // 次のデータ行なので、この秒位置とのずれは 1 サンプル以内）。
-        val event = ArtifactEvent(
-            currentLabelKey().toDouble() / ui.value.settings.quality.hz,
-            text,
-        )
-        _ui.update { it.copy(artifactEvents = it.artifactEvents + event) }
+        // グラフ画面にも印として出す（CSV への書き込みは次のデータ行なので、ずれは 1 サンプル以内）。
+        web.mark(currentLabelKey(), text)
     }
 
     companion object {

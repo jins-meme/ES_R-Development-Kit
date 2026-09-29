@@ -1,173 +1,52 @@
 package com.jins_jp.meme.core.ui.main
 
 import android.net.Uri
-import com.jins_jp.meme.core.ble.MemeBleClient
-import com.jins_jp.meme.core.ble.MemeBleConstants
-import com.jins_jp.meme.core.ble.MockMemeBleEngine
-import com.jins_jp.meme.core.data.MeasurementSettings
-import com.jins_jp.meme.core.data.MemeMode
-import com.jins_jp.meme.core.data.MemeQuality
-import com.jins_jp.meme.core.data.MockCsvFormatException
-import com.jins_jp.meme.core.data.MockCsvLoader
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import java.io.InputStream
 
 /**
- * CSV 再生（mock）モードへの出入りを担うコントローラ。[MainViewModel] からの
- * 抽出で、UI 状態は [ui]（mockEnabled/mockError/settings など）へ直接反映する。
+ * CSV 再生への出入り。再生そのもの（読み込み・再生・一時停止・巻き戻し・早送り・再生速度）はグラフ画面のページが
+ * 受け持つ（DevKit webview/BRIDGE.md の openReplay。python-processing-core docs/porting-html/devkit-webview.md §5）。
+ * アプリは選んだ CSV をページに読ませ、終わり（Disconnect）でページで付けたアーティファクトを再生元の CSV へ
+ * 書き戻すだけ。UI 状態は [ui]（mockEnabled = 再生中）へ直接反映する。
  */
 internal class PlaybackController(
     private val scope: CoroutineScope,
-    private val repo: MemeBleClient,
     private val ui: MutableStateFlow<MainUiState>,
     private val reconnect: ReconnectController,
-    // 再生のスキャン→接続エミュレーションと発見イベント駆動の自動接続が競合しないよう抑止する。
-    private val onSuppressAutoConnect: () -> Unit,
     private val stopMeasurement: () -> Unit,
-    // ContentResolver（ファイルダイアログの URI を開く）と SettingsStore（CSV の
-    // 計測設定の永続化）への依存はラムダで注入し、ユニットテストで差し替え可能にする。
-    private val openInput: (Uri) -> InputStream?,
-    private val saveSettings: (MeasurementSettings) -> Unit,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val displayName: (Uri) -> String,
+    // ページに CSV を読ませる / 再生を閉じる（WebBridge.openReplay / closeReplay）
+    private val openReplay: (Uri, String) -> Unit,
+    private val closeReplay: () -> Unit,
+    // 再生元の CSV へアーティファクトを書き戻す（データ行の番号で対応付け）
+    private val mergeLabels: suspend (Uri) -> Unit,
 ) {
-    /**
-     * 再生中のソースCSVの URI。Stop Replay 時にタップラベルを ARTIFACT 列へ統合する
-     * 書き戻し先(OpenDocument 経由なので書き込み権限も付与されている)。
-     */
+    /** 再生中の CSV の URI（OpenDocument 経由なので書き込み権限もある）。書き戻し先 */
     var sourceUri: Uri? = null
         private set
 
-    /**
-     * Play-button entry point. Opens the CSV chosen in the file dialog and, when
-     * it is a valid logger CSV, enters playback (mock) mode: load the rows into
-     * the mock engine, reflect/persist the CSV's measurement settings, then
-     * emulate Scan device → Connect against the mock device (see
-     * [startScanConnect]). On failure surface the reason via
-     * [MainUiState.mockError] and leave the current mode untouched. A null uri
-     * means the user cancelled the dialog.
-     *
-     * Playback is invoked fresh on every Play tap, so this always re-enters mock
-     * mode from a clean state even if a previous playback is still running.
-     */
+    /** Play ボタン: 選んだ CSV をページで再生する。null はファイル選択のキャンセル */
     fun start(uri: Uri?) {
         if (uri == null) return
-        scope.launch {
-            val result = runCatching {
-                withContext(ioDispatcher) {
-                    val stream = openInput(uri)
-                        ?: throw MockCsvFormatException("ファイルを開けませんでした。")
-                    stream.use { MockCsvLoader.parse(it) }
-                }
-            }
-            result.onSuccess { data ->
-                reconnect.cancel()
-                if (ui.value.isMeasuring) stopMeasurement()
-                // Force a clean (re-)entry into mock mode even when a previous
-                // playback was already running, so each Play starts from scratch.
-                if (repo.mockMode) repo.mockMode = false
-                repo.mockMode = true
-                sourceUri = uri
-                repo.loadMockCsv(data)
-                saveSettings(data.settings)
-                // ソースCSVの ARTIFACT 付き行をチャートの縦線イベントへ（行番号→秒換算。
-                // レート規則は MockMemeBleEngine.sampleRateHz と同じ）。
-                val rate = if (
-                    data.settings.quality == MemeQuality.Hz100 &&
-                    data.settings.mode != MemeMode.Quaternion
-                ) 100.0 else 50.0
-                val events = data.artifacts.map { ArtifactEvent(it.rowNumber / rate, it.text) }
-                ui.update {
-                    it.copy(
-                        mockEnabled = true,
-                        isPlaybackPaused = false,
-                        settings = data.settings,
-                        isInitializing = false,
-                        firmwareVersion = null,
-                        mockError = null,
-                        artifactEvents = events,
-                        toast = "再生データを読み込みました（${data.rows.size} 行）",
-                    )
-                }
-                startScanConnect()
-            }.onFailure { e ->
-                ui.update {
-                    it.copy(
-                        mockError = (e as? MockCsvFormatException)?.message
-                            ?: "CSVの読み込みに失敗しました。",
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Playback one-shot: emulate the Scan device button against the mock engine,
-     * then auto-connect to the mock device as soon as it is advertised. Mirrors
-     * the manual Scan → Connect flow so the rest of the app sees an ordinary
-     * connection coming up.
-     */
-    private fun startScanConnect() {
-        // Suppress the discovery-driven auto-connect so it does not race us.
-        onSuppressAutoConnect()
-        scope.launch {
-            repo.startScan()
-            val found = withTimeoutOrNull(MemeBleConstants.SCAN_TIMEOUT_MS) {
-                repo.devices.first { MockMemeBleEngine.MOCK_ADDRESS in it }
-            } != null
-            repo.stopScan()
-            if (!found) return@launch
-            reconnect.noteConnectIntent(MockMemeBleEngine.MOCK_ADDRESS)
-            ui.update {
-                it.copy(
-                    selectedDeviceIndex =
-                        it.devices.indexOf(MockMemeBleEngine.MOCK_ADDRESS).coerceAtLeast(0),
-                )
-            }
-            repo.connect(MockMemeBleEngine.MOCK_ADDRESS)
-        }
-    }
-
-    /** Leave playback mode and return to the initial live-BLE state. */
-    fun exit() {
         reconnect.cancel()
         if (ui.value.isMeasuring) stopMeasurement()
-        repo.mockMode = false
-        ui.update {
-            it.copy(
-                mockEnabled = false,
-                isPlaybackPaused = false,
-                isInitializing = false,
-                firmwareVersion = null,
-                artifactEvents = emptyList(),
-            )
-        }
+        if (ui.value.mockEnabled) exit()          // 再生中に別のファイルを選んだら、前のぶんを書き戻してから
+        sourceUri = uri
+        val name = displayName(uri)
+        ui.update { it.copy(mockEnabled = true, replayName = name, mockError = null) }
+        openReplay(uri, name)
     }
 
-    /** Pause button: freeze CSV playback in place without ending the measurement. */
-    fun pause() {
-        if (!ui.value.mockEnabled || !ui.value.isMeasuring || ui.value.isPlaybackPaused) return
-        repo.pausePlayback()
-        ui.update { it.copy(isPlaybackPaused = true) }
-    }
-
-    /** Resume button: continue CSV playback from where it was paused. */
-    fun resume() {
-        if (!ui.value.mockEnabled || !ui.value.isPlaybackPaused) return
-        repo.resumePlayback()
-        ui.update { it.copy(isPlaybackPaused = false) }
-    }
-
-    /** << / >> buttons: jump the CSV position by [deltaSeconds] (negative rewinds). */
-    fun seek(deltaSeconds: Double) {
-        if (!ui.value.mockEnabled || !ui.value.isMeasuring) return
-        repo.seekPlayback(deltaSeconds)
+    /** 再生を終える（Disconnect）。ページで付けたアーティファクトを再生元へ書き戻す */
+    fun exit() {
+        if (!ui.value.mockEnabled) return
+        val src = sourceUri
+        closeReplay()
+        sourceUri = null
+        ui.update { it.copy(mockEnabled = false, replayName = null) }
+        if (src != null) scope.launch { mergeLabels(src) }
     }
 }

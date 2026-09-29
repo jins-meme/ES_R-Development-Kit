@@ -53,13 +53,14 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
-    // Play button: pick a logged CSV, then replay it through the mock engine.
+    // Play button: pick a logged CSV; the graph page replays it (Disconnect ends the replay).
     val playbackCsvPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> vm.startPlayback(uri) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
+            // ファイル再生中は、見出しの行(再生・設定のボタンごと)を出さずに上へ詰める(BLE の接続中は従来どおり出す)
+            if (!ui.mockEnabled) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -70,7 +71,7 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                // 接続中(モック=再生中/実機いずれも)は再生ボタンを無効化する。
+                // BLE の接続中は再生ボタンを無効化する(再生中はこの行ごと出さない)
                 val playbackEnabled = ui.connection == ConnectionState.Disconnected
                 IconButton(
                     onClick = { playbackCsvPicker.launch(arrayOf("*/*")) },
@@ -94,7 +95,8 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // 再生中は端末を探さないので、Scan device と見つかった端末の一覧は出さない
+            if (!ui.mockEnabled) Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { vm.startScan() },
                     enabled = !ui.scanning && ui.connection == ConnectionState.Disconnected,
@@ -115,24 +117,24 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ConnectButton(
-                    text = if (ui.connection == ConnectionState.Disconnected)
+                    text = if (ui.connection == ConnectionState.Disconnected && !ui.mockEnabled)
                         stringResource(R.string.button_connect)
                     else stringResource(R.string.button_disconnect),
-                    enabled = ui.devices.isNotEmpty() && !ui.isEnteringShelf &&
+                    enabled = ui.mockEnabled || (ui.devices.isNotEmpty() && !ui.isEnteringShelf &&
                             (ui.connection == ConnectionState.Disconnected ||
                                     ui.connection == ConnectionState.ServicesReady ||
-                                    ui.connection == ConnectionState.Connected),
+                                    ui.connection == ConnectionState.Connected)),
                     // Shelf mode は隠し操作。移行できる状態のときだけ長押しを見る。
                     longPressEnabled = vm.canEnterShelfMode(),
                     onClick = { vm.connectOrDisconnect() },
                     onLongPress = { vm.requestShelfMode() },
                 )
                 Box(Modifier.width(12.dp))
-                Text(stringResource(R.string.text_label_status))
-                Box(Modifier.width(4.dp))
                 Text(
                     text = statusLabel(ui),
                     style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -200,6 +202,7 @@ private fun ConnectButton(
 
 @Composable
 private fun statusLabel(ui: MainUiState): String {
+    if (ui.mockEnabled) return ui.replayName ?: ""          // 再生中はファイル名だけ
     if (ui.isReconnecting) return stringResource(R.string.text_state_reconnecting)
     return when (ui.connection) {
         ConnectionState.Disconnected -> stringResource(R.string.text_state_disconnect)

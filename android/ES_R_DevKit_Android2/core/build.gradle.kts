@@ -41,6 +41,8 @@ dependencies {
     implementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.19.0")
+    // グラフ画面(WebView): WebViewAssetLoader(https の仮想ホストから zip の中身を配る)と addWebMessageListener
+    implementation("androidx.webkit:webkit:1.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // 共有 MainViewModel / MainScreen (core.ui.main) が使う。
