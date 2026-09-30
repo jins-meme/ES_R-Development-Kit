@@ -138,7 +138,7 @@ final class DataPersistenceService {
             let dateString = formatter.string(from: date)
             let packetCount = (dic["packetCount"] as? NSNumber)?.intValue ?? 0
             let isFreeMarkingValue = (dic["isFreeMarking"] as? NSNumber)?.boolValue ?? false
-            let mark = isFreeMarkingValue ? "x" : ""
+            let mark = isFreeMarkingValue ? "X" : ""
             switch mode {
             case MEMEMode_Standard:
                 if let d = dic["data"] as? AcademicStandardData {

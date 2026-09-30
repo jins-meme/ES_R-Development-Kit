@@ -82,7 +82,7 @@ final class MEMEViewModel: NSObject {
     // App / Network info
     var appVersionText: String = ""
     var localAddressText: String = "IP address:"
-    var localPortText: String = "Prot:"
+    var localPortText: String = "Port:"
     var socketStatusText: String = "Status : "
 
     // Settings sheet presentation
@@ -167,7 +167,7 @@ final class MEMEViewModel: NSObject {
     }
 
     private func showLocalPort() {
-        localPortText = "Prot:\(UserSetting.getLocalPort())"
+        localPortText = "Port:\(UserSetting.getLocalPort())"
     }
 
     // MARK: - Reset
@@ -551,7 +551,7 @@ final class MEMEViewModel: NSObject {
         return cond
     }
 
-    /// 1 サンプルをグラフ画面へ。freeMarked なら、CSV に x を書いた行と同じ位置へ印を出す。
+    /// 1 サンプルをグラフ画面へ。freeMarked なら、CSV に X を書いた行と同じ位置へ印を出す。
     private func pushToGraph(_ data: AcademicData, freeMarked: Bool) {
         let i = liveSampleIndex
         liveSampleIndex += 1
@@ -563,7 +563,7 @@ final class MEMEViewModel: NSObject {
                                     Int(s.eogH1), Int(s.eogH2), Int(s.eogV1), Int(s.eogV2)])
         }
         if freeMarked {
-            web.mark(i: i, text: "x")
+            web.mark(i: i, text: "X")
         }
     }
 
@@ -770,7 +770,7 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         displayCnt = data.cnt
     }
 
-    /// 受信パケットを CSV／ソケットへ流す。このパケットの行へ Free Marking の x を書いたら
+    /// 受信パケットを CSV／ソケットへ流す。このパケットの行へ Free Marking の X を書いたら
     /// true を返す（呼び出し側がグラフの同じサンプル位置へ印を出す）。
     private func ingestPacket(data: AcademicData) -> Bool {
         // 受信時刻をサンプル自身に持たせる。CSV/ソケットの DATE 列はこの時刻を使う。

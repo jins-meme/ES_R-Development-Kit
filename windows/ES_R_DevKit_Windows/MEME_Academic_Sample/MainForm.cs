@@ -342,10 +342,10 @@ public partial class MainForm : Form
         isFreeMarking = false;
         persistence.Append(data, stats.TotalCount, freeMarking);
 
-        // CSV に x を書いた行と同じサンプル位置へ印を出す(Quaternion はグラフが無いので出さない)
+        // CSV に X を書いた行と同じサンプル位置へ印を出す(Quaternion はグラフが無いので出さない)
         if (freeMarking && data is not AcademicQuaternionData)
         {
-            RunOnUi(() => web.Mark(i, "x"));
+            RunOnUi(() => web.Mark(i, "X"));
         }
     }
 

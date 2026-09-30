@@ -59,7 +59,7 @@ Every argument may be a value or its JSON string.
 | `jmasHost.push(rows)` | Received samples, sent every 0.05 s: `[[i, v1, v2, …], …]`. `i` is the app's sample number (0, 1, 2 … from the start of the measurement, counting every packet). The values follow `cond.columns`, as raw LSB. |
 | `jmasHost.gap()` | Reception was interrupted (the app was in the background, reconnected …). |
 | `jmasHost.status(text)` | One line of status made by the app (optional). |
-| `jmasHost.mark({i, text})` | A mark made in the app at sample `i` (Free Marking writes `x`). |
+| `jmasHost.mark({i, text})` | A mark made in the app at sample `i` (Free Marking writes `X`). |
 | `jmasHost.openReplay({url, name, timeZone, accOffset, theme})` | Replay a recorded CSV. The page fetches `url` (same origin) and owns playback: play, pause, speed, seek. |
 | `jmasHost.setTheme("light" \| "dark")` | The app's appearance changed. |
 | `jmasHost.stop()` | The measurement or replay ended. Keep what is shown. |

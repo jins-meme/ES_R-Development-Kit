@@ -166,7 +166,7 @@ public sealed class DataPersistenceService : IDisposable
     /// <summary>CSV / TCP 共通の 1 行整形。DATE 列は UTC。</summary>
     public static string FormatRow(AcademicData data, int packetCount, bool freeMarking)
     {
-        var mark = freeMarking ? "x" : string.Empty;
+        var mark = freeMarking ? "X" : string.Empty;
         var timestamp = (data.RecordedUtc ?? DateTime.UtcNow).ToString(DateFormat, CultureInfo.InvariantCulture);
 
         return data switch

@@ -46,7 +46,7 @@ document.getElementById("devStart").onclick = () => {
 };
 document.getElementById("devStop").onclick = () => { clearInterval(timer); host.stop(); };
 document.getElementById("devGap").onclick = () => host.gap();
-document.getElementById("devMark").onclick = () => host.mark(JSON.stringify({ i: i + 1000, text: "x" }));
+document.getElementById("devMark").onclick = () => host.mark(JSON.stringify({ i: i + 1000, text: "X" }));
 document.getElementById("devCsv").onchange = (e) => {
   const f = e.target.files[0];
   if (f) { clearInterval(timer); host.openReplay(JSON.stringify({ url: URL.createObjectURL(f), name: f.name })); }
