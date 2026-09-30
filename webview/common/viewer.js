@@ -248,6 +248,7 @@ export function createViewer(root, hooks) {
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = (now - lastT) / 1000; lastT = now;
+    view.tick(dt);
     const rp = ctx.replay;
     if (rp && rp.playing) {
       rp.head = Math.min(rp.dur, rp.head + dt * SPEEDS[rp.speed]);
