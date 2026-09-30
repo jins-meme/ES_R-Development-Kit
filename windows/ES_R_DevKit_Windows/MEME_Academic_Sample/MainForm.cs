@@ -682,7 +682,7 @@ public partial class MainForm : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, $"保存できませんでした。\n{ex.Message}", "Save",
+            MessageBox.Show(this, $"保存できませんでした。\n{FileErrorText.Of(ex)}", "Save",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
@@ -939,7 +939,7 @@ public partial class MainForm : Form
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{e.Message}", "Artifact",
+            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{FileErrorText.Of(e)}", "Artifact",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
@@ -972,7 +972,7 @@ public partial class MainForm : Form
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{e.Message}", "Artifact",
+            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{FileErrorText.Of(e)}", "Artifact",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }

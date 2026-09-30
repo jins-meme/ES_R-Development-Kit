@@ -101,7 +101,7 @@ public partial class SettingsForm : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            MessageBox.Show(this, $"フォルダを開けませんでした。\n{ex.Message}", "Setting",
+            MessageBox.Show(this, $"フォルダを開けませんでした。\n{FileErrorText.Of(ex)}", "Setting",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }

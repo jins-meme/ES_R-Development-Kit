@@ -14,7 +14,7 @@ namespace MEME_Academic_Sample;
 /// 渡したフォルダに書いて、アプリを閉じる。
 ///
 ///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|settings] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
-///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;]
+///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;] [--probe-live &lt;同&gt;]
 ///
 /// - live(既定): 実機の代わりに --csv の行を 100 Hz で受信の口(HandleSample)へ流して「計測 → アーティファクト → 停止 →
 ///   保存した CSV を再生」を回す(BLE には触らない)。--mode standard は同じ値を Standard の形に詰め替えて流す。
@@ -172,9 +172,9 @@ public partial class MainForm
     }
 
     /// <summary>--probe に書いた JS の式をページで評価した値(調べもの用。Promise も待つ)</summary>
-    private async Task<JsonNode?> Probe(string[] args)
+    private async Task<JsonNode?> Probe(string[] args, string option = "--probe")
     {
-        if (Arg(args, "--probe") is not { } expr)
+        if (Arg(args, option) is not { } expr)
         {
             return null;
         }
@@ -255,6 +255,9 @@ public partial class MainForm
                 HandleSample(ToSample(rows[k], k, standard));
             }
         });
+        // --probe-live は流している最中に評価する(描画の滑らかさを測るときなど)
+        await Sleep(Math.Min(3, seconds / 4));
+        result["probeLive"] = await Probe(args, "--probe-live");
         await feeder;
         await Sleep(1);
 
@@ -360,6 +363,11 @@ public partial class MainForm
         result["rows"] = after.Count;
         result["changedRows"] = new JsonArray(changed.Select(k => (JsonNode)k).ToArray());
         result["row299"] = string.Join(',', after[299]);
+        if (!changed.SequenceEqual([299]) || after[299][0] != "autotest")
+        {
+            throw new InvalidOperationException("artifact was not written back to row 299");
+        }
+
         EndReplaySession();
         await Sleep(0.5);
     }

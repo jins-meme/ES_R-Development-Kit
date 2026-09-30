@@ -379,7 +379,7 @@ public sealed class WebBridge : IDisposable
         if (parts.Length > 0 && parts[0] == "replay")
         {
             if (parts.Length >= 2 && replayToken is not null && parts[1] == replayToken && replayFile is not null &&
-                OpenRead(replayFile) is { } csv)
+                ReadToMemory(replayFile) is { } csv)
             {
                 e.Response = Respond(csv, "application/octet-stream");
             }
@@ -425,7 +425,25 @@ public sealed class WebBridge : IDisposable
         }
     }
 
-    private CoreWebView2WebResourceResponse Respond(FileStream stream, string type)
+    /// <summary>
+    /// 再生する CSV はメモリに読んでから渡す。WebView2 は読み終えたストリームを GC まで手放さないので、
+    /// FileStream のままだと再生中の Save Artifacts で元ファイルを置き換えられない(Access denied)。
+    /// </summary>
+    private static MemoryStream? ReadToMemory(string path)
+    {
+        using var file = OpenRead(path);
+        if (file is null)
+        {
+            return null;
+        }
+
+        var memory = new MemoryStream(checked((int)file.Length));
+        file.CopyTo(memory);
+        memory.Position = 0;
+        return memory;
+    }
+
+    private CoreWebView2WebResourceResponse Respond(Stream stream, string type)
     {
         var headers = $"Content-Type: {type}\r\nContent-Length: {stream.Length}\r\nCache-Control: no-store\r\n" +
                       $"Access-Control-Allow-Origin: *\r\nContent-Security-Policy: {Csp}";

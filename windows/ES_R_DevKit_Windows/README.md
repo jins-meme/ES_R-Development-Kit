@@ -202,7 +202,10 @@ Quaternion モードにはグラフに出せる波形が無いため、グラフ
 ```
 JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zip|settings] [--csv <CSV>] [--zip <zip>]
                          [--mode full|standard] [--seconds 20] [--badzips <フォルダ>] [--probe <JS の式 | @ファイル>]
+                         [--probe-live <同>]
 ```
+
+`--probe` は各場面の後に、`--probe-live` は live で行を流している最中にページで評価します（描画の進み方を測るときなど）。
 
 | suite | 中身 |
 |---|---|
