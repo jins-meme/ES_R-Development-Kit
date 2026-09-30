@@ -926,6 +926,20 @@ public partial class MainForm : Form
     /// 再生中に付けた Artifact を再生元 CSV の ARTIFACT 列へ書き戻す(Save Artifacts / Disconnect)。
     /// キーは CSV のデータ行の番号(ページが返す番号そのまま)。
     /// </summary>
+    /// <summary>Artifact を書き戻せなかったことを知らせる(自己テストの間は結果に残し、ダイアログで止めない)</summary>
+    private void ReportArtifactWriteError(Exception e)
+    {
+#if DEBUG
+        if (autoTestErrors is not null)
+        {
+            autoTestErrors.Add($"artifact write: {FileErrorText.Of(e)}");
+            return;
+        }
+#endif
+        MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{FileErrorText.Of(e)}", "Artifact",
+            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
     private void FlushReplayArtifacts()
     {
         if (pendingArtifacts.Count == 0 || replayFile is null)
@@ -939,8 +953,7 @@ public partial class MainForm : Form
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{FileErrorText.Of(e)}", "Artifact",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            ReportArtifactWriteError(e);
         }
 
         pendingArtifacts.Clear();
@@ -972,8 +985,7 @@ public partial class MainForm : Form
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            MessageBox.Show(this, $"Artifact を書き戻せませんでした。\n{FileErrorText.Of(e)}", "Artifact",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            ReportArtifactWriteError(e);
         }
     }
 

@@ -254,6 +254,11 @@ final class MEMEViewModel: NSObject {
 
     /// Shelf mode へ移行できる状態か。SHELF コマンドは実機に接続済みで計測していない
     /// ときだけ受理されるので、モック（CSV再生用のダミー）と計測中は対象外。
+#if DEBUG
+    /// 接続中の端末のアドレス(接続後に端末から読む。自己テストが繋いだ端末を確かめる用)
+    var connectedMacAddress: String { memelib?.macAddress ?? "" }
+#endif
+
     var canEnterShelfMode: Bool {
         phase == .connected && !MEMELibFactory.isMock && !isEnteringShelf && !isConnecting
     }

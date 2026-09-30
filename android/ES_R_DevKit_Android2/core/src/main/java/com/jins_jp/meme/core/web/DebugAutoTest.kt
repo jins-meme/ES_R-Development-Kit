@@ -35,7 +35,8 @@ import java.io.File
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_live full --ei autotest_seconds 20 --es autotest_device 6E:AD
  *       # **実機(メガネ)を使う**: 条件を full|standard・100Hz・±8g・±1000dps にし、autotest_device(アドレスの末尾。省略時は
  *       # 見つかった最初の端末)に繋いで計測し、
- *       # ページの状態・アーティファクトの書き戻し・保存した CSV を autotest/live-<モード>.json に書く
+ *       # ページの状態・アーティファクトの書き戻し・保存した CSV(モード・行数・NUM の抜け)を autotest/live-<モード>.json に書く
+ *       # (標準版・高機能版のどちらでも回せる。判定器の状態を見るのは高機能版のときだけ)
  *
  * ページの中の状態は chrome://inspect(デバッグビルドは WebView のデバッグが有効)から見る。
  */
@@ -110,7 +111,10 @@ object DebugAutoTest {
             rows.put(row)
         }
         vm.useBuiltInGraph()
-        return JSONObject().put("allOk", allOk).put("zips", rows)
+        // どれか 1 つでも NG なら、組全体も ok にしない(ほかのテストの json と同じく ok を見れば足りるように)
+        val failed = (0 until rows.length()).map { rows.getJSONObject(it) }.filter { !it.optBoolean("ok") }.map { "zip " + it.optString("zip") }
+        return JSONObject().put("ok", failed.isEmpty()).put("allOk", allOk).put("zips", rows)
+            .apply { if (failed.isNotEmpty()) put("error", "check failed: " + failed.joinToString("; ")) }
     }
 
     private suspend fun waitFor(what: String, ms: Long, cond: () -> Boolean) {
@@ -173,13 +177,12 @@ object DebugAutoTest {
         res.put("atStart", JSONObject(page(vm, STATE)))
         delay(seconds * 1000L)
         res.put("measuring", JSONObject(page(vm, STATE)))
-        // ページで付けたのと同じ形でアーティファクトを送る(持っている先頭から 100 行目のサンプル番号)
-        val i = page(vm, "(() => { const s = window.jmasEngine?.store; return s ? s.iOfRow(s.first + 100) : null })()").toLongOrNull()
-        if (i != null) {
-            vm.web.webView.value.evaluateJavascript("window.jmasNative.postMessage(JSON.stringify({kind: 'artifact', i: $i, text: 'autotest'})); 0", null)
-            delay(500)
-            res.put("artifactI", i)
-        }
+        // ページで付けたのと同じ形でアーティファクトを送る(持っている先頭から 100 行目のサンプル番号)。
+        // 判定器の無いページ(標準版)はページの中の番号を読めないので、101(ライブのサンプル番号 = CSV の NUM。先頭は 1)を送る
+        val i = page(vm, "(() => { const s = window.jmasEngine?.store; return s ? s.iOfRow(s.first + 100) : null })()").toLongOrNull() ?: 101L
+        vm.web.webView.value.evaluateJavascript("window.jmasNative.postMessage(JSON.stringify({kind: 'artifact', i: $i, text: 'autotest'})); 0", null)
+        delay(500)
+        res.put("artifactI", i)
         vm.toggleMeasurement()
         waitFor("stopped and merged", 30_000) { vm.lastSaved.second > saved0 }
         val uri = vm.lastSaved.first ?: throw IllegalStateException("no saved CSV")
@@ -193,14 +196,21 @@ object DebugAutoTest {
         val hit = data.firstOrNull { it.startsWith("autotest,") }
         res.put("artifactNum", hit?.split(",")?.getOrNull(1))
         val det = res.getJSONObject("measuring").optJSONObject("detector")
-        val ok = if (mode == "full") {
-            det != null && det.optString("state") == "ready" && det.optLong("fed") > 0 &&
-                det.optLong("rows") - det.optLong("fed") < 300 && hit != null && hit.split(",")[1] == i.toString()
-        } else {
-            (det == null || det.optString("state") == "off") &&
-                res.getJSONObject("atStart").optString("toast").startsWith("No detection")
+        val wantMode = if (mode == "standard") "Standard" else "Full"
+        val modeOk = lines.take(h + 1).any { it.startsWith("// Data mode") && it.substringAfter(":").trim() == wantMode }
+        val artifactOk = hit != null && hit.split(",")[1] == i.toString()
+        // 判定器の条件は、判定器のあるページ(高機能版)だけに掛ける。標準版は CSV(モード・行数・アーティファクト)だけを見る
+        val detOk = when {
+            det == null -> true
+            mode == "full" -> det.optString("state") == "ready" && det.optLong("fed") > 0 && det.optLong("rows") - det.optLong("fed") < 300
+            else -> det.optString("state") == "off" && res.getJSONObject("atStart").optString("toast").startsWith("No detection")
         }
-        return res.put("ok", ok && data.size > seconds * 80)
+        val nums = data.mapNotNull { it.split(",").getOrNull(1)?.toLongOrNull() }
+        val numGaps = nums.zipWithNext().count { (a, b) -> b != a + 1 }   // 番号(NUM)の抜け・戻り
+        res.put("numGaps", numGaps)
+        res.put("check", JSONObject().put("mode", modeOk).put("artifact", artifactOk).put("detector", detOk)
+            .put("rows", data.size > seconds * 80).put("num", numGaps == 0))
+        return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80)
     }
 
     private fun write(dir: File, name: String, o: JSONObject) {

@@ -202,16 +202,29 @@ Quaternion モードにはグラフに出せる波形が無いため、グラフ
 ```
 JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zip|settings] [--csv <CSV>] [--zip <zip>]
                          [--mode full|standard] [--seconds 20] [--badzips <フォルダ>] [--probe <JS の式 | @ファイル>]
-                         [--probe-live <同>]
+                         [--probe-live <同>] [--expect <瞬目,EMR,EML[,歩のイベント]>] [--real [--device <アドレスか名前の末尾>]]
 ```
 
 `--probe` は各場面の後に、`--probe-live` は live で行を流している最中にページで評価します（描画の進み方を測るときなど）。
 
 | suite | 中身 |
 |---|---|
-| `live`（既定） | 実機の代わりに `--csv` の行を 100 Hz で受信の口へ流し、計測 → Artifact → 停止 → 保存した CSV を再生（BLE には触らない） |
-| `replay` | `--csv` の写しを再生（高機能版なら最後まで解析を待つ）。Artifact を付けて `Save Artifacts` で書き戻されることも見る |
+| `live`（既定） | 実機の代わりに `--csv` の行を 100 Hz で受信の口へ流し、計測 → Artifact → 停止 → 保存した CSV を再生（BLE には触らない）。保存した CSV のモード・番号（NUM）の抜け・Artifact の行（299）、高機能版の Standard では判定器が止まってトーストが出ること、再生中の Artifact が `Save Artifacts`（500 行目）と `Disconnect`（600 行目）で書き戻されることを確かめる。**`--real` を付けたときだけ実機（BLE）を使う**（`--device` の端末に繋いで `--seconds` 計測。`--csv` は要らない） |
+| `replay` | `--csv` の写しを再生（高機能版なら最後まで解析を待つ）。Artifact を `Save Artifacts`（299 行目）と `Disconnect`（600 行目）で書き戻す。`--expect` で判定数を比べる（golden `w-sit-jump-stairs` なら `459,1169,1045,2837`） |
 | `zip` | `--badzips` の zip を 1 つずつ取り込み、`good` で始まるものだけ通り、断られたものは今の中身が変わらず外に書かれないことを見る（`webview/tools/make_bad_zips.py`） |
 | `settings` | 設定画面を撮る（計測中の形も） |
 
-`--zip` は始める前に Display Engine と同じ経路で取り込み、終わったら同梱の標準版に戻します。保存先はテストの間だけ `<出力フォルダ>\csv` になります。
+`--zip` は始める前に Display Engine と同じ経路で取り込み、終わったら同梱の標準版に戻します（もともと選んだ zip を使っていたら、
+退避しておいたそれに戻す。`zip` の組も同じ）。保存先はテストの間だけ `<出力フォルダ>\csv` になります。
+確かめたことが合わなければ `result.json` の `ok` が `false` になり、`error` に理由が入ります（Artifact の書き戻しの失敗も、
+テストの間はダイアログを出さずにここへ入る）。
+
+Mac から Parallels の Windows で回すときの注意:
+
+- VM から見える Mac のフォルダは `Z:\`（`\\Mac\Home`）の Desktop・Documents・Downloads だけ。テストに使うファイルはそこに置く。
+- **`prlctl exec` には `--current-user` を付ける**（ログイン中の利用者のセッションで動かす）。付けないと画面の無いセッションで
+  起動して WebView2 が立ち上がらず（`The graph view could not start. … (0x800705B4)`）、アプリが閉じずに残る。
+  `dotnet` もそのセッションでは見つからないことがあるので、`C:\Users\<利用者>\.dotnet\dotnet.exe` をフルパスで呼ぶ。
+- `prlctl exec` は引数の引用符を落とすので、アプリへ渡す引数は PowerShell スクリプトの中で組み立てる（ファイルから読むなど）。
+- `prlctl exec` に渡す PowerShell スクリプトは ASCII だけで書く（PowerShell 5.1 が BOM なしの UTF-8 を CP932 で読む）。
+- ビルドは VM のローカル（`C:\work\…`）へ `robocopy /MIR /XD bin obj` で写してから行う。

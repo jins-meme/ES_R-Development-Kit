@@ -15,8 +15,14 @@
 //  Gyro Range)を切り替えて短く計測し、保存した CSV のヘッダ・列・行数・送信頻度・静止時の加速度の大きさ(レンジで換算して
 //  約 1 G になるか = 端末に実際に効いたか)を確かめる。実機を使うのは MEME_AUTOTEST_REAL=1 を明示したときだけ。
 //
+//  MEME_AUTOTEST_REAL=1 を足すと(-mock なし)、同じ流れを実機で回す。MEME_AUTOTEST_DEVICE で端末を選ぶ
+//  (16 進(例 E90D)ならアドレスの末尾。スキャンではアドレスが見えず、同じ広告名の端末は 1 つにまとめられるので、繋いでから
+//  端末のアドレスを確かめ、違えば切ってスキャンし直す(4 回まで)。それ以外は広告名の末尾(例 ESRG2_5)。省略時は最初に見つかったもの)、MEME_AUTOTEST_MODE=full|standard で計測モード(既定 full。100Hz・±8G・±1000dps)、
+//  MEME_AUTOTEST_SECONDS で計測の長さ(既定 8 秒)。保存した CSV のモード・番号の抜け・アーティファクトの行も result.json に書く。
+//
 //  MEME_AUTOTEST_ZIP=<zip> を足すと、始める前に設定の Display Engine と同じ経路(WebContentStore.importZip)でその zip を読み込み、
 //  終わったら元の中身に戻す(高機能版 advanced.zip の確かめ用。ページに検出器があれば、その状態も result.json に書く)。
+//  もともと選んだ zip を使っていたら、それを退避しておいて戻す(zip の組も同じ)。
 //
 //  MEME_AUTOTEST_SUITE=zip MEME_AUTOTEST_BADZIPS=<フォルダ> は、フォルダの中の zip を 1 つずつ読み込み、
 //  名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、展開先の外に何も書かれないことを見る
@@ -45,8 +51,10 @@ enum DebugAutoTest {
             UserSetting.setSaveFilePath(csvDir.path)
             let store = WebContentStore.shared
             let wasCustom = store.source == .custom
+            let env = ProcessInfo.processInfo.environment
+            let usesZips = env["MEME_AUTOTEST_ZIP"] != nil || env["MEME_AUTOTEST_SUITE"] == "zip"
+            let kept = usesZips && wasCustom ? keepCustom(store) : nil   // 取り込みで上書きされる前に、選んでいた zip を退避
             do {
-                let env = ProcessInfo.processInfo.environment
                 if let zip = env["MEME_AUTOTEST_ZIP"] {
                     let m = try store.importZip(URL(fileURLWithPath: zip))
                     result["zip"] = m.displayName
@@ -60,7 +68,9 @@ enum DebugAutoTest {
                     }
                     try await runSettings(vm, out: out, csvDir: csvDir, result: &result)
                 } else {
-                    guard MEMELibFactory.isMock else { throw Timeout(what: "refused: run with -mock (would connect to a real device)") }
+                    guard MEMELibFactory.isMock || env["MEME_AUTOTEST_REAL"] == "1" else {
+                        throw Timeout(what: "refused: run with -mock, or MEME_AUTOTEST_REAL=1 for a real device")
+                    }
                     try await run(vm, out: out, result: &result)
                 }
                 result["ok"] = true
@@ -72,12 +82,33 @@ enum DebugAutoTest {
                 try? data.write(to: out.appendingPathComponent("result.json"))
             }
             UserSetting.setSaveFilePath(savedPath)   // terminate は戻らないので defer でなくここで戻す
-            if ProcessInfo.processInfo.environment["MEME_AUTOTEST_ZIP"] != nil || ProcessInfo.processInfo.environment["MEME_AUTOTEST_SUITE"] == "zip",
-               !wasCustom {
-                store.useBundled()                    // 読み込んだ zip を残さない(もともと選んだ zip を使っていたらそのまま)
+            if usesZips {                             // 読み込んだ zip を残さない。もともと選んだ zip を使っていたらそれに戻す
+                if let kept { restoreCustom(store, from: kept) } else { store.useBundled() }
             }
             NSApp.terminate(nil)
         }
+    }
+
+    /// 選んでいた zip の展開先(WebContent/custom)を一時フォルダへ写す
+    private static func keepCustom(_ store: WebContentStore) -> URL? {
+        let fm = FileManager.default
+        let src = store.root.appendingPathComponent("custom", isDirectory: true)
+        let dst = fm.temporaryDirectory.appendingPathComponent("autotest-custom-\(UUID().uuidString)", isDirectory: true)
+        do { try fm.copyItem(at: src, to: dst); return dst } catch { NSLog("[AutoTest] keep custom: %@", error.localizedDescription); return nil }
+    }
+
+    /// keepCustom で写したものを WebContent/custom へ戻し、選んだ zip を使う設定に戻す
+    private static func restoreCustom(_ store: WebContentStore, from kept: URL) {
+        let fm = FileManager.default
+        let dst = store.root.appendingPathComponent("custom", isDirectory: true)
+        try? fm.removeItem(at: dst)
+        do { try fm.moveItem(at: kept, to: dst) } catch { NSLog("[AutoTest] restore custom: %@", error.localizedDescription) }
+        UserSetting.setWebContentSource("custom")
+        store.prepare()
+    }
+
+    private struct CheckFailed: Error, CustomStringConvertible {
+        let problems: [String]; var description: String { "check failed: " + problems.joined(separator: "; ") }
     }
 
     private struct Timeout: Error, CustomStringConvertible { let what: String; var description: String { "timeout: \(what)" } }
@@ -127,19 +158,46 @@ enum DebugAutoTest {
         result["page"] = vm.web.pageName
         await snapshot(vm, "0-idle", out)
 
-        // 接続して Full・100Hz で計測
-        vm.startScan()
-        try await wait("device found") { vm.phase == .deviceFound }
-        vm.toggleConnect()
-        try await wait("connected") { vm.phase == .connected }
-        vm.selectMode = Int(MEMEMode_Full) - 1
+        // 接続して 100Hz・±8G・±1000dps で計測(モードは既定 Full。実機では MEME_AUTOTEST_MODE=standard も)
+        let env = ProcessInfo.processInfo.environment
+        let standard = env["MEME_AUTOTEST_MODE"] == "standard"
+        let seconds = Double(env["MEME_AUTOTEST_SECONDS"] ?? "") ?? 8
+        let suffix = env["MEME_AUTOTEST_DEVICE"].map { $0.replacingOccurrences(of: ":", with: "").uppercased() }
+        let byAddress = suffix.map { !$0.isEmpty && $0.allSatisfy(\.isHexDigit) } ?? false
+        let want = { (name: String) in suffix == nil || byAddress || name.uppercased().hasSuffix(suffix!) }
+        var tried: [String] = []
+        for attempt in 1...4 {
+            vm.startScan()
+            do {
+                try await wait("device found", 30) { vm.foundDevices.contains(where: want) }
+            } catch {
+                result["found"] = vm.foundDevices             // 名前が合わなかったときに何が見えていたか
+                throw error
+            }
+            vm.selectedDevice = vm.foundDevices.first(where: want)!
+            vm.toggleConnect()
+            try await wait("connected", 30) { vm.phase == .connected }
+            guard byAddress, let suffix else { break }
+            try? await wait("address", 5) { !vm.connectedMacAddress.isEmpty }
+            if vm.connectedMacAddress.uppercased().hasSuffix(suffix) { break }
+            tried.append(vm.connectedMacAddress)             // 同じ名前の別の端末 → 切ってやり直す
+            vm.toggleConnect()
+            try await wait("disconnected", 15) { vm.phase == .idle }
+            if attempt == 4 { result["tried"] = tried; throw CheckFailed(problems: ["device …\(suffix) not reached (got \(tried))"]) }
+            await sleep(2)
+        }
+        if !tried.isEmpty { result["tried"] = tried }
+        result["device"] = vm.selectedDevice
+        result["address"] = vm.connectedMacAddress
+        result["mode"] = standard ? "Standard" : "Full"
+        vm.selectMode = standard ? 0 : Int(MEMEMode_Full) - 1
         vm.transSpeed = 0
         vm.accelRange = 2
         vm.gyroRange = 2
         vm.toggleMeasurement()
         try await wait("measuring") { vm.phase == .measuring }
-        await sleep(8)
-        if try await hasDetector(vm) {                        // 高機能版: 検出器が読み込めて、届いた行に追いついている
+        await sleep(seconds)
+        if try await hasDetector(vm), !standard {             // 高機能版: 検出器が読み込めて、届いた行に追いついている
             try await waitJs(vm, "detector live", 30, "jmasEngine.state === 'ready' && jmasEngine.fed > 0 && jmasEngine.store.n - jmasEngine.fed < 200")
         }
         result["measuring"] = await pageState(vm)
@@ -170,13 +228,21 @@ enum DebugAutoTest {
         let dataLines = text.components(separatedBy: "\n").drop { !$0.hasPrefix("//ARTIFACT") }.dropFirst().filter { !$0.isEmpty }
         result["savedRows"] = dataLines.count
         result["artifactRow"] = dataLines.firstIndex { $0.hasPrefix("autotest,") }.map { $0 - dataLines.startIndex } ?? -1
+        result["savedMode"] = text.components(separatedBy: "\n").first { $0.hasPrefix("// Data mode") }?
+            .split(separator: ":", maxSplits: 1).last?.trimmingCharacters(in: .whitespaces) ?? ""
+        let nums = dataLines.compactMap { Int($0.split(separator: ",", omittingEmptySubsequences: false).dropFirst().first ?? "") }
+        result["numGaps"] = zip(nums, nums.dropFirst()).filter { $1 != $0 + 1 }.count   // 番号(NUM)の抜け・戻り
+        var problems: [String] = []
+        if result["savedMode"] as? String != result["mode"] as? String { problems.append("mode \(result["savedMode"] ?? "") in CSV") }
+        if result["numGaps"] as? Int != 0 { problems.append("NUM has \(result["numGaps"] ?? 0) gaps") }
+        if result["artifactRow"] as? Int != 299 { problems.append("artifact at row \(result["artifactRow"] ?? -1), expected 299") }
 
         // 再生
         vm.toggleConnect()
         try await wait("disconnected") { vm.phase == .idle }
         vm.openReplayFile(url: csv)
         await sleep(4)
-        if try await hasDetector(vm) {                        // 高機能版: 再生したファイルを最後まで解析し終える
+        if try await hasDetector(vm), !standard {             // 高機能版: 再生したファイルを最後まで解析し終える
             try await waitJs(vm, "detector replay", 60, "jmasEngine.finalSent === true")
         }
         result["replay"] = await pageState(vm)
@@ -184,6 +250,7 @@ enum DebugAutoTest {
         await snapshot(vm, "2-replay", out)
         vm.toggleConnect()
         await sleep(0.5)
+        if !problems.isEmpty { throw CheckFailed(problems: problems) }
     }
 
     private static func hasDetector(_ vm: MEMEViewModel) async throws -> Bool {
@@ -240,6 +307,8 @@ enum DebugAutoTest {
         result["zips"] = rows
         result["allOk"] = rows.allSatisfy { $0["ok"] as? Bool == true }
         vm.reloadGraph()
+        let failed = rows.filter { $0["ok"] as? Bool != true }.map { "zip \($0["zip"] ?? "")" }
+        if !failed.isEmpty { throw CheckFailed(problems: failed) }   // どれか 1 つでも NG なら、組全体も ok にしない
     }
 
     // MARK: - 計測条件の切り替え(実機)

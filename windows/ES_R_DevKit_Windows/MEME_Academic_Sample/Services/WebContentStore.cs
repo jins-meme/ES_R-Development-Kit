@@ -112,6 +112,14 @@ public sealed class WebContentStore
         return m;
     }
 
+#if DEBUG
+    /// <summary>選んだ zip の展開先(custom)の場所。自己テストが取り込みの前に退避して戻すため</summary>
+    internal string CustomDirForTest => CustomDir;
+
+    /// <summary>設定と展開先を読み直す(自己テストが custom を戻したあと)</summary>
+    internal void ReloadForTest() => Prepare();
+#endif
+
     /// <summary>同梱の標準版に戻す(取り込んだ zip のフォルダは消す)。</summary>
     public void UseBundled()
     {
