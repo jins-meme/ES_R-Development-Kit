@@ -14,7 +14,8 @@
 import { createViewer } from "./common/viewer.js";
 import { rawSpecs } from "./common/raw_specs.js";
 
-createViewer(document.getElementById("app"), { specs: rawSpecs });
+// グラフの余白は uPlot の既定の 0.4 倍(見出しとグラフの間 17 → 7 px、横軸の帯 50 → 31 px。高機能版と同じ。common/charts.js の layout)
+createViewer(document.getElementById("app"), { specs: rawSpecs, chartLayout: { padTop: 7, xAxisSize: 31 } });
 
 // 開発用(ブラウザで ?dev を付けて開いたときだけ): 模擬の計測・CSV の再生
 if (new URLSearchParams(location.search).has("dev")) import("./common/dev.js");

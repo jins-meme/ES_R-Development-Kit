@@ -83,6 +83,7 @@ export function createViewer(root, hooks) {
     t0: () => ctx.t0 ?? 0,
     onTap: (t) => openArtifactSheet(t),
     onOpenY: (c) => openYSheet(c.spec),
+    layout: hooks.chartLayout,
   });
 
   function fmtTime(t, span) {

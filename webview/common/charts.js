@@ -37,6 +37,7 @@ export class ChartStack {
    *   fmtTime(t, span) 横軸の目盛り
    *   onTap(t)     動かさずに離した(アーティファクト)
    *   onOpenY(chart) 縦の操作パネルを開く(スマホの「↕ 縦」・縦軸のタップ)
+   *   layout       { padTop, xAxisSize } [px]。グラフの上の余白(見出しとの間)と横軸の帯の高さ。無ければ uPlot の既定(ページごとに詰めるとき。createViewer の chartLayout)
    */
   constructor(root, view, opts) {
     this.root = root; this.view = view; this.opts = opts;
@@ -123,12 +124,13 @@ export class ChartStack {
       c.u = new uPlot({
         width: Math.max(200, plot.clientWidth || this.root.clientWidth - 16), height: H,
         legend: { show: false }, pxAlign: 0,
+        ...(this.opts.layout?.padTop != null ? { padding: [this.opts.layout.padTop, null, null, null] } : {}),
         cursor: { y: false, points: { show: false }, drag: { x: false, y: false, setScale: false } },
         scales: { x: { time: false, auto: false }, y: { auto: false },
                   ...Object.fromEntries(Object.entries(spec.scales ?? {}).map(([k, s]) => [k, { auto: false, distr: s.distr ?? 1 }])) },
         axes: [
           // 目盛りの間隔は時刻の文字の幅に合わせる(既定の間隔だと HH:mm:ss が詰まって重なる)
-          { ...axis, incrs: [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600],
+          { ...axis, ...(this.opts.layout?.xAxisSize != null ? { size: this.opts.layout.xAxisSize } : {}), incrs: [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600],
             // 目盛りは時計の切りのよいところ(:15、:20 …)に置く。横軸の値は計測開始からの秒なので、開始時刻のずれを足して揃える
             splits: (u, ai, min, max, incr) => {
               const o = (this.opts.t0?.() ?? 0) / 1000 % 3600, out = [];
