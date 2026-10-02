@@ -75,13 +75,6 @@ public abstract class AcademicData
 
     /// <summary>バッテリーレベル(5 段階)。</summary>
     public int BattLv { get; set; }
-
-    /// <summary>
-    /// このサンプルの記録時刻(UTC)。計測中は受信時刻、ファイル再生中は
-    /// 再生元 CSV の DATE 列から復元する。CSV 出力とチャート X 軸の表示に使う。
-    /// 時刻が分からない場合(DATE 列が壊れている CSV など)は null。
-    /// </summary>
-    public DateTime? RecordedUtc { get; set; }
 }
 
 /// <summary>

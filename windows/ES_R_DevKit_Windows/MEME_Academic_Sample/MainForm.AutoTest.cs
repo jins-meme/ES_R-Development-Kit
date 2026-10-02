@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using MEMELib_Academic;
 using Microsoft.Web.WebView2.Core;
+using MEME_Academic_Sample.Models;
 using MEME_Academic_Sample.Services;
 
 namespace MEME_Academic_Sample;
@@ -13,9 +14,10 @@ namespace MEME_Academic_Sample;
 /// Windows を動かすときなど)から、グラフ画面が動いていることを確かめる。結果(result.json)とスナップショット(PNG)を
 /// 渡したフォルダに書いて、アプリを閉じる。
 ///
-///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|settings] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
+///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|settings|webcrash|reconnect] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
 ///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;] [--probe-live &lt;同&gt;]
 ///                              [--expect &lt;瞬目,EMR,EML[,歩のイベント]&gt;] [--real [--device &lt;アドレスか名前の末尾&gt;]]
+///                              [--socket &lt;ポート&gt; [--socket-stall]]
 ///
 /// - live(既定): 実機の代わりに --csv の行を 100 Hz で受信の口(HandleSample)へ流して「計測 → アーティファクト → 停止 →
 ///   保存した CSV を再生」を回す(BLE には触らない)。--mode standard は同じ値を Standard の形に詰め替えて流す。
@@ -28,6 +30,13 @@ namespace MEME_Academic_Sample;
 ///   --expect を付けると判定数(高機能版)をその値と比べる(golden w-sit-jump-stairs なら 459,1169,1045,2837)。
 /// - zip: --badzips の中の zip を 1 つずつ読み込み、名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、
 ///   展開先の外に何も書かれないことを見る(悪い zip は webview/tools/make_bad_zips.py が作る)。
+/// - webcrash: --csv の行を流して計測している最中と、その CSV を再生している最中に、グラフ画面のプロセスを落とす
+///   (DevTools の Page.crash)。読み込み直したページで計測・再生が続いているか(start / openReplay を送り直したか)を見る。
+/// - reconnect: 計測中に切断 → 繋ぎ直して Start Measurement で計測が始まるか、切断した回の CSV が停止と同じく締められるか
+///   (ファイルが分かれる・NUM が続かない・付けた Artifact が書き戻される)を見る。--real なら実機で、無ければ --csv の行を流し、
+///   切断は端末側から切られたときと同じ口(OnPeripheralDisconnected)を呼ぶ。
+/// --socket はテストの間だけ TCP 出力をそのポートで有効にし、live の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
+/// 同じかを見る。--socket-stall を足すと受け取る側が読まないままにし、送信が詰まっても受信(計測)が止まらないことを見る。
 /// --zip は始める前に設定の Display Engine と同じ経路(WebContentStore.ImportZip)で読み込み、終わったら元に戻す
 /// (もともと選んだ zip を使っていたら、それを退避しておいて戻す。zip の組も同じ)。
 /// 確かめたことが合わなければ result.json の ok が false になり、error に理由が入る。
@@ -71,7 +80,15 @@ public partial class MainForm
         setting.SaveFilePath = csvDir;   // Save はしない(利用者の設定ファイルを書き換えない)
         var wasCustom = webContent.Source == WebContentStore.ContentSource.Custom;
         var usesZips = Arg(args, "--zip") is not null || Arg(args, "--suite") == "zip";
-        var kept = usesZips && wasCustom ? KeepCustom() : null;   // 取り込みで上書きされる前に、選んでいた zip を退避
+        var kept = usesZips && wasCustom ? webContent.CopyCustomAside() : null;   // 取り込みで上書きされる前に、選んでいた zip を退避
+        var savedSocket = (setting.ExternalOutputSocket, setting.LocalPort);
+        if (Arg(args, "--socket") is { } port)
+        {
+            setting.ExternalOutputSocket = true;      // Save はしない(利用者の設定ファイルを書き換えない)
+            setting.LocalPort = port;
+            ApplySettings();
+        }
+
         autoTestErrors = [];
         var sw = Stopwatch.StartNew();
         try
@@ -109,6 +126,12 @@ public partial class MainForm
                 case "replay":
                     await RunReplaySuite(args, dir, result);
                     break;
+                case "webcrash":
+                    await RunWebCrashSuite(args, dir, result);
+                    break;
+                case "reconnect":
+                    await RunReconnectSuite(args, result);
+                    break;
                 default:
                     await RunLiveSuite(args, dir, result);
                     break;
@@ -134,12 +157,17 @@ public partial class MainForm
             result.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         setting.SaveFilePath = savedPath;
         setting.ShowSaveFileDialog = savedDialog;
+        if (Arg(args, "--socket") is not null)
+        {
+            (setting.ExternalOutputSocket, setting.LocalPort) = savedSocket;
+            ApplySettings();
+        }
         if (usesZips)
         {
             // 読み込んだ zip を残さない。もともと選んだ zip を使っていたらそれに戻す
             if (kept is not null)
             {
-                RestoreCustom(kept);
+                webContent.RestoreCustom(kept);
             }
             else
             {
@@ -234,6 +262,14 @@ public partial class MainForm
         await web.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, f);
     }
 
+    /// <summary>ウィンドウ全体(左の欄。グラフ画面の中は写らない)</summary>
+    private void FormSnapshot(string dir, string name)
+    {
+        using var bmp = new Bitmap(Width, Height);
+        DrawToBitmap(bmp, new Rectangle(0, 0, Width, Height));
+        bmp.Save(Path.Combine(dir, name + ".png"));
+    }
+
     /// <summary>ページから送ったのと同じ形でアーティファクトを送る</summary>
     private Task SendArtifact(int i, string text) =>
         Eval($"window.chrome.webview.postMessage({{kind: 'artifact', i: {i}, text: {JsonSerializer.Serialize(text)}}}); 0");
@@ -246,59 +282,24 @@ public partial class MainForm
         return lines.Skip(h + 1).Where(l => l.Trim().Length > 0).Select(l => l.Split(',')).ToList();
     }
 
-    /// <summary>選んでいた zip の展開先(custom)を一時フォルダへ写す</summary>
-    private string? KeepCustom()
+    /// <summary>
+    /// 実機の代わりに CSV の行 [from, from + count) を受信の口(HandleSample)へ実時間で流す(0.01 秒ごと。遅れたら追いつくまでまとめて)。
+    /// 端末カウンタ(Cnt)は行の番号から作るので、続けて呼べば続きの番号になる。
+    /// </summary>
+    private Task Feed(List<string[]> rows, int from, int count, bool standard) => Task.Run(async () =>
     {
-        var src = webContent.CustomDirForTest;
-        var dst = Path.Combine(Path.GetTempPath(), "autotest-custom-" + Guid.NewGuid().ToString("N"));
-        try
+        var t0 = Stopwatch.StartNew();
+        for (var k = 0; k < count && from + k < rows.Count; k++)
         {
-            CopyDir(src, dst);
-            return dst;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Debug.WriteLine($"[AutoTest] keep custom: {e.Message}");
-            return null;
-        }
-
-        static void CopyDir(string from, string to)
-        {
-            Directory.CreateDirectory(to);
-            foreach (var f in Directory.GetFiles(from))
+            var wait = k * 10.0 - t0.Elapsed.TotalMilliseconds;
+            if (wait > 2)
             {
-                File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
+                await Task.Delay(TimeSpan.FromMilliseconds(wait));
             }
 
-            foreach (var d in Directory.GetDirectories(from))
-            {
-                CopyDir(d, Path.Combine(to, Path.GetFileName(d)));
-            }
+            HandleSample(ToSample(rows[from + k], from + k, standard));
         }
-    }
-
-    /// <summary>KeepCustom で写したものを custom へ戻し、選んだ zip を使う設定に戻す</summary>
-    private void RestoreCustom(string kept)
-    {
-        var dst = webContent.CustomDirForTest;
-        try
-        {
-            if (Directory.Exists(dst))
-            {
-                Directory.Delete(dst, recursive: true);
-            }
-
-            Directory.Move(kept, dst);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Debug.WriteLine($"[AutoTest] restore custom: {e.Message}");
-        }
-
-        setting.WebContentSource = "custom";
-        setting.Save();
-        webContent.ReloadForTest();
-    }
+    });
 
     /// <summary>保存した CSV の記録モード(ヘッダの // Data mode)</summary>
     private static string SavedMode(string path) =>
@@ -351,6 +352,7 @@ public partial class MainForm
         result["page"] = web.PageName;
         result["real"] = real;
         await Snapshot(dir, "0-idle");
+        FormSnapshot(dir, "0-idle-form");
 
         if (real)
         {
@@ -361,8 +363,11 @@ public partial class MainForm
             phase = Phase.Connected;                          // BLE は繋がっていないので端末への設定は NG で素通りする
         }
 
+        // --socket: 計測を始める前に繋いでおく(計測開始のときにヘッダが届く)
+        using var socket = await SocketReceiver.ConnectAsync(args);
+
         // Full(または Standard)・100Hz・±8G・±1000dps で計測
-        mode = standard ? MEMEMode.Standard : MEMEMode.Full;
+        mode = standard ? MeasurementMode.Standard : MeasurementMode.Full;
         quality = MEMEQuality.High;
         accelRange = MEMEAccelRange.Range8G;
         gyroRange = MEMEGyroRange.Range1000dps;
@@ -371,22 +376,7 @@ public partial class MainForm
 
         var rows = real ? new List<string[]>() : DataRows(csv!);
         var n = real ? 0 : Math.Min(rows.Count, (int)(seconds * 100));
-        var feeder = real ? Task.Delay(TimeSpan.FromSeconds(seconds)) : Task.Run(async () =>
-        {
-            var t0 = Stopwatch.StartNew();
-            for (var k = 0; k < n; k++)
-            {
-                // 実時間で流す(0.01 秒ごと。遅れたら追いつくまでまとめて)
-                var due = k * 10.0;
-                var wait = due - t0.Elapsed.TotalMilliseconds;
-                if (wait > 2)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(wait));
-                }
-
-                HandleSample(ToSample(rows[k], k, standard));
-            }
-        });
+        var feeder = real ? Task.Delay(TimeSpan.FromSeconds(seconds)) : Feed(rows, 0, n, standard);
         // --probe-live は流している最中に評価する(描画の滑らかさを測るときなど)
         await Sleep(Math.Min(3, seconds / 4));
         result["probeLive"] = await Probe(args, "--probe-live");
@@ -411,7 +401,7 @@ public partial class MainForm
         // アーティファクト(サンプル 300 = CSV の 299 行目)
         await SendArtifact(300, "autotest");
         await Sleep(0.5);
-        result["pendingArtifacts"] = pendingArtifacts.Count;
+        result["pendingArtifacts"] = artifacts.Count;
 
         StopMeasurement();
         await Sleep(1);
@@ -454,6 +444,11 @@ public partial class MainForm
             problems.Add($"only {data.Count} rows for {seconds} s");
         }
 
+        if (socket is not null)
+        {
+            problems.AddRange(await socket.Check(saved, lb_SocketStatus.Text, result));
+        }
+
         // 保存した CSV を再生
         if (real)
         {
@@ -473,6 +468,12 @@ public partial class MainForm
         result["replay"] = await PageState();
         result["probeReplay"] = await Probe(args);
         await Snapshot(dir, "2-replay");
+        FormSnapshot(dir, "2-replay-form");        // 左の欄が CSV の記録条件(Full・100Hz・±8G・±1000dps)になっている
+        result["replayConditions"] = $"{cb_SelectMode.Text} {cb_TransSpeed.Text} {cb_AccelRange.Text} {cb_GyroRange.Text}";
+        if (!real && result["replayConditions"]!.GetValue<string>() != $"{wantMode} 100Hz ±8G ±1000dps")
+        {
+            problems.Add($"conditions after replay-info: {result["replayConditions"]}");
+        }
 
         // 再生中に付けたアーティファクトの書き戻し(Save Artifacts = 500 行目、Disconnect = 600 行目)
         var changed = await ReplayWriteBack(saved, 500, 600, result);
@@ -586,6 +587,262 @@ public partial class MainForm
         {
             throw new CheckFailed(problems);
         }
+    }
+
+    #endregion
+
+    #region webcrash(グラフ画面のプロセスが落ちたとき)
+
+    /// <summary>
+    /// 計測中・再生中に WebView のプロセスを落とし、読み込み直したページで計測・再生が続いているか
+    /// (以前は読み込み直しで start / openReplay が送り直されず、グラフ画面が空のままだった)。
+    /// </summary>
+    private async Task RunWebCrashSuite(string[] args, string dir, JsonObject result)
+    {
+        var rows = DataRows(Arg(args, "--csv") ?? throw new ArgumentException("--csv is required"));
+        await Wait("page ready", 30, () => web.IsReady);
+        phase = Phase.Connected;
+        mode = MeasurementMode.Full;
+        quality = MEMEQuality.High;
+        StartMeasurement();
+        var feeder = Feed(rows, 0, 800, standard: false);
+        await Sleep(2);
+        await CrashPage("live");
+        await Sleep(3);
+        var live = await PageState();
+        result["live"] = live;
+        await Snapshot(dir, "crash-live");
+        await feeder;
+        StopMeasurement();
+        await Sleep(1);
+        var saved = persistence.CurrentFilePath ?? throw new TestTimeout("saved csv");
+
+        phase = Phase.Idle;
+        LoadReplayFile(saved);
+        await Sleep(3);
+        await CrashPage("replay");
+        await Sleep(3);
+        var replay = await PageState();
+        result["replay"] = replay;
+        await Snapshot(dir, "crash-replay");
+        EndReplaySession();
+
+        // ステータスの行は、start / openReplay を受けたときだけ計測の名前・ファイル名と計測条件を出す
+        var problems = new List<string>();
+        var liveStatus = live?["status"]?.GetValue<string>() ?? "";
+        var replayStatus = replay?["status"]?.GetValue<string>() ?? "";
+        if (!liveStatus.Contains("JINS MEME", StringComparison.Ordinal) || !liveStatus.Contains("100 Hz", StringComparison.Ordinal))
+        {
+            problems.Add($"live not resumed: {liveStatus}");
+        }
+
+        if (!replayStatus.Contains(Path.GetFileName(saved), StringComparison.Ordinal))
+        {
+            problems.Add($"replay not resumed: {replayStatus}");
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new CheckFailed(problems);
+        }
+    }
+
+    /// <summary>ページのプロセスを落とし(ProcessFailed が呼ばれる)、読み込み直して ready になるまで待つ</summary>
+    private async Task CrashPage(string what)
+    {
+        var readies = web.ReadyCount;
+        // 落ちたページからは返事が来ないので待たない
+        _ = web.WebView.CoreWebView2.CallDevToolsProtocolMethodAsync("Page.crash", "{}")
+            .ContinueWith(t => _ = t.Exception, TaskScheduler.Default);
+        await Wait($"page ready after crash ({what})", 30, () => web.ReadyCount > readies && web.IsReady);
+    }
+
+    #endregion
+
+    #region reconnect(計測中の切断)
+
+    /// <summary>
+    /// 計測中に切断されたあと、繋ぎ直して Start Measurement で計測が始まるか。切断した回も停止と同じく締められ
+    /// (CSV が分かれ、NUM が続かない)、付けた Artifact が書き戻されるか。
+    /// </summary>
+    private async Task RunReconnectSuite(string[] args, JsonObject result)
+    {
+        var real = args.Contains("--real");
+        var rows = real ? new List<string[]>() : DataRows(Arg(args, "--csv") ?? throw new ArgumentException("--csv is required (or --real)"));
+        await Wait("page ready", 30, () => web.IsReady);
+        mode = MeasurementMode.Full;
+        quality = MEMEQuality.High;
+        for (var round = 1; round <= 2; round++)
+        {
+            if (real)
+            {
+                if (round == 1)
+                {
+                    await ConnectReal(Arg(args, "--device"), result);
+                }
+                else
+                {
+                    bt_Connect_Click(this, EventArgs.Empty);     // 一覧に残っている同じ端末へ
+                    await Wait($"connected {round}", 30, () => phase == Phase.Connected);
+                    await Sleep(2);
+                }
+            }
+            else
+            {
+                phase = Phase.Connected;
+            }
+
+            // 画面の Start Measurement と同じ口(以前は切断の後で停止として扱われた)
+            bt_Measurement_Click(this, EventArgs.Empty);
+            if (phase != Phase.Measuring)
+            {
+                throw new CheckFailed([$"round {round}: phase {phase} after Start Measurement"]);
+            }
+
+            if (real)
+            {
+                await Sleep(3);
+            }
+            else
+            {
+                await Feed(rows, (round - 1) * 300, 300, standard: false);
+            }
+
+            if (round == 2)
+            {
+                break;
+            }
+
+            // サンプル 50 = CSV の 49 行目。切断で締めたときに書き戻されるか
+            await SendArtifact(50, "cut");
+            await Sleep(0.3);
+            // 端末側から切られたときと同じく、計測を止めずに切る(画面からは計測中に切断できない)
+            if (real)
+            {
+                memeLib.disconnectPeripheral();
+            }
+            else
+            {
+                OnPeripheralDisconnected(memeLib, MEMEStatus.MEMELIB_NG);
+            }
+
+            await Wait("disconnected", 15, () => phase is Phase.Idle or Phase.DeviceFound);
+            await Sleep(1);
+            result["phaseAfterDisconnect"] = phase.ToString();
+        }
+
+        StopMeasurement();
+        await Sleep(1);
+        if (real)
+        {
+            memeLib.disconnectPeripheral();
+            await Wait("disconnected at end", 15, () => phase is Phase.Idle or Phase.DeviceFound);
+        }
+
+        // 保存先の CSV(作った順)
+        var csvs = Directory.GetFiles(setting.SaveFilePath).Where(CsvFile.IsSupported).OrderBy(File.GetCreationTimeUtc).ToList();
+        var problems = new List<string>();
+        var files = new JsonArray();
+        string? row49 = null;
+        foreach (var csv in csvs)
+        {
+            var data = DataRows(csv);
+            var gaps = NumGaps(data);
+            var name = Path.GetFileName(csv);
+            files.Add(new JsonObject
+            {
+                ["name"] = name, ["rows"] = data.Count, ["numGaps"] = gaps,
+                ["firstNum"] = data.Count > 0 ? data[0][1] : "", ["row49"] = data.Count > 49 ? data[49][0] : "?",
+                ["headers"] = CsvFile.ReadAllLines(csv).Count(l => l.StartsWith("//ARTIFACT", StringComparison.Ordinal)),
+            });
+            row49 ??= data.Count > 49 ? data[49][0] : "?";
+            if (gaps != 0)
+            {
+                problems.Add($"{name}: NUM has {gaps} gaps");
+            }
+        }
+
+        result["csvs"] = files;
+        if (csvs.Count != 2)
+        {
+            problems.Add($"{csvs.Count} CSV files, expected 2 (one per measurement)");
+        }
+
+        if (row49 != "cut")
+        {
+            problems.Add($"artifact of the cut measurement: {row49}");
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new CheckFailed(problems);
+        }
+    }
+
+    #endregion
+
+    #region --socket(TCP 出力)
+
+    /// <summary>テストの間だけ TCP 出力を受け取る(--socket)。--socket-stall なら読まずに送信を詰まらせる。</summary>
+    private sealed class SocketReceiver : IDisposable
+    {
+        private readonly System.Net.Sockets.TcpClient client;
+        private readonly bool stall;
+        private readonly Task<string> reading;
+
+        private SocketReceiver(System.Net.Sockets.TcpClient client, bool stall)
+        {
+            this.client = client;
+            this.stall = stall;
+            reading = stall ? Task.FromResult("") : Task.Run(async () =>
+            {
+                using var reader = new StreamReader(client.GetStream());
+                return await reader.ReadToEndAsync();
+            });
+        }
+
+        public static async Task<SocketReceiver?> ConnectAsync(string[] args)
+        {
+            if (Arg(args, "--socket") is not { } port)
+            {
+                return null;
+            }
+
+            var stall = args.Contains("--socket-stall");
+            // 読まない側は受信の窓を小さくして、送信をすぐ詰まらせる
+            var client = new System.Net.Sockets.TcpClient { ReceiveBufferSize = stall ? 256 : 1 << 16 };
+            await client.ConnectAsync("127.0.0.1", int.Parse(port, System.Globalization.CultureInfo.InvariantCulture));
+            await Sleep(0.5);                                 // 受け付けられる(Accepted)まで
+            return new SocketReceiver(client, stall);
+        }
+
+        /// <summary>計測を止めた後に呼ぶ。届いたもの(ヘッダと行)が保存した CSV と同じか</summary>
+        public async Task<List<string>> Check(string saved, string status, JsonObject result)
+        {
+            result["socketStatus"] = status;
+            if (stall)
+            {
+                // 詰まったクライアントは切られ、計測(受信)は止まらない(行数・NUM の抜けは呼び出し側が見る)
+                return status.Contains("Disconnected", StringComparison.Ordinal) ? [] : [$"stalled client was not dropped: {status}"];
+            }
+
+            client.Client.Shutdown(System.Net.Sockets.SocketShutdown.Send);
+            await Sleep(1);
+            client.Close();                                   // 読み取りを終わらせる(届いた分は読み終えている)
+            var text = await reading.ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : "", TaskScheduler.Default);
+            // ARTIFACT 列は比べない(ページで付けた Artifact は停止したときに CSV へだけ書き戻すので)
+            static string WithoutArtifact(string line) => line.IndexOf(',') is var k and >= 0 ? line[k..] : line;
+            var received = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Select(WithoutArtifact).ToArray();
+            var file = CsvFile.ReadAllLines(saved).Where(l => l.Length > 0).Select(WithoutArtifact).ToArray();
+            result["socketLines"] = received.Length;
+            result["csvLines"] = file.Length;
+            var firstDiff = Enumerable.Range(0, Math.Min(received.Length, file.Length)).FirstOrDefault(k => received[k] != file[k], -1);
+            return received.SequenceEqual(file)
+                ? []
+                : [$"TCP output ({received.Length} lines) differs from the CSV ({file.Length} lines) at line {firstDiff}"];
+        }
+
+        public void Dispose() => client.Dispose();
     }
 
     #endregion

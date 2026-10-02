@@ -113,11 +113,57 @@ public sealed class WebContentStore
     }
 
 #if DEBUG
-    /// <summary>選んだ zip の展開先(custom)の場所。自己テストが取り込みの前に退避して戻すため</summary>
-    internal string CustomDirForTest => CustomDir;
+    /// <summary>
+    /// 自己テストが zip を取り込む前に、選んでいた zip の展開先(custom)を一時フォルダへ写す(取り込みで上書きされるため)。
+    /// 写せなければ null。<see cref="RestoreCustom"/> で戻す。
+    /// </summary>
+    internal string? CopyCustomAside()
+    {
+        var dst = Path.Combine(Path.GetTempPath(), "autotest-custom-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            CopyDir(CustomDir, dst);
+            return dst;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log($"copy custom aside: {e.Message}");
+            TryDelete(dst);
+            return null;
+        }
 
-    /// <summary>設定と展開先を読み直す(自己テストが custom を戻したあと)</summary>
-    internal void ReloadForTest() => Prepare();
+        static void CopyDir(string from, string to)
+        {
+            Directory.CreateDirectory(to);
+            foreach (var f in Directory.GetFiles(from))
+            {
+                File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
+            }
+
+            foreach (var d in Directory.GetDirectories(from))
+            {
+                CopyDir(d, Path.Combine(to, Path.GetFileName(d)));
+            }
+        }
+    }
+
+    /// <summary><see cref="CopyCustomAside"/> で写したものを custom へ戻し、選んだ zip を使う設定に戻す。</summary>
+    internal void RestoreCustom(string kept)
+    {
+        TryDelete(CustomDir);
+        try
+        {
+            Directory.Move(kept, CustomDir);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log($"restore custom: {e.Message}");
+        }
+
+        setting.WebContentSource = "custom";
+        setting.Save();
+        Prepare();
+    }
 #endif
 
     /// <summary>同梱の標準版に戻す(取り込んだ zip のフォルダは消す)。</summary>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MEMELib_Academic;
+using MEME_Academic_Sample.Models;
 using MEME_Academic_Sample.Services;
 using MEME_Academic_Sample.Utility;
 
@@ -13,21 +14,6 @@ namespace MEME_Academic_Sample;
 /// </summary>
 public partial class MainForm : Form
 {
-    private static readonly MEMEMode[] SelectableModes =
-        [MEMEMode.Standard, MEMEMode.Full, MEMEMode.Quaternion];
-
-    /// <summary>accelRange / gyroRange の番号 → g / dps(グラフの換算に渡す)</summary>
-    private static readonly int[] AccelG = [2, 4, 8, 16];
-
-    private static readonly int[] GyroDps = [250, 500, 1000, 2000];
-
-    /// <summary>各モードで 1 サンプルぶんとしてページへ渡す列(CSV の列名と同じ)。</summary>
-    private static readonly string[] FullColumns =
-        ["ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V"];
-
-    private static readonly string[] StandardColumns =
-        ["ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2", "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2"];
-
     /// <summary>Disconnect を押しっぱなしにして Shelf mode の確認ダイアログが出るまでの時間。</summary>
     private const int ShelfLongPressMs = 5000;
 
@@ -57,11 +43,8 @@ public partial class MainForm : Form
     /// </summary>
     private bool suppressConnectClick;
 
-    /// <summary>
-    /// ページで付けた未書き戻しの Artifact(計測中はサンプル番号、再生中は CSV のデータ行の番号 → 文字列)。
-    /// 計測停止時・再生の Save Artifacts / Disconnect で CSV の ARTIFACT 列へ書き戻す。
-    /// </summary>
-    private readonly Dictionary<int, string> pendingArtifacts = [];
+    /// <summary>ページで付けた未書き戻しの Artifact。計測停止時・再生の Save Artifacts / Disconnect で CSV へ書き戻す。</summary>
+    private readonly ArtifactBuffer artifacts = new();
 
     /// <summary>
     /// 計測中のサンプル番号(計測開始から 0, 1, 2 …。先頭パケットも数える)。グラフ画面へ渡し、
@@ -76,7 +59,7 @@ public partial class MainForm : Form
     /// <summary>再生中の CSV(ページが読んで再生する)</summary>
     private string? replayFile;
 
-    private MEMEMode mode = MEMEMode.Full;
+    private MeasurementMode mode = MeasurementMode.Full;
     private MEMEQuality quality = MEMEQuality.High;
     private MEMEAccelRange accelRange = MEMEAccelRange.Range2G;
     private MEMEGyroRange gyroRange = MEMEGyroRange.Range250dps;
@@ -165,27 +148,42 @@ public partial class MainForm : Form
 
     #region Setup
 
+    /// <summary>左の欄の選択肢。番号はそれぞれ MeasurementMode.All / MeasurementRange の表の並び。</summary>
     private void SetupOptions()
     {
-        cb_SelectMode.Items.AddRange(["Standard", "Full", "Quaternion"]);
-        cb_SelectMode.SelectedIndex = Array.IndexOf(SelectableModes, MEMEMode.Full);
+        cb_SelectMode.Items.AddRange([.. MeasurementMode.All.Select(m => m.Label)]);
         cb_SelectMode.SelectedIndexChanged += (_, _) =>
-            mode = SelectableModes[cb_SelectMode.SelectedIndex];
+            mode = MeasurementMode.All[cb_SelectMode.SelectedIndex];
 
-        cb_TransSpeed.Items.AddRange(["100Hz", "50Hz"]);
-        cb_TransSpeed.SelectedIndex = 0;
+        cb_TransSpeed.Items.AddRange([.. MeasurementRange.Qualities.Select(MeasurementRange.HzLabel)]);
         cb_TransSpeed.SelectedIndexChanged += (_, _) =>
-            quality = cb_TransSpeed.SelectedIndex == 0 ? MEMEQuality.High : MEMEQuality.Low;
+            quality = MeasurementRange.Qualities[cb_TransSpeed.SelectedIndex];
 
-        cb_AccelRange.Items.AddRange(["±2G", "±4G", "±8G", "±16G"]);
-        cb_AccelRange.SelectedIndex = 0;
+        cb_AccelRange.Items.AddRange([.. MeasurementRange.AccelG.Select(MeasurementRange.AccelLabel)]);
         cb_AccelRange.SelectedIndexChanged += (_, _) =>
             accelRange = (MEMEAccelRange)cb_AccelRange.SelectedIndex;
 
-        cb_GyroRange.Items.AddRange(["±250dps", "±500dps", "±1000dps", "±2000dps"]);
-        cb_GyroRange.SelectedIndex = 0;
+        cb_GyroRange.Items.AddRange([.. MeasurementRange.GyroDps.Select(MeasurementRange.GyroLabel)]);
         cb_GyroRange.SelectedIndexChanged += (_, _) =>
             gyroRange = (MEMEGyroRange)cb_GyroRange.SelectedIndex;
+
+        ShowConditions();
+    }
+
+    /// <summary>
+    /// mode / quality / accelRange / gyroRange を左の欄に出す。表に無い値(端末が返した見慣れない値など)は
+    /// 選べる範囲に丸めてから出す(選択の変更で値は同じものに書き戻る)。
+    /// </summary>
+    private void ShowConditions()
+    {
+        quality = quality == MEMEQuality.Low ? MEMEQuality.Low : MEMEQuality.High;
+        accelRange = (MEMEAccelRange)Math.Clamp((int)accelRange, 0, cb_AccelRange.Items.Count - 1);
+        gyroRange = (MEMEGyroRange)Math.Clamp((int)gyroRange, 0, cb_GyroRange.Items.Count - 1);
+
+        cb_SelectMode.SelectedIndex = MeasurementMode.All.ToList().IndexOf(mode);
+        cb_TransSpeed.SelectedIndex = MeasurementRange.Qualities.ToList().IndexOf(quality);
+        cb_AccelRange.SelectedIndex = (int)accelRange;
+        cb_GyroRange.SelectedIndex = (int)gyroRange;
     }
 
     /// <summary>Setting の内容をチャート・TCP 出力へ反映する。</summary>
@@ -242,27 +240,22 @@ public partial class MainForm : Form
     {
         if (result == MEMEStatus.MEMELIB_OK)
         {
-            // 端末が保持している設定を画面へ反映する。
-            mode = memeLib.getMode();
-            quality = memeLib.getQuality();
-            accelRange = memeLib.getAccelRange();
-            gyroRange = memeLib.getGyroRange();
-
             RunOnUi(() =>
             {
+                // 端末が保持している設定を画面へ反映する(表に無い値なら今の選択のまま)。
+                if (MeasurementMode.All.FirstOrDefault(m => m.Device == memeLib.getMode()) is { } deviceMode)
+                {
+                    mode = deviceMode;
+                }
+
+                quality = memeLib.getQuality();
+                accelRange = memeLib.getAccelRange();
+                gyroRange = memeLib.getGyroRange();
+                ShowConditions();
+
                 phase = Phase.Connected;
                 lb_ConnectionState.Text = "State : Connected";
                 lb_MemeVersion.Text = $"MEME Version：{memeLib.getFWVersion()}";
-
-                var modeIndex = Array.IndexOf(SelectableModes, mode);
-                if (modeIndex >= 0)
-                {
-                    cb_SelectMode.SelectedIndex = modeIndex;
-                }
-
-                cb_TransSpeed.SelectedIndex = quality == MEMEQuality.High ? 0 : 1;
-                cb_AccelRange.SelectedIndex = (int)accelRange;
-                cb_GyroRange.SelectedIndex = (int)gyroRange;
                 UpdateUiState();
             });
         }
@@ -286,7 +279,7 @@ public partial class MainForm : Form
 
         RunOnUi(() =>
         {
-            // pendingArtifacts は UI スレッドで持つので、書き戻しもここで(CSV は上で閉じ済み)
+            // Artifact は UI スレッドで持つので、書き戻しもここで(CSV は上で閉じ済み)
             FlushLiveArtifacts();
             if (wasMeasuring)
             {
@@ -314,15 +307,19 @@ public partial class MainForm : Form
     /// <summary>Standard / Full / Quaternion で共通の受信処理(受信スレッド)。</summary>
     private void HandleSample(AcademicData data)
     {
-        data.RecordedUtc = DateTime.UtcNow;
+        var recordedUtc = DateTime.UtcNow;
         var measuring = phase == Phase.Measuring;
 
-        // グラフへは先頭パケットも渡す(サンプル番号は計測開始からの全パケットの通し番号。BRIDGE.md の push)
+        // グラフへは先頭パケットも渡す(サンプル番号は計測開始からの全パケットの通し番号。BRIDGE.md の push)。
+        // 値は start の columns の並び。モードと違う型のサンプルは渡さない
         var i = -1;
         if (measuring)
         {
             i = liveSampleIndex++;
-            PushToGraph(data, i);
+            if (mode.HasGraph && mode.Values(data) is { } values)
+            {
+                web.Push(i, values);
+            }
         }
 
         // 1 件目は端末カウンタの基準取得だけに使い、記録しない。
@@ -340,26 +337,12 @@ public partial class MainForm : Form
 
         var freeMarking = isFreeMarking;
         isFreeMarking = false;
-        persistence.Append(data, stats.TotalCount, freeMarking);
+        persistence.Append(data, stats.TotalCount, recordedUtc, freeMarking);
 
         // CSV に X を書いた行と同じサンプル位置へ印を出す(Quaternion はグラフが無いので出さない)
-        if (freeMarking && data is not AcademicQuaternionData)
+        if (freeMarking && mode.HasGraph)
         {
             RunOnUi(() => web.Mark(i, "X"));
-        }
-    }
-
-    /// <summary>1 サンプルをグラフ画面へ(値は start の columns の並び)。</summary>
-    private void PushToGraph(AcademicData data, int i)
-    {
-        switch (data)
-        {
-            case AcademicFullData f:
-                web.Push(i, [f.AccX, f.AccY, f.AccZ, f.GyroX, f.GyroY, f.GyroZ, f.EogL, f.EogR, f.EogH, f.EogV]);
-                break;
-            case AcademicStandardData d:
-                web.Push(i, [d.AccX, d.AccY, d.AccZ, d.EogL1, d.EogR1, d.EogL2, d.EogR2, d.EogH1, d.EogH2, d.EogV1, d.EogV2]);
-                break;
         }
     }
 
@@ -612,18 +595,18 @@ public partial class MainForm : Form
 
     private void StartMeasurement()
     {
-        memeLib.setMode(mode, quality);
+        memeLib.setMode(mode.Device, quality);
         memeLib.setAccelRange(accelRange);
         memeLib.setGyroRange(gyroRange);
 
         stats.Reset();
         stats.StartMeasurement((int)quality);
         isFreeMarking = false;
-        pendingArtifacts.Clear();
+        artifacts.Clear();
 
         var header = DataPersistenceService.BuildHeader(mode, quality, accelRange, gyroRange);
         persistence.Begin(
-            setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, quality, setting.CompressSaveFile);
+            setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, mode, quality, setting.CompressSaveFile);
         tcpServer.SetHeader(header);
 
         liveSampleIndex = 0;
@@ -756,21 +739,11 @@ public partial class MainForm : Form
     {
         var cond = DisplayOptions();
         cond["label"] = cb_DeviceList.SelectedItem is MEMEDevice d && d.Name.Length > 0 ? d.Name : "JINS MEME";
-        cond["mode"] = mode switch
-        {
-            MEMEMode.Full => "full",
-            MEMEMode.Quaternion => "quaternion",
-            _ => "standard",
-        };
-        cond["cps"] = quality == MEMEQuality.High ? 100 : 50;
-        cond["accRange"] = AccelG[Math.Clamp((int)accelRange, 0, 3)];
-        cond["gyroRange"] = GyroDps[Math.Clamp((int)gyroRange, 0, 3)];
-        cond["columns"] = mode switch
-        {
-            MEMEMode.Full => FullColumns,
-            MEMEMode.Standard => StandardColumns,
-            _ => Array.Empty<string>(),
-        };
+        cond["mode"] = mode.PageName;
+        cond["cps"] = MeasurementRange.Hz(quality);
+        cond["accRange"] = MeasurementRange.G(accelRange);
+        cond["gyroRange"] = MeasurementRange.Dps(gyroRange);
+        cond["columns"] = mode.HasGraph ? mode.Columns : Array.Empty<string>();
         cond["startedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         return cond;
     }
@@ -818,7 +791,7 @@ public partial class MainForm : Form
         }
 
         replayFile = path;
-        pendingArtifacts.Clear();
+        artifacts.Clear();
         lb_ConnectionState.Text = $"State : {Path.GetFileName(path)}";
         phase = Phase.Replaying;
         web.OpenReplay(path, DisplayOptions());
@@ -833,33 +806,28 @@ public partial class MainForm : Form
             return;
         }
 
-        var modeName = info.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
-        var modeIndex = modeName switch
+        if (MeasurementMode.FromPageName(
+                info.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null) is { } replayMode)
         {
-            "standard" => Array.IndexOf(SelectableModes, MEMEMode.Standard),
-            "full" => Array.IndexOf(SelectableModes, MEMEMode.Full),
-            "quaternion" => Array.IndexOf(SelectableModes, MEMEMode.Quaternion),
-            _ => -1,
-        };
-        if (modeIndex >= 0)
-        {
-            cb_SelectMode.SelectedIndex = modeIndex;
+            mode = replayMode;
         }
 
         if (info.TryGetProperty("cps", out var c) && c.TryGetInt32(out var cps))
         {
-            cb_TransSpeed.SelectedIndex = cps == 100 ? 0 : 1;
+            quality = MeasurementRange.QualityOf(cps);
         }
 
-        if (info.TryGetProperty("accRange", out var a) && a.TryGetInt32(out var g) && Array.IndexOf(AccelG, g) is var k and >= 0)
+        if (info.TryGetProperty("accRange", out var a) && a.TryGetInt32(out var g) && MeasurementRange.AccelRangeOf(g) is { } acc)
         {
-            cb_AccelRange.SelectedIndex = k;
+            accelRange = acc;
         }
 
-        if (info.TryGetProperty("gyroRange", out var y) && y.TryGetInt32(out var dps) && Array.IndexOf(GyroDps, dps) is var j and >= 0)
+        if (info.TryGetProperty("gyroRange", out var y) && y.TryGetInt32(out var dps) && MeasurementRange.GyroRangeOf(dps) is { } gyro)
         {
-            cb_GyroRange.SelectedIndex = j;
+            gyroRange = gyro;
         }
+
+        ShowConditions();
     }
 
     /// <summary>Save Artifacts: 再生中に付けた Artifact を、今すぐ再生元 CSV へ書き戻す(再生は続ける)。</summary>
@@ -896,10 +864,7 @@ public partial class MainForm : Form
 
     #region Artifact
 
-    /// <summary>
-    /// ページで付けた Artifact を控える(UI スレッド)。空なら "X"、カンマ/改行は列崩れ防止のため空白に(同じ行は上書き)。
-    /// 表計算ソフトで数式として読まれる書き出し(= + - @)は受けない(CSV 注入。ページも入力時に断る。webview/BRIDGE.md)。
-    /// </summary>
+    /// <summary>ページで付けた Artifact を控える(UI スレッド)。計測中・再生中だけ。</summary>
     private void ReceiveArtifact(int i, string text)
     {
         if (phase is not (Phase.Replaying or Phase.Measuring))
@@ -907,25 +872,12 @@ public partial class MainForm : Form
             return;
         }
 
-        var sanitized = text.Replace(',', ' ').Replace('\n', ' ').Replace('\r', ' ').Trim(' ');
-        if (sanitized.Length > 64)
+        if (!artifacts.Add(i, text))
         {
-            sanitized = sanitized[..64];
+            System.Diagnostics.Debug.WriteLine($"[Artifact] refused (formula-like): {text}");
         }
-
-        if (sanitized.Length > 0 && "=+-@".Contains(sanitized[0]))
-        {
-            System.Diagnostics.Debug.WriteLine($"[Artifact] refused (formula-like): {sanitized}");
-            return;
-        }
-
-        pendingArtifacts[Math.Max(i, 0)] = sanitized.Length == 0 ? "X" : sanitized;
     }
 
-    /// <summary>
-    /// 再生中に付けた Artifact を再生元 CSV の ARTIFACT 列へ書き戻す(Save Artifacts / Disconnect)。
-    /// キーは CSV のデータ行の番号(ページが返す番号そのまま)。
-    /// </summary>
     /// <summary>Artifact を書き戻せなかったことを知らせる(自己テストの間は結果に残し、ダイアログで止めない)</summary>
     private void ReportArtifactWriteError(Exception e)
     {
@@ -940,48 +892,36 @@ public partial class MainForm : Form
             MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
+    /// <summary>再生中に付けた Artifact を再生元 CSV の ARTIFACT 列へ書き戻す(Save Artifacts / Disconnect)。</summary>
     private void FlushReplayArtifacts()
     {
-        if (pendingArtifacts.Count == 0 || replayFile is null)
+        var rows = artifacts.TakeReplayRows();
+        if (replayFile is not null)
         {
-            return;
+            WriteArtifacts(replayFile, rows);
         }
-
-        try
-        {
-            CsvArtifactWriter.Apply(replayFile, pendingArtifacts);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            ReportArtifactWriteError(e);
-        }
-
-        pendingArtifacts.Clear();
     }
 
-    /// <summary>
-    /// 計測中に付けた Artifact を、保存した CSV の ARTIFACT 列へ書き戻す(停止時)。
-    /// pendingArtifacts のキーはサンプル番号。CSV は先頭パケットを 1 件落とすため、
-    /// データ行 = サンプル番号 − 1(サンプル 0 は CSV に無いので除く)。
-    /// </summary>
+    /// <summary>計測中に付けた Artifact を、保存した CSV の ARTIFACT 列へ書き戻す(停止時・切断時)。</summary>
     private void FlushLiveArtifacts()
     {
-        if (pendingArtifacts.Count == 0)
+        var rows = artifacts.TakeLiveRows();
+        if (persistence.CurrentFilePath is { } path && File.Exists(path))
         {
-            return;
+            WriteArtifacts(path, rows);
         }
+    }
 
-        var path = persistence.CurrentFilePath;
-        var rowKeyed = pendingArtifacts.Where(kv => kv.Key >= 1).ToDictionary(kv => kv.Key - 1, kv => kv.Value);
-        pendingArtifacts.Clear();
-        if (path is null || !File.Exists(path))
+    private void WriteArtifacts(string path, Dictionary<int, string> rows)
+    {
+        if (rows.Count == 0)
         {
             return;
         }
 
         try
         {
-            CsvArtifactWriter.Apply(path, rowKeyed);
+            CsvArtifactWriter.Apply(path, rows);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {

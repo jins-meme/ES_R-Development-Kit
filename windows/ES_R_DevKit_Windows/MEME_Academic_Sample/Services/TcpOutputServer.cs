@@ -10,6 +10,9 @@ namespace MEME_Academic_Sample.Services;
 /// </summary>
 public sealed class TcpOutputServer : IDisposable
 {
+    /// <summary>1 回の送信を待つ上限。これを超えたクライアントは切る。</summary>
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(1);
+
     private readonly Lock _gate = new();
 
     private TcpListener? _listener;
@@ -154,6 +157,9 @@ public sealed class TcpOutputServer : IDisposable
                 }
 
                 CloseClientCore();
+                // 送信は BLE の受信スレッドから行う。読まないクライアントで送信バッファが埋まっても、
+                // 受信を止めたままにしない(時間切れで書き込みが失敗し、そのクライアントを切る)。
+                client.SendTimeout = (int)SendTimeout.TotalMilliseconds;
                 _client = client;
                 _stream = client.GetStream();
                 header = _header;

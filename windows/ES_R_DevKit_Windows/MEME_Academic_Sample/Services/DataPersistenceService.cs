@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using MEMELib_Academic;
+using MEME_Academic_Sample.Models;
 
 namespace MEME_Academic_Sample.Services;
 
@@ -12,12 +13,19 @@ public sealed class DataPersistenceService : IDisposable
 {
     private const string DateFormat = "yyyy/MM/dd HH:mm:ss.ff";
 
+    /// <summary>
+    /// 数値と日時はこの書式で書く。現在のカルチャに任せると、スウェーデン語などでは負の数が U+2212(−)に、
+    /// タイ語・アラビア語では年が仏暦・ヒジュラ暦になり、Mac 版・Android 版・グラフ画面で読めない CSV になる。
+    /// </summary>
+    private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+
     private readonly Lock _gate = new();
     private readonly List<string> _pendingRows = [];
 
     private string? _directory;
     private string? _fileName;
     private string? _header;
+    private MeasurementMode _mode = MeasurementMode.Full;
     private int _flushThreshold = 100;
 
     /// <summary>書き出し中の CSV のパス。まだ 1 件も書き出していなければ null。</summary>
@@ -31,23 +39,28 @@ public sealed class DataPersistenceService : IDisposable
     /// gz 圧縮して保存するか(Setting の Save Format)。拡張子で圧縮の有無が決まり、
     /// 読み込み側は設定に関係なく .csv / .csv.gz の両方を受け付ける。
     /// </param>
-    public void Begin(string directory, string macAddress, string header, MEMEQuality quality, bool compressed)
+    public void Begin(string directory, string macAddress, string header, MeasurementMode mode, MEMEQuality quality, bool compressed)
     {
         lock (_gate)
         {
             _pendingRows.Clear();
             _directory = directory;
             _header = header;
-            // ファイル名の日時も UTC(DATE 列・Mac 版・Android 版と揃える)。
-            _fileName = $"{macAddress}_{DateTime.UtcNow:yyyyMMddHHmmss}{CsvFile.SaveExtension(compressed)}";
+            _mode = mode;
+            _fileName = FileName(macAddress, DateTime.UtcNow, compressed);
             _flushThreshold = Math.Max(100 / Math.Max((int)quality, 1), 1);
             CurrentFilePath = null;
         }
     }
 
-    public void Append(AcademicData data, int packetCount, bool freeMarking)
+    /// <summary>1 行を整形して溜める(受信スレッド)。モードと違う型のサンプルは書かない(列が崩れるため)。</summary>
+    public void Append(AcademicData data, int packetCount, DateTime recordedUtc, bool freeMarking)
     {
-        var row = FormatRow(data, packetCount, freeMarking);
+        if (FormatRow(_mode, data, packetCount, recordedUtc, freeMarking) is not { } row)
+        {
+            return;
+        }
+
         RowFormatted?.Invoke(row);
 
         lock (_gate)
@@ -139,73 +152,42 @@ public sealed class DataPersistenceService : IDisposable
         return path;
     }
 
+    /// <summary>CSV のファイル名(&lt;MAC アドレス&gt;_&lt;UTC 日時&gt;.csv[.gz])。日時は DATE 列・Mac 版・Android 版と揃えて UTC。</summary>
+    public static string FileName(string macAddress, DateTime utc, bool compressed) =>
+        $"{macAddress}_{utc.ToString("yyyyMMddHHmmss", Invariant)}{CsvFile.SaveExtension(compressed)}";
+
     /// <summary>計測パラメータから CSV ヘッダを組み立てる。列は Mac 版・Android 版と共通。</summary>
     public static string BuildHeader(
-        MEMEMode mode, MEMEQuality quality, MEMEAccelRange accelRange, MEMEGyroRange gyroRange)
+        MeasurementMode mode, MEMEQuality quality, MEMEAccelRange accelRange, MEMEGyroRange gyroRange) =>
+        string.Create(Invariant,
+            $"// Data mode  : {mode.Label}\r\n" +
+            $"// Transmission speed  : {MeasurementRange.Hz(quality)}Hz\r\n" +
+            $"// Acceleration sensor's range  : {MeasurementRange.G(accelRange)}g\r\n" +
+            $"// Gyroscope sensor's range  : {MeasurementRange.Dps(gyroRange)}dps\r\n" +
+            $"//\r\n" +
+            $"//{string.Join(',', new[] { "ARTIFACT", "NUM", "DATE" }.Concat(mode.Columns))}\r\n");
+
+    /// <summary>
+    /// CSV / TCP 共通の 1 行整形。DATE 列は UTC。サンプルの型が <paramref name="mode"/> と違えば null。
+    /// </summary>
+    public static string? FormatRow(MeasurementMode mode, AcademicData data, int packetCount, DateTime recordedUtc, bool freeMarking)
     {
-        var columns = mode switch
+        if (mode.Values(data) is not { } values)
         {
-            MEMEMode.Standard =>
-                "//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,EOG_L1,EOG_R1,EOG_L2,EOG_R2,EOG_H1,EOG_H2,EOG_V1,EOG_V2",
-            MEMEMode.Full =>
-                "//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,GYRO_X,GYRO_Y,GYRO_Z,EOG_L,EOG_R,EOG_H,EOG_V",
-            _ =>
-                "//ARTIFACT,NUM,DATE,QUATERNION_W,QUATERNION_X,QUATERNION_Y,QUATERNION_Z",
-        };
+            return null;
+        }
 
-        return new StringBuilder()
-            .Append("// Data mode  : ").Append(mode).Append("\r\n")
-            .Append("// Transmission speed  : ").Append(quality == MEMEQuality.High ? "100Hz" : "50Hz").Append("\r\n")
-            .Append("// Acceleration sensor's range  : ").Append(AccelRangeText(accelRange)).Append("\r\n")
-            .Append("// Gyroscope sensor's range  : ").Append(GyroRangeText(gyroRange)).Append("\r\n")
-            .Append("//\r\n")
-            .Append(columns).Append("\r\n")
-            .ToString();
-    }
-
-    /// <summary>CSV / TCP 共通の 1 行整形。DATE 列は UTC。</summary>
-    public static string FormatRow(AcademicData data, int packetCount, bool freeMarking)
-    {
-        var mark = freeMarking ? "X" : string.Empty;
-        var timestamp = (data.RecordedUtc ?? DateTime.UtcNow).ToString(DateFormat, CultureInfo.InvariantCulture);
-
-        return data switch
+        var row = new StringBuilder(96)
+            .Append(freeMarking ? "X" : string.Empty)
+            .Append(',').Append(packetCount.ToString(Invariant))
+            .Append(',').Append(recordedUtc.ToString(DateFormat, Invariant));
+        foreach (var v in values)
         {
-            AcademicStandardData d => string.Join(',',
-                mark, packetCount, timestamp,
-                d.AccX, d.AccY, d.AccZ,
-                d.EogL1, d.EogR1, d.EogL2, d.EogR2,
-                d.EogH1, d.EogH2, d.EogV1, d.EogV2),
+            row.Append(',').Append(v.ToString(Invariant));
+        }
 
-            AcademicFullData d => string.Join(',',
-                mark, packetCount, timestamp,
-                d.AccX, d.AccY, d.AccZ,
-                d.GyroX, d.GyroY, d.GyroZ,
-                d.EogL, d.EogR, d.EogH, d.EogV),
-
-            AcademicQuaternionData d => string.Join(',',
-                mark, packetCount, timestamp,
-                d.QuaternionW, d.QuaternionX, d.QuaternionY, d.QuaternionZ),
-
-            _ => string.Join(',', mark, packetCount, timestamp),
-        };
+        return row.ToString();
     }
-
-    public static string AccelRangeText(MEMEAccelRange range) => range switch
-    {
-        MEMEAccelRange.Range2G => "2g",
-        MEMEAccelRange.Range4G => "4g",
-        MEMEAccelRange.Range8G => "8g",
-        _ => "16g",
-    };
-
-    public static string GyroRangeText(MEMEGyroRange range) => range switch
-    {
-        MEMEGyroRange.Range250dps => "250dps",
-        MEMEGyroRange.Range500dps => "500dps",
-        MEMEGyroRange.Range1000dps => "1000dps",
-        _ => "2000dps",
-    };
 
     public void Dispose() => End();
 }

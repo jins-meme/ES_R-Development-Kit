@@ -53,6 +53,7 @@ WebRTC は読み込みの最初に消し、外のページへの移動と新し�
 | `MEMELib_Academic` | BLE 接続とプロトコル、CSV ファイルの読み書き |
 | `MEME_Academic_Sample` | ロガー本体（WinForms） |
 | `MEMELib_Academic.Tests` | 暗号化・パケット解析・CSV 読み書きの単体テスト |
+| `MEME_Academic_Sample.Tests` | ロガー本体の単体テスト(CSV のヘッダと行の書式・OS の言語によらないこと・Artifact の無害化と書き戻し) |
 
 `MEME_Academic_Sample` の構成:
 
@@ -62,6 +63,8 @@ WebRTC は読み込みの最初に消し、外のページへの移動と新し�
 | `Services/WebBridge.cs` | グラフ画面（WebView2）とのやり取り・配信・通信の制限。Mac 版 `WebBridge.swift` に対応 |
 | `Services/WebContentStore.cs` | グラフ画面の中身（zip）の展開・切り替え。同梱の `WebContent/standard.zip` |
 | `Services/ZipExtractor.cs` | zip の検査と展開（zip slip・zip 爆弾・リンクなどを展開前に断る。規則は `webview/BRIDGE.md` の Limits） |
+| `Models/MeasurementMode.cs` | モードごとの列名・並びとレンジの表(CSV のヘッダと行、グラフへ渡す列と値、左の欄の選択肢が同じ表を見る) |
+| `Services/ArtifactBuffer.cs` | ページで付けた Artifact の無害化と、CSV のデータ行の番号への換算 |
 | `Services/CommunicationStatsTracker.cs` | 成功率・通信率の集計 |
 | `Services/DataPersistenceService.cs` | CSV のヘッダ生成・行整形・バッファ保存 |
 | `Services/TcpOutputServer.cs` | TCP による外部出力 |
@@ -139,7 +142,8 @@ ACK が返らなければ SHELF は送らないので、失敗しても端末は
 `TCP Output` を ON にすると、指定ポートで待ち受けを始めます（左カラムの `Status :` が
 `Listen` になります）。クライアントが 1 台つながると `Accepted` になり、CSV とまったく
 同じ書式のヘッダと行が流れます。計測開始より前に接続していた場合は、計測開始時に
-ヘッダが送られます。同時に受け付けるのは 1 台までです。
+ヘッダが送られます。同時に受け付けるのは 1 台までです。受け取る側が読まなくなり、1 秒待っても送れないときは
+そのクライアントを切ります（計測と CSV の記録は止めません）。
 
 ```
 $ ncat 127.0.0.1 88
@@ -200,9 +204,10 @@ Quaternion モードにはグラフに出せる波形が無いため、グラフ
 結果（`result.json`）とスナップショット（PNG）を指定のフォルダに書いて、アプリが自分で閉じます。Release ビルドには入りません。
 
 ```
-JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zip|settings] [--csv <CSV>] [--zip <zip>]
+JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zip|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
                          [--mode full|standard] [--seconds 20] [--badzips <フォルダ>] [--probe <JS の式 | @ファイル>]
                          [--probe-live <同>] [--expect <瞬目,EMR,EML[,歩のイベント]>] [--real [--device <アドレスか名前の末尾>]]
+                         [--socket <ポート> [--socket-stall]]
 ```
 
 `--probe` は各場面の後に、`--probe-live` は live で行を流している最中にページで評価します（描画の進み方を測るときなど）。
@@ -213,6 +218,12 @@ JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zi
 | `replay` | `--csv` の写しを再生（高機能版なら最後まで解析を待つ）。Artifact を `Save Artifacts`（299 行目）と `Disconnect`（600 行目）で書き戻す。`--expect` で判定数を比べる（golden `w-sit-jump-stairs` なら `459,1169,1045,2837`） |
 | `zip` | `--badzips` の zip を 1 つずつ取り込み、`good` で始まるものだけ通り、断られたものは今の中身が変わらず外に書かれないことを見る（`webview/tools/make_bad_zips.py`） |
 | `settings` | 設定画面を撮る（計測中の形も） |
+| `webcrash` | `--csv` の行を流して計測している最中と、その CSV を再生している最中に、グラフ画面のプロセスを落とす（DevTools の `Page.crash`）。読み込み直したページで計測・再生が続いていることを確かめる |
+| `reconnect` | 計測中に切断 → 繋ぎ直して `Start Measurement` で計測が始まること、切断した回の CSV が停止と同じく締められること（ファイルが分かれる・NUM が続かない・付けた Artifact が書き戻される）を確かめる。`--real` なら実機、無ければ `--csv` の行を流す |
+
+`--socket` はテストの間だけ TCP 出力をそのポートで有効にし、`live` の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
+（ARTIFACT 列を除いて）同じかを見ます。`--socket-stall` を足すと受け取る側が読まないままにし、送信が詰まっても計測が止まらない
+（詰まったクライアントが切られる）ことを見ます。
 
 `--zip` は始める前に Display Engine と同じ経路で取り込み、終わったら同梱の標準版に戻します（もともと選んだ zip を使っていたら、
 退避しておいたそれに戻す。`zip` の組も同じ）。保存先はテストの間だけ `<出力フォルダ>\csv` になります。

@@ -8,6 +8,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MEME_Academic_Sample", "MEM
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MEMELib_Academic.Tests", "MEMELib_Academic.Tests\MEMELib_Academic.Tests.csproj", "{3D2E8A3C-5F6B-4C4D-9E33-7FA09B4C1D23}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MEME_Academic_Sample.Tests", "MEME_Academic_Sample.Tests\MEME_Academic_Sample.Tests.csproj", "{5E4F0C5E-7B8D-4E6F-B055-91C2BD6E3F45}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +28,10 @@ Global
 		{3D2E8A3C-5F6B-4C4D-9E33-7FA09B4C1D23}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D2E8A3C-5F6B-4C4D-9E33-7FA09B4C1D23}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D2E8A3C-5F6B-4C4D-9E33-7FA09B4C1D23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E4F0C5E-7B8D-4E6F-B055-91C2BD6E3F45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E4F0C5E-7B8D-4E6F-B055-91C2BD6E3F45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E4F0C5E-7B8D-4E6F-B055-91C2BD6E3F45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E4F0C5E-7B8D-4E6F-B055-91C2BD6E3F45}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

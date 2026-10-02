@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -56,14 +57,14 @@ public sealed class WebBridge : IDisposable
     private string? replayToken;
     private string? replayFile;
 
+    /// <summary>今ページに出している計測(start の中身)か再生(openReplay の中身)。WebView のプロセスが落ちて読み込み直したときに送り直す。</summary>
+    private (bool Live, Dictionary<string, object?> Arg)? session;
+
     /// <summary>ページで付けたアーティファクト(i = ライブはアプリのサンプル番号、再生は CSV のデータ行の番号)</summary>
     public event Action<int, string>? Artifact;
 
     /// <summary>再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)</summary>
     public event Action<JsonElement>? ReplayInfo;
-
-    /// <summary>ページの準備ができた(manifest の name / version)</summary>
-    public event Action<string, string>? Ready;
 
     /// <param name="store">中身の置き場</param>
     /// <param name="host">WebView を置くパネル。WebView2 ランタイムが無いときは代わりに案内を置く</param>
@@ -80,6 +81,9 @@ public sealed class WebBridge : IDisposable
     public WebView2 WebView { get; }
 
     public bool IsReady { get; private set; }
+
+    /// <summary>ページが ready を返した回数(自己テストが、読み込み直したことを見分けるのに使う)</summary>
+    public int ReadyCount { get; private set; }
 
     public string PageName { get; private set; } = "";
 
@@ -165,7 +169,7 @@ public sealed class WebBridge : IDisposable
         Load();
     }
 
-    /// <summary>中身を読み込み直す(設定で zip を切り替えたとき)</summary>
+    /// <summary>中身を読み込み直す(設定で zip を切り替えたとき・WebView のプロセスが落ちたとき)</summary>
     public void Load()
     {
         IsReady = false;
@@ -182,6 +186,26 @@ public sealed class WebBridge : IDisposable
 
         var entry = store.Manifest?.Entry ?? "index.html";
         WebView.CoreWebView2.Navigate($"{Origin}/{entry}");
+        ResumeSession();
+    }
+
+    /// <summary>
+    /// 計測中・再生中に読み込み直したら、同じ条件で始め直す(ready まで溜めておき、届いたサンプルより先に送る)。
+    /// ライブは読み込み直した後に届いた分から描くので、0 行目の時刻(startedAt)を今にする。
+    /// 再生は頭から読み直す(付けたまま書き戻していない Artifact はグラフから消えるが、アプリが控えていて CSV へは書く)。
+    /// </summary>
+    private void ResumeSession()
+    {
+        switch (session)
+        {
+            case (true, var cond):
+                cond["startedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Call($"jmasHost.start({Json(cond)})");
+                break;
+            case (false, var arg):
+                Call($"jmasHost.openReplay({Json(arg)})");
+                break;
+        }
     }
 
     #region アプリ → ページ
@@ -204,6 +228,7 @@ public sealed class WebBridge : IDisposable
     public void Start(Dictionary<string, object?> cond)
     {
         FlushRows();
+        session = (true, cond);
         Call($"jmasHost.start({Json(cond)})");
     }
 
@@ -212,10 +237,11 @@ public sealed class WebBridge : IDisposable
     {
         lock (rowsLock)
         {
-            rows.Append('[').Append(i);
+            // 数はカルチャに任せない(スウェーデン語などでは負の数が U+2212 になり、ページが読めない)
+            rows.Append('[').Append(i.ToString(CultureInfo.InvariantCulture));
             foreach (var v in values)
             {
-                rows.Append(',').Append(v);
+                rows.Append(',').Append(v.ToString(CultureInfo.InvariantCulture));
             }
 
             rows.Append("],");
@@ -241,25 +267,16 @@ public sealed class WebBridge : IDisposable
         Call($"jmasHost.push([{batch}])");
     }
 
-    public void Gap()
-    {
-        FlushRows();
-        Call("jmasHost.gap()");
-    }
-
-    public void Status(string text) => Call($"jmasHost.status({Json(text)})");
-
     public void Mark(int i, string text)
     {
         FlushRows();
         Call($"jmasHost.mark({Json(new Dictionary<string, object> { ["i"] = i, ["text"] = text })})");
     }
 
-    public void SetTheme(bool dark) => Call($"jmasHost.setTheme({Json(dark ? "dark" : "light")})");
-
     public void Stop()
     {
         FlushRows();
+        session = null;
         Call("jmasHost.stop()");
     }
 
@@ -274,6 +291,7 @@ public sealed class WebBridge : IDisposable
             ["url"] = $"{Origin}/replay/{replayToken}/{Uri.EscapeDataString(Path.GetFileName(file))}",
             ["name"] = Path.GetFileName(file),
         };
+        session = (false, arg);
         Call($"jmasHost.openReplay({Json(arg)})");
     }
 
@@ -326,6 +344,7 @@ public sealed class WebBridge : IDisposable
                 }
 
                 IsReady = true;
+                ReadyCount++;
                 var queued = pending.ToArray();
                 pending.Clear();
                 foreach (var js in queued)
@@ -333,7 +352,6 @@ public sealed class WebBridge : IDisposable
                     _ = WebView.CoreWebView2.ExecuteScriptAsync(js + ";0");
                 }
 
-                Ready?.Invoke(name, version);
                 break;
             case "artifact":
                 if (body.TryGetProperty("i", out var iEl) && iEl.TryGetInt32(out var i) &&

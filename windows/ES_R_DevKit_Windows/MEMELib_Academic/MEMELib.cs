@@ -1,4 +1,3 @@
-using System.Reflection;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
@@ -44,7 +43,6 @@ public sealed class MEMELib : IDisposable
 
     private readonly Lock _gate = new();
     private readonly Dictionary<ulong, MEMEDevice> _found = [];
-    private readonly CsvFileWriter _csv = new();
 
     private BluetoothLEAdvertisementWatcher? _watcher;
     private Timer? _scanTimer;
@@ -263,17 +261,6 @@ public sealed class MEMELib : IDisposable
         return MEMEStatus.MEMELIB_OK;
     }
 
-    /// <summary>アドレス文字列("28A183055C47" 形式)から接続する。</summary>
-    public MEMEStatus connectPeripheral(string deviceAddress)
-    {
-        if (!ulong.TryParse(deviceAddress, System.Globalization.NumberStyles.HexNumber, null, out var address))
-        {
-            return MEMEStatus.MEMELIB_NG;
-        }
-
-        return connectPeripheral(new MEMEDevice(address, string.Empty));
-    }
-
     private async Task ConnectAsync(MEMEDevice target)
     {
         try
@@ -422,7 +409,6 @@ public sealed class MEMELib : IDisposable
 
         // 切断されたら ACK はもう来ない。待ちがあれば失敗として畳む。
         FinishShelfAck(false);
-        _csv.Close();
     }
 
     #endregion
@@ -669,7 +655,6 @@ public sealed class MEMELib : IDisposable
 
         _measuring = false;
         Send(MemeProtocol.StartStop(false));
-        _csv.Close();
         return MEMEStatus.MEMELIB_OK;
     }
 
@@ -681,26 +666,7 @@ public sealed class MEMELib : IDisposable
     public string getFWVersion() =>
         $"{_fwVersion.Major}.{_fwVersion.Minor}.{_fwVersion.Build}";
 
-    /// <summary>
-    /// ハードウェアバージョン。0x81 のレポートから読み出す位置が
-    /// Mac / Android の参照実装にも無いため、本ライブラリでは提供しない。
-    /// </summary>
-    public string getHWVersion() => string.Empty;
-
-    public string getSDKVersion() =>
-        typeof(MEMELib).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion.Split('+')[0]
-        ?? typeof(MEMELib).Assembly.GetName().Version?.ToString(3)
-        ?? "0.0.0";
-
     #endregion
-
-    /// <summary>CSV へ 1 行追記する。ファイルは計測停止まで開いたまま保持される。</summary>
-    public void saveData(string directoryName, string fileName, string writeData) =>
-        _csv.WriteLine(directoryName, fileName, writeData);
-
-    /// <summary>CSV を閉じてバッファをフラッシュする。</summary>
-    public void closeSaveFile() => _csv.Close();
 
     public void Dispose()
     {
@@ -716,6 +682,5 @@ public sealed class MEMELib : IDisposable
         }
 
         Teardown();
-        _csv.Dispose();
     }
 }

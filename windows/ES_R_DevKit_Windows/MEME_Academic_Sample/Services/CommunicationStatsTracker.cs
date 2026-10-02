@@ -32,16 +32,12 @@ public sealed class CommunicationStatsTracker : IDisposable
     /// <summary>受信カウンタの差分を積算した単調増加の通し番号。CSV の NUM 列に使う。</summary>
     public int TotalCount { get; private set; }
 
-    /// <summary>取りこぼしたと推定されるサンプル数。</summary>
-    public int ErrorCount { get; private set; }
-
     public void Reset()
     {
         lock (_gate)
         {
             _prevCount = -1;
             TotalCount = 0;
-            ErrorCount = 0;
             _quality = 1;
             _dataCount = 0;
             _dataCountInWindow = 0;
@@ -89,11 +85,6 @@ public sealed class CommunicationStatsTracker : IDisposable
             _prevCount = count;
 
             TotalCount += diff;
-            if (diff - 1 > 0)
-            {
-                ErrorCount += diff - 1;
-            }
-
             return true;
         }
     }
