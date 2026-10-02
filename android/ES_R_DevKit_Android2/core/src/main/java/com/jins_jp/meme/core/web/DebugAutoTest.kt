@@ -74,7 +74,13 @@ object DebugAutoTest {
             val seconds = intent.getIntExtra("autotest_seconds", 20)
             val device = intent.getStringExtra("autotest_device")
             scope.launch {
-                val r = runCatching { live(context, vm, mode, seconds, device) }
+                // 設定「計測完了時に共有を開く」が ON でも、テストの間は共有シートを出さない（設定値は変えない）
+                vm.suppressShareForAutotest = true
+                val r = try {
+                    runCatching { live(context, vm, mode, seconds, device) }
+                } finally {
+                    vm.suppressShareForAutotest = false
+                }
                 if (r.isFailure && vm.ui.value.isMeasuring) vm.toggleMeasurement()   // 途中で失敗したら計測を止めておく
                 write(out, "live-$mode", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
@@ -129,12 +135,17 @@ object DebugAutoTest {
         withTimeoutOrNull(ms) { while (!cond()) delay(100) } ?: throw IllegalStateException("timeout: $what")
     }
 
-    /** ページで JS の式を評価し、JSON.stringify した文字列を返す(evaluateJavascript は結果をもう一度 JSON にして返すので剥がす) */
-    private suspend fun page(vm: MainViewModel, expr: String): String = suspendCancellableCoroutine { k ->
-        vm.web.webView.value.evaluateJavascript("JSON.stringify($expr)") { r ->
-            k.resume(runCatching { JSONArray("[$r]").getString(0) }.getOrDefault("null"))
+    /**
+     * ページで JS の式を評価し、JSON.stringify した文字列を返す(evaluateJavascript は結果をもう一度 JSON にして返すので剥がす)。
+     * ページが返事をしないとき(読み込み直しの途中など)は待ち続けず、10 秒で失敗にする。
+     */
+    private suspend fun page(vm: MainViewModel, expr: String): String = withTimeoutOrNull(10_000) {
+        suspendCancellableCoroutine { k ->
+            vm.web.webView.value.evaluateJavascript("JSON.stringify($expr)") { r ->
+                if (k.isActive) k.resume(runCatching { JSONArray("[$r]").getString(0) }.getOrDefault("null"))
+            }
         }
-    }
+    } ?: throw IllegalStateException("timeout: the page did not answer (${expr.take(40)})")
 
     private const val STATE = "({charts: [...document.querySelectorAll('.chart .ctitle')].map(e => e.textContent)," +
         " status: document.querySelector('.status')?.textContent, toast: document.querySelector('.toast')?.hidden === false ? document.querySelector('.toast').textContent : ''," +

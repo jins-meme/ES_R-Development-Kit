@@ -236,6 +236,12 @@ class MainViewModel(
     internal var lastSaved: Pair<Uri?, Int> = null to 0
         private set
 
+    /**
+     * 自己テストの間は、設定に関わらず計測後の共有シートを開かない（シートがアプリを覆って裏に回すと、
+     * グラフ画面への送りが止まり、続くテストの手順が進まなくなるため）。設定値そのものは変えない。
+     */
+    internal var suppressShareForAutotest = false
+
     /** 設定の Display Engine「Use Built-in」 */
     fun useBuiltInGraph() {
         webStore.useBundled()
@@ -580,7 +586,7 @@ class MainViewModel(
             // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
             // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。
             val shareUris = listOfNotNull(stopResult.dataUri)
-            if (shareUris.isNotEmpty() && ui.value.openSharingOnComplete) {
+            if (shareUris.isNotEmpty() && ui.value.openSharingOnComplete && !suppressShareForAutotest) {
                 _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
             }
         }
