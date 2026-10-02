@@ -7,6 +7,19 @@
 <!-- 標準版: EOG(Vv・Vh)/ 加速度 / 角速度の 3 枚(common/raw_specs.js)。データがある列だけ描く(Standard モードは角速度なし、Quaternion は描くものなし)。
      zip の中では common/ がこのファイルの隣にある(webview/tools/make_zip.py が詰める)。仕様は webview/README.md。 -->
 <link rel="stylesheet" href="common/ui.css">
+<style>
+  /* スマホ表示(html.compact。common/viewer.js が付ける)では画面の高さに収め、スクロールするのはグラフの欄だけにする(高機能版と同じ)。
+     上の操作(操作バー・シーク・状態)は動かない。縦の操作パネル(.sheet)はグラフの下に出てグラフの欄が縮む。
+     common/ui.css は zip に入れる他のページと共有なので、ここに置く */
+  html.compact { height: 100%; overflow: hidden; }
+  html.compact body { box-sizing: border-box; height: 100%; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+  html.compact body > * { flex: none; }
+  html.compact #app { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  html.compact #app > * { flex: none; }
+  /* .chart は overflow: hidden で最小の高さが 0 になるので、高さを決めた grid だと行が縮んでグラフが潰れる。行は中身の高さにする */
+  html.compact #app > .charts { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+                                grid-auto-rows: max-content; align-content: start; }
+</style>
 </head>
 <body>
 <main id="app"></main>
