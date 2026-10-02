@@ -4,8 +4,8 @@
 //
 //  本アプリが扱う CSV ファイル（非圧縮 .csv / gz圧縮 .csv.gz）の
 //  拡張子判定・UTType・テキストの読み書きをまとめたヘルパー。
-//  「.gz かどうか」の判定をここ1か所に閉じ込め、保存・再生・切り出し・
-//  Artifact 書き戻しが同じ規則で動くようにする。
+//  「.gz かどうか」の判定をここ1か所に閉じ込め、保存と Artifact 書き戻しが
+//  同じ規則で動くようにする（再生はグラフ画面が読む）。
 //
 
 import Foundation
@@ -38,26 +38,6 @@ enum CsvFile {
     static func isSupported(fileName: String) -> Bool {
         let lower = fileName.lowercased()
         return lower.hasSuffix("." + gzipExtension) || lower.hasSuffix("." + plainExtension)
-    }
-
-    static func isSupported(_ url: URL) -> Bool {
-        isSupported(fileName: url.lastPathComponent)
-    }
-
-    /// 拡張子（".csv" / ".csv.gz"）を取り除いたベース名。
-    /// `URL.deletingPathExtension` は "a.csv.gz" から ".gz" しか落とせないので用意する。
-    static func baseName(of url: URL) -> String {
-        let name = url.lastPathComponent
-        let lower = name.lowercased()
-        for ext in [gzipExtension, plainExtension] where lower.hasSuffix("." + ext) {
-            return String(name.dropLast(ext.count + 1))
-        }
-        return url.deletingPathExtension().lastPathComponent
-    }
-
-    /// url と同じ圧縮形式の拡張子（ドット無し）。切り出しファイルを元ファイルへ揃えるのに使う。
-    static func matchingExtension(of url: URL) -> String {
-        isGzip(url) ? gzipExtension : plainExtension
     }
 
     // MARK: - UTType

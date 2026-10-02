@@ -14,7 +14,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(MEMEViewModel.self) private var viewModel
     /// 計測中・再生中は Display Engine の zip を切り替えられない
-    private var graphBusy: Bool { viewModel.phase == .measuring || viewModel.phase == .replaying }
+    private var graphBusy: Bool { viewModel.isInputDisabled }
 
     @State private var saveFilePath: String = ""
     @State private var xAxis: String = "0"

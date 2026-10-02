@@ -9,11 +9,35 @@ import Foundation
 import AppKit
 import UniformTypeIdentifiers
 
+/// CSV／ソケットへ書く 1 行ぶん（registerPacket 済みのパケット）。
+struct CsvRow {
+    let data: AcademicData
+    /// NUM 列
+    let packetCount: Int
+    /// DATE 列（UTC で書く）
+    let date: Date
+    /// Free Marking の印（ARTIFACT 列に X）
+    let isFreeMarking: Bool
+}
+
 @MainActor
 final class DataPersistenceService {
 
     private var csvManager = CsvManager()
-    private var pendingCsvRows: [[String: Any]] = []
+    private var pendingCsvRows: [CsvRow] = []
+
+    /// ファイル名の日時（UTC。DATE 列・Android 版 DevKit と揃える）
+    private static let fileNameFormatter = utcFormatter("yyyyMMddHHmmss")
+    /// DATE 列（UTC。Android 版 DevKit と同じ ES_R CSV フォーマット）
+    private static let dateFormatter = utcFormatter("yyyy/MM/dd HH:mm:ss.SS")
+
+    private static func utcFormatter(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = format
+        return f
+    }
 
     // MARK: - Reset
 
@@ -28,11 +52,9 @@ final class DataPersistenceService {
 
     // MARK: - Buffer
 
-    func append(_ row: [String: Any]) {
+    func append(_ row: CsvRow) {
         pendingCsvRows.append(row)
     }
-
-    var lastRow: [String: Any]? { pendingCsvRows.last }
 
     /// 現在書き出し中のCSVファイルURL。まだ1件も書き出していなければ nil。
     /// 計測停止時に、タップで付けた Artifact を確定済みファイルへ書き戻すために使う。
@@ -54,12 +76,7 @@ final class DataPersistenceService {
         if force || pendingCsvRows.count >= 100 / quality {
             if !csvManager.isSave {
                 let directoryPath = UserSetting.getSaveFilePath()
-                // ファイル名の日時もUTC（DATE列・Android版 DevKit と揃える）。
-                let formatter = DateFormatter()
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.timeZone = TimeZone(secondsFromGMT: 0)
-                formatter.dateFormat = "yyyyMMddHHmmss"
-                let dateString = formatter.string(from: Date())
+                let dateString = Self.fileNameFormatter.string(from: Date())
                 // 拡張子で圧縮の有無が決まる（CsvManager が .csv.gz なら gzip で書く）。
                 // 読み込み側は設定に関係なく .csv / .csv.gz の両方を受け付ける。
                 let ext = CsvFile.saveExtension(compressed: UserSetting.getCompressSaveFile())
@@ -84,75 +101,34 @@ final class DataPersistenceService {
 
     /// 計測パラメータから CSV ヘッダ文字列を生成する。
     static func headerString(mode: UInt32, transMode: UInt32, accelRange: UInt32, gyroRange: UInt32) -> String {
-        let selectModeStr: String = {
-            switch mode {
-            case MEMEMode_Standard: return "Standard"
-            case MEMEMode_Full: return "Full"
-            default: return "Quaternion"
-            }
-        }()
-        let transModeStr = transMode == MEMEQuality_High ? "100Hz" : "50Hz"
-        let accelRangeStr: String = {
-            switch accelRange {
-            case MEMEAccelRange_2G: return "2g"
-            case MEMEAccelRange_4G: return "4g"
-            case MEMEAccelRange_8G: return "8g"
-            default: return "16g"
-            }
-        }()
-        let gyroRangeStr: String = {
-            switch gyroRange {
-            case MEMEGyroRange_250dps: return "250dps"
-            case MEMEGyroRange_500dps: return "500dps"
-            case MEMEGyroRange_1000dps: return "1000dps"
-            default: return "2000dps"
-            }
-        }()
+        let m = csvMode(mode)
         var s = ""
-        s += "// Data mode  : \(selectModeStr)\n"
-        s += "// Transmission speed  : \(transModeStr)\n"
-        s += "// Acceleration sensor's range  : \(accelRangeStr)\n"
-        s += "// Gyroscope sensor's range  : \(gyroRangeStr)\n"
+        s += "// Data mode  : \(m.label)\n"
+        s += "// Transmission speed  : \(MeasurementRange.hz(quality: transMode))Hz\n"
+        s += "// Acceleration sensor's range  : \(MeasurementRange.accelG(device: accelRange))g\n"
+        s += "// Gyroscope sensor's range  : \(MeasurementRange.gyroDps(device: gyroRange))dps\n"
         s += "//\n"
-        switch mode {
-        case MEMEMode_Standard:
-            s += "//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,EOG_L1,EOG_R1,EOG_L2,EOG_R2,EOG_H1,EOG_H2,EOG_V1,EOG_V2\n"
-        case MEMEMode_Full:
-            s += "//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,GYRO_X,GYRO_Y,GYRO_Z,EOG_L,EOG_R,EOG_H,EOG_V\n"
-        default:
-            s += "//ARTIFACT,NUM,DATE,QUATERNION_W,QUATERNION_X,QUATERNION_Y,QUATERNION_Z\n"
-        }
+        s += "//" + (["ARTIFACT", "NUM", "DATE"] + m.columns).joined(separator: ",") + "\n"
         return s
+    }
+
+    /// CSV に書くモード(端末の値が分からなければ Quaternion として書く。以前からの扱い)
+    private static func csvMode(_ mode: UInt32) -> MeasurementMode {
+        MeasurementMode(rawValue: mode) ?? .quaternion
     }
 
     /// CSV/Socket 共通の1行整形ロジック。
     /// DATE列はUTCで書き出す（Android版 DevKit と同じ ES_R CSV フォーマット）。
     /// 表示側（チャートX軸）が Setting の "Convert displayed time to local time" に従って変換する。
-    func dataToStoring(_ datas: [[String: Any]], stringBuffer: inout String, mode: UInt32) {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy/MM/dd HH:mm:ss.SS"
-        for dic in datas {
-            let date = dic["date"] as? Date ?? Date()
-            let dateString = formatter.string(from: date)
-            let packetCount = (dic["packetCount"] as? NSNumber)?.intValue ?? 0
-            let isFreeMarkingValue = (dic["isFreeMarking"] as? NSNumber)?.boolValue ?? false
-            let mark = isFreeMarkingValue ? "X" : ""
-            switch mode {
-            case MEMEMode_Standard:
-                if let d = dic["data"] as? AcademicStandardData {
-                    stringBuffer += "\(mark),\(packetCount),\(dateString),\(d.accX),\(d.accY),\(d.accZ),\(d.eogL1),\(d.eogR1),\(d.eogL2),\(d.eogR2),\(d.eogH1),\(d.eogH2),\(d.eogV1),\(d.eogV2)\n"
-                }
-            case MEMEMode_Full:
-                if let d = dic["data"] as? AcademicFullData {
-                    stringBuffer += "\(mark),\(packetCount),\(dateString),\(d.accX),\(d.accY),\(d.accZ),\(d.gyroX),\(d.gyroY),\(d.gyroZ),\(d.eogL),\(d.eogR),\(d.eogH),\(d.eogV)\n"
-                }
-            default:
-                if let d = dic["data"] as? AcademicQuaternionData {
-                    stringBuffer += "\(mark),\(packetCount),\(dateString),\(d.quaternionW),\(d.quaternionX),\(d.quaternionY),\(d.quaternionZ)\n"
-                }
-            }
+    func dataToStoring(_ rows: [CsvRow], stringBuffer: inout String, mode: UInt32) {
+        let m = Self.csvMode(mode)
+        for row in rows {
+            // モードと違う型のサンプル(切り替えの境目など)は書かない
+            guard let values = m.values(of: row.data) else { continue }
+            let mark = row.isFreeMarking ? "X" : ""
+            stringBuffer += "\(mark),\(row.packetCount),\(Self.dateFormatter.string(from: row.date))"
+            for v in values { stringBuffer += ",\(v)" }
+            stringBuffer += "\n"
         }
     }
 

@@ -29,12 +29,17 @@ final class WebBridge: NSObject {
     private var rows = ""
     private var flushTimer: Timer?
 
+    /// 今ページに出している計測/再生。WebView のプロセスが落ちて読み込み直したときに送り直す。
+    private enum Session {
+        case live([String: Any])     // start の中身
+        case replay([String: Any])   // openReplay の中身
+    }
+    private var session: Session?
+
     /// ページで付けたアーティファクト(i = ライブはアプリのサンプル番号、再生は CSV のデータ行の番号)
     var onArtifact: ((Int, String) -> Void)?
     /// 再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)
     var onReplayInfo: (([String: Any]) -> Void)?
-    /// ページの準備ができた(manifest の name / version)
-    var onReady: ((String, String) -> Void)?
 
     override init() {
         let cfg = WKWebViewConfiguration()
@@ -71,6 +76,23 @@ final class WebBridge: NSObject {
         rows = ""
         let entry = WebContentStore.shared.manifest?.entry ?? "index.html"
         webView.load(URLRequest(url: URL(string: "\(WebSchemeHandler.origin)/\(entry)")!))
+        resumeSession()
+    }
+
+    /// 計測中・再生中に読み込み直したら、同じ条件で始め直す(ready まで溜めておき、届いたサンプルより先に送る)。
+    /// ライブは読み込み直した後に届いた分から描くので、0 行目の時刻(startedAt)を今にする。
+    /// 再生は頭から読み直す(付けたまま書き戻していない Artifact はグラフから消えるが、アプリが控えていて CSV へは書く)。
+    private func resumeSession() {
+        switch session {
+        case .live(var cond):
+            cond["startedAt"] = Date().timeIntervalSince1970 * 1000
+            session = .live(cond)
+            call("jmasHost.start(\(Self.json(cond)))")
+        case .replay(let arg):
+            call("jmasHost.openReplay(\(Self.json(arg)))")
+        case nil:
+            break
+        }
     }
 
     // MARK: - アプリ → ページ
@@ -92,11 +114,12 @@ final class WebBridge: NSObject {
     /// 計測の開始。cond は BRIDGE.md の start の中身(label / mode / cps / accRange / gyroRange / columns / startedAt …)
     func start(_ cond: [String: Any]) {
         flushRows()
+        session = .live(cond)
         call("jmasHost.start(\(Self.json(cond)))")
     }
 
     /// 1 サンプルぶん(i = アプリのサンプル番号、values = start の columns の並び)
-    func push(i: Int, values: [Int]) {
+    func push(i: Int, values: [Int64]) {
         rows += "[\(i)"
         for v in values { rows += ",\(v)" }
         rows += "],"
@@ -114,14 +137,13 @@ final class WebBridge: NSObject {
         rows = ""
     }
 
-    func gap() { flushRows(); call("jmasHost.gap()") }
-    func status(_ text: String) { call("jmasHost.status(\(Self.json(text)))") }
     func mark(i: Int, text: String) { flushRows(); call("jmasHost.mark(\(Self.json(["i": i, "text": text])))") }
     func setTheme(dark: Bool) { call("jmasHost.setTheme(\(Self.json(dark ? "dark" : "light")))") }
 
     func stop() {
         flushRows()
         flushTimer?.invalidate(); flushTimer = nil
+        session = nil
         call("jmasHost.stop()")
     }
 
@@ -132,6 +154,7 @@ final class WebBridge: NSObject {
         var arg = extra
         arg["url"] = url
         arg["name"] = file.lastPathComponent
+        session = .replay(arg)
         call("jmasHost.openReplay(\(Self.json(arg)))")
     }
 
@@ -157,7 +180,6 @@ extension WebBridge: WKScriptMessageHandler {
             isReady = true
             let queued = pending; pending.removeAll()
             for js in queued { webView.evaluateJavaScript(js + ";0", completionHandler: nil) }
-            onReady?(body["name"] as? String ?? "", body["version"] as? String ?? "")
         case "artifact":
             guard let i = (body["i"] as? NSNumber)?.intValue, let text = body["text"] as? String else { return }
             onArtifact?(i, text)
@@ -217,7 +239,6 @@ final class WebSchemeHandler: NSObject, WKURLSchemeHandler {
 
     private var replayToken: String?
     private var replayFile: URL?
-    private var stopped = Set<ObjectIdentifier>()
 
     private static let types: [String: String] = [
         "html": "text/html", "js": "text/javascript", "mjs": "text/javascript", "css": "text/css",
@@ -258,20 +279,16 @@ final class WebSchemeHandler: NSObject, WKURLSchemeHandler {
         respond(task, url: url, type: Self.types[ext] ?? "application/octet-stream", data: data)
     }
 
-    func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {
-        stopped.insert(ObjectIdentifier(task))
-    }
+    /// 応答は start の中で最後まで返し切るので、途中で止める先は無い。
+    func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}
 
     private func respond(_ task: any WKURLSchemeTask, url: URL, type: String, data: Data) {
         let headers = ["Content-Type": type, "Content-Length": "\(data.count)", "Cache-Control": "no-store",
                        "Access-Control-Allow-Origin": "*", "Content-Security-Policy": Self.csp]
-        let id = ObjectIdentifier(task)
-        guard !stopped.contains(id) else { stopped.remove(id); return }
         task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
         let chunk = 4 << 20
         var off = 0
         while off < data.count {
-            if stopped.contains(id) { stopped.remove(id); return }
             let end = min(off + chunk, data.count)
             task.didReceive(data.subdata(in: off..<end))
             off = end
@@ -280,8 +297,6 @@ final class WebSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func fail(_ task: any WKURLSchemeTask, _ code: Int) {
-        let id = ObjectIdentifier(task)
-        guard !stopped.contains(id) else { stopped.remove(id); return }
         guard let url = task.request.url else { return }
         task.didReceive(HTTPURLResponse(url: url, statusCode: code, httpVersion: "HTTP/1.1", headerFields: ["Content-Length": "0"])!)
         task.didFinish()

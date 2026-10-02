@@ -17,6 +17,17 @@ class UserSetting: NSObject {
         } else {
             NSLog("初期設定済み")
         }
+        migrateSaveFilePath()
+    }
+
+    /// 以前の初期値は "file:///…" の URL 文字列で、保存先のパスとして使うと
+    /// ルート直下の "/file:/…" を作ろうとして失敗し、CSV が保存されなかった。パスに直して書き戻す。
+    private class func migrateSaveFilePath() {
+        let value = getSaveFilePath()
+        guard value.hasPrefix("file://") else { return }
+        let path = URL(string: value)?.path ?? String(value.dropFirst("file://".count))
+        NSLog("SaveFilePath を URL からパスへ: %@ -> %@", value, path)
+        setSaveFilePath(path)
     }
 
     class func defaultSetting() {
@@ -43,14 +54,14 @@ class UserSetting: NSObject {
             do {
                 try FileManager.default.createDirectory(atPath: defaultDirectory, withIntermediateDirectories: true, attributes: nil)
                 NSLog("ディレクトリ作成 成功")
-                userDefaults.set("file://\(defaultDirectory)", forKey: kConst_SaveFilePath)
+                userDefaults.set(defaultDirectory, forKey: kConst_SaveFilePath)
             } catch {
                 NSLog("ディレクトリ作成 失敗")
                 userDefaults.set("", forKey: kConst_SaveFilePath)
             }
         } else {
             NSLog("既にディレクトリがある")
-            userDefaults.set("file://\(defaultDirectory)", forKey: kConst_SaveFilePath)
+            userDefaults.set(defaultDirectory, forKey: kConst_SaveFilePath)
         }
     }
 

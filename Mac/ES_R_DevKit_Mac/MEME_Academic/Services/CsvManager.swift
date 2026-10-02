@@ -17,7 +17,6 @@ import Foundation
 /// アプリが落ちても／切断で計測が途切れても、その時点までのファイルが常に完結している。
 /// （連続ストリームに比べた圧縮率の悪化は実測で数％。長時間計測の取りこぼしを防ぐ方を採る。）
 class CsvManager: NSObject {
-    var saveDirectoryPath: String?
     var saveFilePath: String?
     var saveFileName: String?
     var isSave: Bool = false
@@ -27,7 +26,6 @@ class CsvManager: NSObject {
 
     func reset() {
         isSave = false
-        saveDirectoryPath = nil
         saveFilePath = nil
         saveFileName = nil
         isCompressed = false
@@ -35,7 +33,6 @@ class CsvManager: NSObject {
 
     @discardableResult
     func create(directoryPath: String, fileName: String, firstData: Data) -> Bool {
-        saveDirectoryPath = directoryPath
         NSLog("saveDirectoryPath:%@", directoryPath)
         saveFileName = fileName
         NSLog("saveFileName:%@", fileName)

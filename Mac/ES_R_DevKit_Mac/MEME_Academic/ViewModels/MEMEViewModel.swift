@@ -33,13 +33,10 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Static options
 
-    let selectModeOptions = ["Standard", "Full", "Quaternion"]
-    let transSpeedOptions = ["100Hz", "50Hz"]
-    let accelRangeOptions = ["±2G", "±4G", "±8G", "±16G"]
-    let gyroRangeOptions = ["±250dps", "±500dps", "±1000dps", "±2000dps"]
-    /// accelRange / gyroRange の番号 → g / dps(グラフの換算に渡す)
-    private static let accelG = [2, 4, 8, 16]
-    private static let gyroDps = [250, 500, 1000, 2000]
+    let selectModeOptions = MeasurementMode.allCases.map(\.label)
+    let transSpeedOptions = MeasurementRange.transHz.map { "\($0)Hz" }
+    let accelRangeOptions = MeasurementRange.accelG.map { "±\($0)G" }
+    let gyroRangeOptions = MeasurementRange.gyroDps.map { "±\($0)dps" }
 
     // MARK: - Observable state
 
@@ -58,20 +55,6 @@ final class MEMEViewModel: NSObject {
     var transSpeed: Int = 0
     var accelRange: Int = 0
     var gyroRange: Int = 0
-
-    // Latest data display values
-    var displayCnt: UInt32 = 0
-    var displayAccX: Int16 = 0
-    var displayAccY: Int16 = 0
-    var displayAccZ: Int16 = 0
-    var displayGyroX: Int16 = 0
-    var displayGyroY: Int16 = 0
-    var displayGyroZ: Int16 = 0
-    var displayEogL: Int16 = 0
-    var displayEogR: Int16 = 0
-    var displayEogH: Int16 = 0
-    var displayEogV: Int16 = 0
-    var displayBattLv: UInt16 = 0
 
     // Stats
     var successRateText: String = "0.0%"
@@ -95,19 +78,15 @@ final class MEMEViewModel: NSObject {
 
     /// グラフ画面(WebView)。中身の切り替えは設定から(WebContentStore)。
     let web = WebBridge()
-    /// グラフ画面に今載っている中身(設定に出す)
-    var webContentText: String = ""
 
     // MARK: - Private state
 
     private var memelib: (any MEMELibInterface)!
-    private var connectedFlag = false
-    private var measurementFlag = false
     private var isFreeMarking = false
 
     private var peripheralManager: CBPeripheralManager?
     private var socket: TCPSocket?
-    private var socketDatas: [[String: Any]] = []
+    private var socketDatas: [CsvRow] = []
 
     /// 再生中の CSV(ページが読んで再生する)
     private var replayFile: URL?
@@ -116,8 +95,8 @@ final class MEMEViewModel: NSObject {
     /// アーティファクトはこの番号で返ってくる。CSV は先頭パケットを 1 件落とすので、データ行 = 番号 − 1。
     private var liveSampleIndex = 0
 
-    /// ページで付けた Artifact(計測中はサンプル番号、再生中は CSV のデータ行の番号 → 文字列)。停止時にCSVへ書き戻す。
-    private var pendingArtifacts: [Int: String] = [:]
+    /// ページで付けた Artifact(計測中はサンプル番号、再生中は CSV のデータ行の番号)。停止時にCSVへ書き戻す。
+    private var pendingArtifacts = ArtifactBuffer()
 
     /// SHELF 送信後、端末が自ら切断するのを待つタイマー。切断が来たら無効化する。
     private var shelfDisconnectTimer: Timer?
@@ -146,7 +125,6 @@ final class MEMEViewModel: NSObject {
 
         web.onArtifact = { [weak self] i, text in self?.receiveArtifact(i: i, text: text) }
         web.onReplayInfo = { [weak self] info in self?.applyReplayInfo(info) }
-        web.onReady = { [weak self] name, version in self?.webContentText = "\(name) \(version)" }
 
         showAppVersion()
         showLocalAddress()
@@ -233,7 +211,7 @@ final class MEMEViewModel: NSObject {
             disconnectReplay()
             return
         }
-        if connectedFlag {
+        if isConnected {
             NSLog("Call : disconnectPeripheral")
             memelib.disconnectPeripheral()
         } else {
@@ -305,7 +283,7 @@ final class MEMEViewModel: NSObject {
         shelfDisconnectTimer?.invalidate()
         shelfDisconnectTimer = nil
         isEnteringShelf = false
-        if !entered && connectedFlag {
+        if !entered && isConnected {
             connectionStateText = "State : Connected"
         }
         // 成功時はここが CoreBluetooth の切断コールバックの中なので、
@@ -325,15 +303,8 @@ final class MEMEViewModel: NSObject {
 
     func chooseReplayFile() {
         // BLE 接続中は再生に入れない。
-        guard phase != .connected && phase != .measuring else { return }
-        // スキャン中なら現在のスキャンを停止してからダイアログを開く。
-        if isScanning {
-            stopScan()
-        }
-        // 既存の再生セッションがあれば破棄してからダイアログを開く。
-        if phase == .replaying {
-            disconnectReplay()
-        }
+        guard !isConnected else { return }
+        prepareForReplay()
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -352,7 +323,7 @@ final class MEMEViewModel: NSObject {
     /// Finder の「このアプリで開く」など、外部から渡されたCSVを File Replay として読み込む。
     func openReplayFile(url: URL) {
         // BLE 接続中／計測中は再生に入れない。
-        guard phase != .connected && phase != .measuring else {
+        guard !isConnected else {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Cannot open file while connected"
@@ -360,14 +331,18 @@ final class MEMEViewModel: NSObject {
             alert.runModal()
             return
         }
-        // スキャン中なら停止し、既存の再生セッションがあれば破棄してから読み込む。
+        prepareForReplay()
+        loadReplayFile(url: url)
+    }
+
+    /// 再生に入る前に、スキャン中なら止め、前の再生があれば(Artifact を書き戻して)閉じる。
+    private func prepareForReplay() {
         if isScanning {
             stopScan()
         }
         if phase == .replaying {
             disconnectReplay()
         }
-        loadReplayFile(url: url)
     }
 
     /// 再生はグラフ画面(ページ)が受け持つ: ファイルを仮想ホストに出してページに読ませる。
@@ -383,15 +358,10 @@ final class MEMEViewModel: NSObject {
     /// ページが CSV を読み終えたら、計測条件の表示(左の欄)を CSV に合わせる。
     private func applyReplayInfo(_ info: [String: Any]) {
         guard phase == .replaying else { return }
-        switch info["mode"] as? String {
-        case "standard": selectMode = Int(MEMEMode_Standard) - 1
-        case "full": selectMode = Int(MEMEMode_Full) - 1
-        case "quaternion": selectMode = Int(MEMEMode_Quaternion) - 1
-        default: break
-        }
-        if let cps = (info["cps"] as? NSNumber)?.intValue { transSpeed = cps == 100 ? 0 : 1 }
-        if let g = (info["accRange"] as? NSNumber)?.intValue, let k = Self.accelG.firstIndex(of: g) { accelRange = k }
-        if let d = (info["gyroRange"] as? NSNumber)?.intValue, let k = Self.gyroDps.firstIndex(of: d) { gyroRange = k }
+        if let name = info["mode"] as? String, let m = MeasurementMode(pageName: name) { selectMode = m.pickerIndex }
+        if let c = (info["cps"] as? NSNumber)?.intValue, let k = MeasurementRange.transHz.firstIndex(of: c) { transSpeed = k }
+        if let g = (info["accRange"] as? NSNumber)?.intValue, let k = MeasurementRange.accelG.firstIndex(of: g) { accelRange = k }
+        if let d = (info["gyroRange"] as? NSNumber)?.intValue, let k = MeasurementRange.gyroDps.firstIndex(of: d) { gyroRange = k }
     }
 
     /// 再生中に付けた Artifact を、今すぐ再生元CSVへ書き戻す(再生は続ける)。
@@ -412,56 +382,26 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Artifact
 
-    /// ページで付けた Artifact を控える。空なら "X"、カンマ/改行は列崩れ防止のため除去(同一行は上書き)。
-    /// 表計算ソフトで数式として読まれる書き出し(= + - @)は受けない(CSV 注入。ページも入力時に断る。webview/BRIDGE.md)。
+    /// ページで付けた Artifact を控える(無害化と番号の扱いは ArtifactBuffer)。
     private func receiveArtifact(i: Int, text: String) {
         guard phase == .replaying || phase == .measuring else { return }
-        let sanitized = String(text
-            .replacingOccurrences(of: ",", with: " ")
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "\r", with: " ")
-            .trimmingCharacters(in: .whitespaces)
-            .prefix(64))
-        if let c = sanitized.first, "=+-@".contains(c) {
-            NSLog("[Artifact] refused (formula-like): %@", sanitized)
-            return
-        }
-        pendingArtifacts[max(i, 0)] = sanitized.isEmpty ? "X" : sanitized
+        pendingArtifacts.add(i: i, text: text)
     }
 
     /// 再生中に付けた Artifact を再生元CSVの ARTIFACT 列へ書き戻す(Save Artifacts / 切断時)。
-    /// キーは CSV のデータ行の番号(ページが返す番号そのまま)。
     private func flushArtifacts() {
-        guard !pendingArtifacts.isEmpty, let url = replayFile else { return }
-        do {
-            try CsvArtifactWriter.apply(url: url, artifacts: pendingArtifacts)
-        } catch {
-            NSLog("[Artifact] failed to write: %@", error.localizedDescription)
-        }
-        pendingArtifacts.removeAll()
+        pendingArtifacts.flush(to: replayFile, numbering: .csvRow)
     }
 
     /// 計測中に付けた Artifact を、保存済みCSVの ARTIFACT 列へ書き戻す（停止時）。
-    /// pendingArtifacts のキーはサンプル番号。CSVは先頭パケットを1件落とすため、
-    /// データ行インデックス = サンプル番号 − 1（サンプル0はCSVに無いので除外する）。
     private func flushLiveArtifacts() {
-        defer { pendingArtifacts.removeAll() }
-        guard !pendingArtifacts.isEmpty, let url = persistence.savedFileURL else { return }
-        var rowKeyed: [Int: String] = [:]
-        for (sampleIndex, text) in pendingArtifacts where sampleIndex >= 1 {
-            rowKeyed[sampleIndex - 1] = text
-        }
-        do {
-            try CsvArtifactWriter.apply(url: url, artifacts: rowKeyed)
-        } catch {
-            NSLog("[Artifact] failed to write (live): %@", error.localizedDescription)
-        }
+        pendingArtifacts.flush(to: persistence.savedFileURL, numbering: .liveSample)
     }
 
     // MARK: - Measurement
 
     func toggleMeasurement() {
-        if !measurementFlag {
+        if phase != .measuring {
             startMeasurement()
         } else {
             stopMeasurement()
@@ -471,7 +411,7 @@ final class MEMEViewModel: NSObject {
     private func startMeasurement() {
         stats.startMeasurement(quality: transSpeed + 1)
 
-        memelib.setSelectMode(UInt32(selectMode + 1))
+        memelib.setSelectMode(MeasurementMode(pickerIndex: selectMode).rawValue)
         memelib.setTransMode(UInt32(transSpeed + 1))
         memelib.setAccelRange(UInt32(accelRange))
         memelib.setGyroRange(UInt32(gyroRange))
@@ -484,7 +424,6 @@ final class MEMEViewModel: NSObject {
         liveSampleIndex = 0
         web.start(liveCondition())
 
-        measurementFlag = true
         phase = .measuring
         memelib.startDataReport()
     }
@@ -494,23 +433,30 @@ final class MEMEViewModel: NSObject {
         stats.stopMeasurement()
         web.stop()
 
+        // 届きかけのパケットを待ってから締める。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
-            self.measurementFlag = false
+            // 待つ間に切断されていたら(phase は .idle)、切断の側で締めてある。
+            guard self.phase == .measuring else { return }
             self.phase = .connected
-
-            self.flushCsv()
-            // 確定したCSVファイルへ、計測中に付けた Artifact を書き戻す。
-            // （保存ダイアログでファイルを移動する前に、元パスへ書き込んでおく。）
-            self.flushLiveArtifacts()
-
-            if UserSetting.getShowSaveFileDialog() {
-                self.persistence.presentSaveDialog()
-            } else {
-                self.persistence.resetCsvManager()
-            }
-            self.reset()
+            self.finishMeasurement()
         }
+    }
+
+    /// 計測を締める(停止のとき・計測中に切断されたとき): CSV を書き切り、計測中に付けた Artifact を
+    /// 書き戻し、設定なら保存ダイアログを出して、次の計測が新しいファイルになるよう状態を戻す。
+    private func finishMeasurement() {
+        flushCsv()
+        // 確定したCSVファイルへ、計測中に付けた Artifact を書き戻す。
+        // （保存ダイアログでファイルを移動する前に、元パスへ書き込んでおく。）
+        flushLiveArtifacts()
+
+        if UserSetting.getShowSaveFileDialog() {
+            persistence.presentSaveDialog()
+        } else {
+            persistence.resetCsvManager()
+        }
+        reset()
     }
 
     func toggleFreeMarking() {
@@ -518,11 +464,6 @@ final class MEMEViewModel: NSObject {
     }
 
     // MARK: - Graph (WebView)
-
-    /// 各モードで 1 サンプルぶんとしてページへ渡す列(CSV の列名と同じ)。
-    private static let fullColumns = ["ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V"]
-    private static let standardColumns = ["ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2",
-                                          "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2"]
 
     /// 表示の設定(時刻の表示・加速度のオフセット・テーマ)。計測・再生どちらでもページへ渡す。
     private func displayOptions() -> [String: Any] {
@@ -536,17 +477,14 @@ final class MEMEViewModel: NSObject {
 
     /// 計測の開始時にページへ渡す条件(webview/BRIDGE.md の start)。値は端末に設定したもの。
     private func liveCondition() -> [String: Any] {
-        let mode = memelib.getSelectMode()
-        let modeName = mode == MEMEMode_Full ? "full" : mode == MEMEMode_Quaternion ? "quaternion" : "standard"
-        let columns: [String] = mode == MEMEMode_Full ? Self.fullColumns
-            : mode == MEMEMode_Standard ? Self.standardColumns : []
+        let mode = MeasurementMode(rawValue: memelib.getSelectMode()) ?? .standard
         var cond = displayOptions()
         cond["label"] = selectedDevice.isEmpty ? "JINS MEME" : selectedDevice
-        cond["mode"] = modeName
-        cond["cps"] = memelib.getTransMode() == MEMEQuality_High ? 100 : 50
-        cond["accRange"] = Self.accelG[min(max(Int(memelib.getAccelRange()), 0), 3)]
-        cond["gyroRange"] = Self.gyroDps[min(max(Int(memelib.getGyroRange()), 0), 3)]
-        cond["columns"] = columns
+        cond["mode"] = mode.pageName
+        cond["cps"] = MeasurementRange.hz(quality: memelib.getTransMode())
+        cond["accRange"] = MeasurementRange.accelG(device: memelib.getAccelRange())
+        cond["gyroRange"] = MeasurementRange.gyroDps(device: memelib.getGyroRange())
+        cond["columns"] = mode.hasGraph ? mode.columns : []
         cond["startedAt"] = Date().timeIntervalSince1970 * 1000
         return cond
     }
@@ -555,12 +493,8 @@ final class MEMEViewModel: NSObject {
     private func pushToGraph(_ data: AcademicData, freeMarked: Bool) {
         let i = liveSampleIndex
         liveSampleIndex += 1
-        if let f = data as? AcademicFullData {
-            web.push(i: i, values: [Int(f.accX), Int(f.accY), Int(f.accZ), Int(f.gyroX), Int(f.gyroY), Int(f.gyroZ),
-                                    Int(f.eogL), Int(f.eogR), Int(f.eogH), Int(f.eogV)])
-        } else if let s = data as? AcademicStandardData {
-            web.push(i: i, values: [Int(s.accX), Int(s.accY), Int(s.accZ), Int(s.eogL1), Int(s.eogR1), Int(s.eogL2), Int(s.eogR2),
-                                    Int(s.eogH1), Int(s.eogH2), Int(s.eogV1), Int(s.eogV2)])
+        if let mode = MeasurementMode(of: data), mode.hasGraph, let values = mode.values(of: data) {
+            web.push(i: i, values: values)
         }
         if freeMarked {
             web.mark(i: i, text: "X")
@@ -582,18 +516,6 @@ final class MEMEViewModel: NSObject {
         socketStop()
         socketStart()
         showLocalPort()
-    }
-
-    // MARK: - Data → dictionary
-
-    /// CSV／ソケットへ流す1行ぶんの辞書を作る（registerPacket 済みのパケットに対して呼ぶ）。
-    private func dataToDictionary(_ data: AcademicData, isFreeMarking: Bool) -> [String: Any] {
-        [
-            "data": data,
-            "packetCount": NSNumber(value: stats.totalCount),
-            "date": data.date ?? Date(),
-            "isFreeMarking": NSNumber(value: isFreeMarking)
-        ]
     }
 
     // MARK: - CSV / Socket
@@ -647,8 +569,7 @@ final class MEMEViewModel: NSObject {
     // MARK: - AUP_REPORT_MODE / AUP_REPORT_6AXIS_PRMS
 
     private func syncDeviceSettings() {
-        let modeIdx = Int(memelib.getSelectMode()) - 1
-        if (0..<selectModeOptions.count).contains(modeIdx) { selectMode = modeIdx }
+        if let mode = MeasurementMode(rawValue: memelib.getSelectMode()) { selectMode = mode.pickerIndex }
         let transIdx = Int(memelib.getTransMode()) - 1
         if (0..<transSpeedOptions.count).contains(transIdx) { transSpeed = transIdx }
         let accelIdx = Int(memelib.getAccelRange())
@@ -659,10 +580,13 @@ final class MEMEViewModel: NSObject {
 
     // MARK: - Phase computed convenience
 
+    /// 実機(またはモック)に接続済み(計測中を含む)
+    private var isConnected: Bool { phase == .connected || phase == .measuring }
+
     var showScanButton: Bool { phase == .idle || phase == .deviceFound }
     var scanButtonLabel: String { isScanning ? "Stop Scan" : "Start Scan" }
     // BLE デバイス接続中（接続完了 or 計測中）以外は常に表示する。
-    var showFileReplay: Bool { phase != .connected && phase != .measuring }
+    var showFileReplay: Bool { !isConnected }
     // スキャン中はデバイス選択（(no device) 表示）を触らせない。
     // デバイスが見つかったら選択できるようにする。
     var isDeviceSelectionDisabled: Bool { isInputDisabled || (isScanning && phase != .deviceFound) }
@@ -670,7 +594,7 @@ final class MEMEViewModel: NSObject {
     var connectButtonLabel: String {
         (phase == .connected || phase == .replaying) ? "Disconnect" : "Connect"
     }
-    var showMeasurement: Bool { phase == .connected || phase == .measuring }
+    var showMeasurement: Bool { isConnected }
     var showFreeMarking: Bool { phase == .measuring }
     /// 再生中は「Save Artifacts」(付けた Artifact を今すぐ CSV へ書き戻す)を出す。
     /// 再生・一時停止・速度・シークはグラフ画面の中にある。
@@ -728,7 +652,6 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
             connectionStateText = "State : Connect failed"
             return
         }
-        connectedFlag = true
         isScanning = false
         connectionStateText = "State : Connected"
         memeVersionText = "MEME Version：\(memelib.memeVersion.major).\(memelib.memeVersion.minor).\(memelib.memeVersion.revision)"
@@ -738,7 +661,7 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
 
     func memePeripheralDisconnectedDelegate(result: UInt32) {
         NSLog("memePeripheralDisconnectedDelegate : %d", result)
-        connectedFlag = false
+        let wasMeasuring = phase == .measuring
         isConnecting = false
         isScanning = false
         connectionStateText = "State : Disconnected"
@@ -746,6 +669,13 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         selectedDevice = ""
         phase = .idle
         web.stop()
+        // 計測中に切れた(電池切れ・電波など)ときも、停止と同じく締める。
+        // 締めないと次の計測が同じ CSV に書き足され、NUM も続きから数えられてしまう。
+        if wasMeasuring {
+            NSLog("disconnected while measuring; finishing the measurement")
+            stats.stopMeasurement()
+            finishMeasurement()
+        }
         // SHELF 送信後の切断は端末が移行を受理した合図。
         if isEnteringShelf {
             finishShelfMode(entered: true)
@@ -754,20 +684,17 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
 
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData) {
         let freeMarked = ingestPacket(data: data)
-        ingestForDisplay(standard: data)
         pushToGraph(data, freeMarked: freeMarked)
     }
 
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData) {
         let freeMarked = ingestPacket(data: data)
-        ingestForDisplay(full: data)
         pushToGraph(data, freeMarked: freeMarked)
     }
 
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData) {
         // Quaternion はグラフを持たないので、Free Marking は CSV に書くだけで印は出さない。
         _ = ingestPacket(data: data)
-        displayCnt = data.cnt
     }
 
     /// 受信パケットを CSV／ソケットへ流す。このパケットの行へ Free Marking の X を書いたら
@@ -781,31 +708,16 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         if stats.registerPacket(count: Int(data.cnt)) {
             freeMarked = isFreeMarking
             isFreeMarking = false
-            persistence.append(dataToDictionary(data, isFreeMarking: freeMarked))
+            let row = CsvRow(data: data, packetCount: stats.totalCount, date: data.date ?? Date(), isFreeMarking: freeMarked)
+            persistence.append(row)
             saveCsv()
-            if socket?.isConnected() == true, let last = persistence.lastRow {
-                socketDatas.append(last)
+            if socket?.isConnected() == true {
+                socketDatas.append(row)
                 writeSocket()
             }
         }
         stats.bumpDataCount()
-        displayBattLv = data.battLv
         return freeMarked
-    }
-
-    private func ingestForDisplay(standard d: AcademicStandardData) {
-        displayCnt = d.cnt
-        displayAccX = d.accX; displayAccY = d.accY; displayAccZ = d.accZ
-        displayEogL = d.eogL1; displayEogR = d.eogR1
-        displayEogH = d.eogH1; displayEogV = d.eogV1
-    }
-
-    private func ingestForDisplay(full d: AcademicFullData) {
-        displayCnt = d.cnt
-        displayAccX = d.accX; displayAccY = d.accY; displayAccZ = d.accZ
-        displayGyroX = d.gyroX; displayGyroY = d.gyroY; displayGyroZ = d.gyroZ
-        displayEogL = d.eogL; displayEogR = d.eogR
-        displayEogH = d.eogH; displayEogV = d.eogV
     }
 }
 

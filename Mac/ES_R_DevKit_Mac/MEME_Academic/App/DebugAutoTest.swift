@@ -24,6 +24,15 @@
 //  終わったら元の中身に戻す(高機能版 advanced.zip の確かめ用。ページに検出器があれば、その状態も result.json に書く)。
 //  もともと選んだ zip を使っていたら、それを退避しておいて戻す(zip の組も同じ)。
 //
+//  MEME_AUTOTEST_SOCKET_PORT=<ポート> を足すと、テストの間だけ TCP 出力(Settings の TCP Output)をそのポートで有効にする
+//  (受け取る側は外で用意する。例: nc localhost <ポート> > out.csv)。終わったら元の設定に戻す。
+//
+//  MEME_AUTOTEST_SUITE=webcrash は(-mock のみ)、計測中・再生中にグラフ画面(WebView)のプロセスを落とし、
+//  読み込み直したページで計測・再生が続いているかを見る。
+//
+//  MEME_AUTOTEST_SUITE=reconnect は(-mock か MEME_AUTOTEST_REAL=1)、計測中に切断 → 繋ぎ直して計測を始められるか、切断した回の CSV が
+//  停止と同じく締められるか(ファイルが分かれる・NUM が続かない・Artifact が書き戻される)を見る。
+//
 //  MEME_AUTOTEST_SUITE=zip MEME_AUTOTEST_BADZIPS=<フォルダ> は、フォルダの中の zip を 1 つずつ読み込み、
 //  名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、展開先の外に何も書かれないことを見る
 //  (zip slip・zip 爆弾などの検査。悪い zip は webview/tools/make_bad_zips.py が作る)。
@@ -49,11 +58,19 @@ enum DebugAutoTest {
             let csvDir = out.appendingPathComponent("csv", isDirectory: true)
             try? FileManager.default.createDirectory(at: csvDir, withIntermediateDirectories: true)
             UserSetting.setSaveFilePath(csvDir.path)
+            // MEME_AUTOTEST_SOCKET_PORT があれば、その間だけ TCP 出力を有効にする(外から nc などで受けて確かめる)。終わったら戻す
+            let savedSocket = (UserSetting.getExtermalOutputSocket(), UserSetting.getLocalPort())
+            let socketPort = ProcessInfo.processInfo.environment["MEME_AUTOTEST_SOCKET_PORT"]
+            if let socketPort {
+                UserSetting.setExtermalOutputSocket(true)
+                UserSetting.setLocalPort(socketPort)
+                vm.settingsDidApply()
+            }
             let store = WebContentStore.shared
             let wasCustom = store.source == .custom
             let env = ProcessInfo.processInfo.environment
             let usesZips = env["MEME_AUTOTEST_ZIP"] != nil || env["MEME_AUTOTEST_SUITE"] == "zip"
-            let kept = usesZips && wasCustom ? keepCustom(store) : nil   // 取り込みで上書きされる前に、選んでいた zip を退避
+            let kept = usesZips && wasCustom ? store.copyCustomAside() : nil   // 取り込みで上書きされる前に、選んでいた zip を退避
             do {
                 if let zip = env["MEME_AUTOTEST_ZIP"] {
                     let m = try store.importZip(URL(fileURLWithPath: zip))
@@ -62,6 +79,14 @@ enum DebugAutoTest {
                 }
                 if env["MEME_AUTOTEST_SUITE"] == "zip" {
                     try await runZip(vm, dir: URL(fileURLWithPath: env["MEME_AUTOTEST_BADZIPS"] ?? ""), result: &result)
+                } else if env["MEME_AUTOTEST_SUITE"] == "webcrash" {
+                    guard MEMELibFactory.isMock else { throw Timeout(what: "refused: webcrash suite needs -mock") }
+                    try await runWebCrash(vm, out: out, result: &result)
+                } else if env["MEME_AUTOTEST_SUITE"] == "reconnect" {
+                    guard MEMELibFactory.isMock || env["MEME_AUTOTEST_REAL"] == "1" else {
+                        throw Timeout(what: "refused: reconnect suite needs -mock or MEME_AUTOTEST_REAL=1")
+                    }
+                    try await runReconnect(vm, result: &result)
                 } else if env["MEME_AUTOTEST_SUITE"] == "settings" {
                     guard MEMELibFactory.isMock || env["MEME_AUTOTEST_REAL"] == "1" else {
                         throw Timeout(what: "refused: settings suite needs -mock or MEME_AUTOTEST_REAL=1")
@@ -82,29 +107,15 @@ enum DebugAutoTest {
                 try? data.write(to: out.appendingPathComponent("result.json"))
             }
             UserSetting.setSaveFilePath(savedPath)   // terminate は戻らないので defer でなくここで戻す
+            if socketPort != nil {
+                UserSetting.setExtermalOutputSocket(savedSocket.0)
+                UserSetting.setLocalPort(savedSocket.1)
+            }
             if usesZips {                             // 読み込んだ zip を残さない。もともと選んだ zip を使っていたらそれに戻す
-                if let kept { restoreCustom(store, from: kept) } else { store.useBundled() }
+                if let kept { store.restoreCustom(from: kept) } else { store.useBundled() }
             }
             NSApp.terminate(nil)
         }
-    }
-
-    /// 選んでいた zip の展開先(WebContent/custom)を一時フォルダへ写す
-    private static func keepCustom(_ store: WebContentStore) -> URL? {
-        let fm = FileManager.default
-        let src = store.root.appendingPathComponent("custom", isDirectory: true)
-        let dst = fm.temporaryDirectory.appendingPathComponent("autotest-custom-\(UUID().uuidString)", isDirectory: true)
-        do { try fm.copyItem(at: src, to: dst); return dst } catch { NSLog("[AutoTest] keep custom: %@", error.localizedDescription); return nil }
-    }
-
-    /// keepCustom で写したものを WebContent/custom へ戻し、選んだ zip を使う設定に戻す
-    private static func restoreCustom(_ store: WebContentStore, from kept: URL) {
-        let fm = FileManager.default
-        let dst = store.root.appendingPathComponent("custom", isDirectory: true)
-        try? fm.removeItem(at: dst)
-        do { try fm.moveItem(at: kept, to: dst) } catch { NSLog("[AutoTest] restore custom: %@", error.localizedDescription) }
-        UserSetting.setWebContentSource("custom")
-        store.prepare()
     }
 
     private struct CheckFailed: Error, CustomStringConvertible {
@@ -190,7 +201,7 @@ enum DebugAutoTest {
         result["device"] = vm.selectedDevice
         result["address"] = vm.connectedMacAddress
         result["mode"] = standard ? "Standard" : "Full"
-        vm.selectMode = standard ? 0 : Int(MEMEMode_Full) - 1
+        vm.selectMode = (standard ? MeasurementMode.standard : .full).pickerIndex
         vm.transSpeed = 0
         vm.accelRange = 2
         vm.gyroRange = 2
@@ -214,15 +225,7 @@ enum DebugAutoTest {
         await sleep(1.5)
 
         // 保存した CSV(保存先で一番新しいもの)に書き戻されたか
-        let dir = URL(fileURLWithPath: UserSetting.getSaveFilePath())
-        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        let csv = files.filter { CsvFile.isSupported(fileName: $0.lastPathComponent) }
-            .max { a, b in
-                let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return da < db
-            }
-        guard let csv else { throw Timeout(what: "saved csv") }
+        guard let csv = newestCsv() else { throw Timeout(what: "saved csv") }
         result["savedCsv"] = csv.path
         let text = (try? CsvFile.readText(at: csv)) ?? ""
         let dataLines = text.components(separatedBy: "\n").drop { !$0.hasPrefix("//ARTIFACT") }.dropFirst().filter { !$0.isEmpty }
@@ -248,9 +251,35 @@ enum DebugAutoTest {
         result["replay"] = await pageState(vm)
         result["probeReplay"] = await probe(vm)
         await snapshot(vm, "2-replay", out)
+        // 再生中のアーティファクト(番号は CSV のデータ行)。カンマは空白に、数式風は断り、空は X。切断時に書き戻す
+        for (i, text) in [(5, "a,b"), (10, "=SUM(A1)"), (20, "")] {
+            _ = try? await vm.web.webView.evaluateJavaScript(
+                "window.webkit.messageHandlers.jmas.postMessage({kind: 'artifact', i: \(i), text: \(String(reflecting: text))}); 0")
+        }
+        await sleep(0.5)
         vm.toggleConnect()
         await sleep(0.5)
+        let after = (try? CsvFile.readText(at: csv)) ?? ""
+        let rowsAfter = Array(after.components(separatedBy: "\n").drop { !$0.hasPrefix("//ARTIFACT") }.dropFirst().filter { !$0.isEmpty })
+        let firstField = { (k: Int) in k < rowsAfter.count ? String(rowsAfter[k].prefix { $0 != "," }) : "?" }
+        result["replayArtifacts"] = ["5": firstField(5), "10": firstField(10), "20": firstField(20), "299": firstField(299)]
+        if firstField(5) != "a b" { problems.append("replay artifact row 5 = \(firstField(5)), expected 'a b'") }
+        if firstField(10) != "" { problems.append("replay artifact row 10 = \(firstField(10)), expected refused") }
+        if firstField(20) != "X" { problems.append("replay artifact row 20 = \(firstField(20)), expected 'X'") }
+        if firstField(299) != "autotest" { problems.append("live artifact row 299 lost after replay: \(firstField(299))") }
         if !problems.isEmpty { throw CheckFailed(problems: problems) }
+    }
+
+    /// 保存先で一番新しい CSV
+    private static func newestCsv() -> URL? {
+        let dir = URL(fileURLWithPath: UserSetting.getSaveFilePath())
+        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        return files.filter { CsvFile.isSupported(fileName: $0.lastPathComponent) }
+            .max { a, b in
+                let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return da < db
+            }
     }
 
     private static func hasDetector(_ vm: MEMEViewModel) async throws -> Bool {
@@ -264,6 +293,116 @@ enum DebugAutoTest {
             if Date() > end { throw Timeout(what: what) }
             await sleep(0.2)
         }
+    }
+
+    // MARK: - グラフ画面のプロセスが落ちたとき(モック)
+
+    /// 計測中・再生中に WebView のプロセスを落とし、読み込み直したページで計測・再生が続いているか
+    /// (以前は読み込み直しで start / openReplay が送り直されず、グラフ画面が空のままだった)。
+    private static func runWebCrash(_ vm: MEMEViewModel, out: URL, result: inout [String: Any]) async throws {
+        try await wait("page ready", 20) { vm.web.isReady }
+        vm.startScan()
+        try await wait("device found", 30) { vm.phase == .deviceFound }
+        vm.toggleConnect()
+        try await wait("connected", 30) { vm.phase == .connected }
+        vm.toggleMeasurement()
+        try await wait("measuring") { vm.phase == .measuring }
+        await sleep(2)
+        try await killPage(vm, "live")
+        await sleep(3)
+        let live = await pageState(vm)
+        result["live"] = live
+        await snapshot(vm, "crash-live", out)
+        vm.toggleMeasurement()
+        try await wait("stopped") { vm.phase == .connected }
+        await sleep(1)
+        vm.toggleConnect()
+        try await wait("disconnected") { vm.phase == .idle }
+
+        guard let csv = newestCsv() else { throw Timeout(what: "saved csv") }
+        vm.openReplayFile(url: csv)
+        await sleep(3)
+        try await killPage(vm, "replay")
+        await sleep(3)
+        let replay = await pageState(vm)
+        result["replay"] = replay
+        await snapshot(vm, "crash-replay", out)
+        vm.toggleConnect()
+        await sleep(0.5)
+
+        // ステータスの行は、start / openReplay を受けたときだけ端末名・ファイル名と計測条件を出す
+        var problems: [String] = []
+        let liveStatus = ((live as? [String: Any])?["status"] as? String) ?? ""
+        let replayStatus = ((replay as? [String: Any])?["status"] as? String) ?? ""
+        if !liveStatus.contains("ESR_MOCK") || !liveStatus.contains("100 Hz") { problems.append("live not resumed: \(liveStatus)") }
+        if !replayStatus.contains(csv.lastPathComponent) { problems.append("replay not resumed: \(replayStatus)") }
+        if !problems.isEmpty { throw CheckFailed(problems: problems) }
+    }
+
+    /// WebView のプロセスを落とし(webViewWebContentProcessDidTerminate が呼ばれる)、別のプロセスで読み込み直して
+    /// ready になるまで待つ(読み込み直しは速いので、isReady が倒れるのを見張るのではなくプロセスが替わったかで見る)
+    private static func killPage(_ vm: MEMEViewModel, _ what: String) async throws {
+        let pidNow = { (vm.web.webView.value(forKey: "_webProcessIdentifier") as? NSNumber)?.int32Value ?? 0 }
+        let pid = pidNow()
+        guard pid > 0 else { throw Timeout(what: "web content pid (\(what))") }
+        kill(pid, SIGKILL)
+        try await wait("page ready after kill (\(what))", 20) { pidNow() > 0 && pidNow() != pid && vm.web.isReady }
+    }
+
+    // MARK: - 計測中の切断(モック)
+
+    /// 計測中に切断されたあと、繋ぎ直して Start Measurement で計測が始まるか
+    /// (以前は計測中の印が残り、繋ぎ直した後の Start が停止として扱われていた)。
+    /// 切断した回も停止と同じく締められ(CSV が分かれ、NUM が続かない)、付けた Artifact が書き戻されるか。
+    private static func runReconnect(_ vm: MEMEViewModel, result: inout [String: Any]) async throws {
+        try await wait("page ready", 20) { vm.web.isReady }
+        for round in 1...2 {
+            vm.startScan()
+            try await wait("device found \(round)", 30) { vm.phase == .deviceFound }
+            vm.toggleConnect()
+            try await wait("connected \(round)", 30) { vm.phase == .connected }
+            vm.toggleMeasurement()
+            try await wait("measuring \(round)", 5) { vm.phase == .measuring }
+            await sleep(2)
+            if round == 2 { break }
+            // サンプル 50 = CSV の 49 行目。切断で締めたときに書き戻されるか
+            _ = try? await vm.web.webView.evaluateJavaScript(
+                "window.webkit.messageHandlers.jmas.postMessage({kind: 'artifact', i: 50, text: 'cut'}); 0")
+            await sleep(0.3)
+            // 端末側からの切断と同じく、計測を止めずに切る(画面からは計測中に切断できない)
+            vm.toggleConnect()
+            try await wait("disconnected", 15) { vm.phase == .idle }
+            await sleep(1)                                    // 停止の後始末(0.5 秒後)が走っても idle のままか
+            result["phaseAfterDisconnect"] = "\(vm.phase)"
+            if vm.phase != .idle { throw CheckFailed(problems: ["phase \(vm.phase) after disconnect"]) }
+        }
+        vm.toggleMeasurement()
+        try await wait("stopped", 5) { vm.phase == .connected }
+        await sleep(1)
+        vm.toggleConnect()
+        try await wait("disconnected at end", 15) { vm.phase == .idle }
+
+        // 保存先の CSV(古い順。名前は <アドレス>_<日時> で、2 回で別の端末に繋がることもあるので日時の部分で並べる)
+        let dir = URL(fileURLWithPath: UserSetting.getSaveFilePath())
+        let stamp = { (u: URL) in u.lastPathComponent.split(separator: "_").last.map(String.init) ?? "" }
+        let csvs = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .filter { CsvFile.isSupported(fileName: $0.lastPathComponent) }.sorted { stamp($0) < stamp($1) }
+        var problems: [String] = []
+        var files: [[String: Any]] = []
+        for csv in csvs {
+            let text = (try? CsvFile.readText(at: csv)) ?? ""
+            let rows = Array(text.components(separatedBy: "\n").drop { !$0.hasPrefix("//ARTIFACT") }.dropFirst().filter { !$0.isEmpty })
+            let nums = rows.compactMap { Int($0.split(separator: ",", omittingEmptySubsequences: false).dropFirst().first ?? "") }
+            let gaps = zip(nums, nums.dropFirst()).filter { $1 != $0 + 1 }.count
+            let row49 = rows.count > 49 ? String(rows[49].prefix { $0 != "," }) : "?"
+            files.append(["name": csv.lastPathComponent, "rows": rows.count, "headers": text.components(separatedBy: "\n").filter { $0.hasPrefix("//ARTIFACT") }.count,
+                          "numGaps": gaps, "firstNum": nums.first ?? -1, "row49": row49])
+            if gaps != 0 { problems.append("\(csv.lastPathComponent): NUM has \(gaps) gaps") }
+        }
+        result["csvs"] = files
+        if csvs.count != 2 { problems.append("\(csvs.count) CSV files, expected 2 (one per measurement)") }
+        if let first = files.first, first["row49"] as? String != "cut" { problems.append("artifact of the cut measurement: \(first["row49"] ?? "")") }
+        if !problems.isEmpty { throw CheckFailed(problems: problems) }
     }
 
     // MARK: - zip の検査(悪い zip を断るか)
@@ -395,9 +534,7 @@ enum DebugAutoTest {
         let wantGyro = (want["gyro"] as! String).replacingOccurrences(of: "±", with: "")
         if acc != wantAcc { problems.append("acc \(acc) != \(wantAcc)") }
         if gyro != wantGyro { problems.append("gyro \(gyro) != \(wantGyro)") }
-        let wantCols: [String] = wantMode == "Full" ? ["ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V"]
-            : wantMode == "Standard" ? ["ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2", "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2"]
-            : ["QUATERNION_W", "QUATERNION_X", "QUATERNION_Y", "QUATERNION_Z"]
+        let wantCols = MeasurementMode.allCases.first { $0.label == wantMode }?.columns ?? []
         if Array(columns.dropFirst(3)) != wantCols { problems.append("columns \(columns)") }
         if data.contains(where: { $0.count != columns.count }) { problems.append("rows with wrong field count") }
         // 送信頻度(DATE 列の最初と最後)

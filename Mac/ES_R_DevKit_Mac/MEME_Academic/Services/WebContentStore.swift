@@ -191,3 +191,27 @@ final class WebContentStore {
         return m
     }
 }
+
+#if DEBUG
+// MARK: - 自己テスト用(DebugAutoTest)
+
+extension WebContentStore {
+    /// 選んだ zip の展開先を一時フォルダへ写す(自己テストが zip を取り込んで上書きする前に)
+    func copyCustomAside() -> URL? {
+        let dst = fm.temporaryDirectory.appendingPathComponent("autotest-custom-\(UUID().uuidString)", isDirectory: true)
+        do { try fm.copyItem(at: customDir, to: dst); return dst } catch {
+            NSLog("[WebContent] copy custom aside: %@", error.localizedDescription); return nil
+        }
+    }
+
+    /// copyCustomAside で写したものを戻し、選んだ zip を使う設定に戻す
+    func restoreCustom(from kept: URL) {
+        try? fm.removeItem(at: customDir)
+        do { try fm.moveItem(at: kept, to: customDir) } catch {
+            NSLog("[WebContent] restore custom: %@", error.localizedDescription)
+        }
+        UserSetting.setWebContentSource(Source.custom.rawValue)
+        prepare()
+    }
+}
+#endif
