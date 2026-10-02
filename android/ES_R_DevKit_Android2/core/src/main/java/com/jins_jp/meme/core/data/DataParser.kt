@@ -6,16 +6,11 @@ import java.nio.ByteOrder
 
 data class ParsedPacket(
     val type: Byte,
-    val totalCountIncrement: Long,
     val packetCount: Short,
     val batteryLevel: Short,
+    /** CSV の列の並び（ARTIFACT・NUM・DATE より後ろ）。グラフ画面へもこの並びで渡す。 */
     val values: IntArray,
 ) {
-    /** All fields needed for CSV output and live graphs. */
-    val accX: Short get() = values.getOrElse(0) { 0 }.toShort()
-    val accY: Short get() = values.getOrElse(1) { 0 }.toShort()
-    val accZ: Short get() = values.getOrElse(2) { 0 }.toShort()
-
     // For ACADEMIA1 (Standard): values are arranged as
     // [accX, accY, accZ, eogL1, eogR1, eogL2, eogR2, eogH(diff), eogH2, eogV1, eogV2]
     // For ACADEMIA2 (Full): values[3..5] = gyro, values[6..7] = eogL/R, plus derived.
@@ -66,7 +61,7 @@ object DataParser {
         values[9] = (0 - (values[3] + values[4]) / 2).toShort().toInt()
         values[10] = (0 - (values[5] + values[6]) / 2).toShort().toInt()
 
-        return ParsedPacket(type, 0L, count, level, values)
+        return ParsedPacket(type, count, level, values)
     }
 
     private fun parseAcademia2(data: ByteArray, type: Byte): ParsedPacket {
@@ -86,7 +81,7 @@ object DataParser {
         }
         values[8] = (values[6] - values[7]).toShort().toInt()
         values[9] = (0 - (values[6] + values[7]) / 2).toShort().toInt()
-        return ParsedPacket(type, 0L, count, level, values)
+        return ParsedPacket(type, count, level, values)
     }
 
     private fun parseAcademia3(data: ByteArray, type: Byte): ParsedPacket {
@@ -104,6 +99,6 @@ object DataParser {
             values[idx++] = int
             i += 4
         }
-        return ParsedPacket(type, 0L, count, level, values)
+        return ParsedPacket(type, count, level, values)
     }
 }

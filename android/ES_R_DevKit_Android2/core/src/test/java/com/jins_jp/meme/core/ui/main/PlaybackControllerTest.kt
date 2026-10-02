@@ -58,7 +58,7 @@ class PlaybackControllerTest {
         newController().start(null)
         advanceUntilIdle()
         assertTrue(opened.isEmpty())
-        assertFalse(ui.value.mockEnabled)
+        assertFalse(ui.value.isReplaying)
     }
 
     @Test
@@ -67,7 +67,7 @@ class PlaybackControllerTest {
         c.start(uri)
         advanceUntilIdle()
         assertEquals(listOf(uri to "a.csv.gz"), opened)
-        assertTrue(ui.value.mockEnabled)
+        assertTrue(ui.value.isReplaying)
         assertEquals("a.csv.gz", ui.value.replayName)
         assertEquals(uri, c.sourceUri)
     }
@@ -88,7 +88,7 @@ class PlaybackControllerTest {
         advanceUntilIdle()
         assertEquals(1, closed)
         assertEquals(listOf(uri), merged)
-        assertFalse(ui.value.mockEnabled)
+        assertFalse(ui.value.isReplaying)
         assertNull(ui.value.replayName)
         assertNull(c.sourceUri)
     }
@@ -110,6 +110,6 @@ class PlaybackControllerTest {
         assertEquals(listOf(uri), merged)
         assertEquals(listOf(uri to "a.csv.gz", uri2 to "b.csv"), opened)
         assertEquals(uri2, c.sourceUri)
-        assertTrue(ui.value.mockEnabled)
+        assertTrue(ui.value.isReplaying)
     }
 }

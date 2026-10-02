@@ -12,14 +12,14 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.zip.GZIPOutputStream
 
-/** URIs of the main data CSV and classification CSV finalized by [CsvWriter.stop]. */
-data class CsvStopResult(val dataUri: Uri?, val classificationUri: Uri?)
+/** URI of the main data CSV finalized by [CsvWriter.stop]（1 行も書いていなければ null）. */
+data class CsvStopResult(val dataUri: Uri?)
 
 /**
  * Writes CSV files into the public Downloads/ESR Logger directory via MediaStore.
  *
  * 本体データは設定に応じて "<base>.csv.gz"(既定) か "<base>.csv" へ書く
- * （[start] の compress 引数、[dataFileName]）。サイドカー（分類・切断ログ）は
+ * （[start] の compress 引数、[dataFileName]）。切断ログのサイドカーは
  * 1 行ずつ追記する疎なファイルで圧縮しても効果が無いため、設定によらず常に .csv。
  */
 class CsvWriter(private val context: Context) {
@@ -35,12 +35,6 @@ class CsvWriter(private val context: Context) {
     private val buffer: ArrayDeque<String> = ArrayDeque()
     private val flushThreshold = 100
     private var rowCount: Long = 0
-
-    // 行動分類(測定状態)を 1 秒ごとに書き出すサイドカー("<base>_classification.csv")。
-    // 本体CSVと同じベース名(=MACアドレス_日時)を共有し、NUM で本体データ行へ対応づける。
-    // 1 秒に 1 行と疎なので、最初の行が来た時に遅延生成し、各行を即フラッシュする。
-    private var classificationUri: Uri? = null
-    private var classificationBaseName: String? = null
 
     // 切断ログのサイドカー("<base>_disconnect.csv")。本体データCSVと同じベース名を
     // 共有し、実機計測セッションでのみ [writeDisconnect] が遅延生成する。
@@ -63,33 +57,11 @@ class CsvWriter(private val context: Context) {
         rowCount = 0
         buffer.clear()
         pendingHeader = buildHeader(settings)
-        classificationBaseName = base
-        classificationUri = null
-        disconnectUri = null
-    }
-
-    /**
-     * Mock 再生時など本体データCSVを書かない場合に、分類CSVサイドカーのみを
-     * 有効化する。本体ファイルは作らず、サイドカーのベース名だけを用意する。
-     */
-    fun startClassificationOnly(address: String) {
-        // 本体データCSVは一切作らない。念のため前回計測のデータ用状態も破棄する。
-        uri = null
-        dataBaseName = null
-        pendingHeader = null
-        buffer.clear()
-        rowCount = 0
-        classificationBaseName = makeBaseName(address)
-        classificationUri = null
-        // 本体データCSVを開かない再生モードでは切断ログも書かない。
         disconnectUri = null
     }
 
     private fun makeBaseName(address: String): String {
-        val nameFmt = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).apply {
-            timeZone = TimeZone.getTimeZone("GMT")
-        }
-        val timestamp = nameFmt.format(Date())
+        val timestamp = gmtFormat("yyyyMMddHHmmss").format(Date())
         val safeAddress = address.replace(":", "")
         return "${safeAddress}_$timestamp"
     }
@@ -97,54 +69,6 @@ class CsvWriter(private val context: Context) {
     fun writeRow(row: String) {
         buffer.addLast(row)
         if (buffer.size >= flushThreshold) flush()
-    }
-
-    /**
-     * Appends one behavior-classification row (DATE,LABEL) to a sidecar file
-     * "<base>_classification.csv" next to the main CSV. Called once per second as
-     * the status detector commits a 1-second segment (plus a final partial segment
-     * on stop). [dateGmtMillis] is the GMT wall-clock the label maps to (already
-     * delay-compensated by the caller); it is formatted the same way as the main
-     * CSV's DATE column so the two files line up on time. The file is created
-     * lazily on the first row. Rows are sparse, so each is flushed immediately
-     * so a crash never loses earlier rows and the main CSV is never rewritten.
-     */
-    fun writeClassification(dateGmtMillis: Long, label: String) {
-        val base = classificationBaseName ?: return
-        val isNew = classificationUri == null
-        if (isNew) {
-            val values = ContentValues().apply {
-                put(
-                    MediaStore.Downloads.DISPLAY_NAME,
-                    "${base}_classification$CSV_EXTENSION",
-                )
-                put(MediaStore.Downloads.MIME_TYPE, CSV_MIME)
-                put(
-                    MediaStore.Downloads.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
-                )
-            }
-            classificationUri = context.contentResolver.insert(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                values,
-            )
-        }
-        val u = classificationUri ?: return
-        val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS", Locale.getDefault()).apply {
-            timeZone = TimeZone.getTimeZone("GMT")
-        }
-        runCatching {
-            context.contentResolver.openOutputStream(u, "wa")?.use { os ->
-                OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
-                    if (isNew) {
-                        w.write("// Behavior classification for ${dataFileName(base, compressData)}")
-                        w.write("\r\n")
-                        w.write("// DATE,LABEL"); w.write("\r\n")
-                    }
-                    w.write("${df.format(Date(dateGmtMillis))},$label"); w.write("\r\n")
-                }
-            }
-        }
     }
 
     /**
@@ -163,27 +87,8 @@ class CsvWriter(private val context: Context) {
         // flush 後も本体CSVが無い＝データ 0 行のセッション。記録する対象がない。
         if (uri == null) return
         val isNew = disconnectUri == null
-        if (isNew) {
-            val values = ContentValues().apply {
-                put(
-                    MediaStore.Downloads.DISPLAY_NAME,
-                    "${base}_disconnect$CSV_EXTENSION",
-                )
-                put(MediaStore.Downloads.MIME_TYPE, CSV_MIME)
-                put(
-                    MediaStore.Downloads.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
-                )
-            }
-            disconnectUri = context.contentResolver.insert(
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                values,
-            )
-        }
+        if (isNew) disconnectUri = createDownload("${base}_disconnect$CSV_EXTENSION", CSV_MIME)
         val u = disconnectUri ?: return
-        val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS", Locale.getDefault()).apply {
-            timeZone = TimeZone.getTimeZone("GMT")
-        }
         runCatching {
             context.contentResolver.openOutputStream(u, "wa")?.use { os ->
                 OutputStreamWriter(os, Charsets.UTF_8).buffered().use { w ->
@@ -192,7 +97,7 @@ class CsvWriter(private val context: Context) {
                         w.write("\r\n")
                         w.write("// DATE,STATUS,REASON"); w.write("\r\n")
                     }
-                    w.write("${df.format(Date(timeGmtMillis))},$status,$reason"); w.write("\r\n")
+                    w.write("${formatGmtDate(timeGmtMillis)},$status,$reason"); w.write("\r\n")
                 }
             }
         }
@@ -200,19 +105,16 @@ class CsvWriter(private val context: Context) {
 
     /**
      * 計測終了。残りの本体データをファイルへ書き出し、このセッションで生成された
-     * 本体データCSVと分類CSVの URI を返す(共有シートに渡すため)。ファイルは IS_PENDING
+     * 本体データCSVの URI を返す(共有シートに渡すため)。ファイルは IS_PENDING
      * を付けず即公開しているので、計測中の各 flush 追記がそのまま最終ファイルとなり、
      * 終了時の finalize は不要。
      */
     fun stop(): CsvStopResult {
         flush()
-        val result = CsvStopResult(dataUri = uri, classificationUri = classificationUri)
+        val result = CsvStopResult(dataUri = uri)
         uri = null
         pendingHeader = null
         dataBaseName = null
-
-        classificationUri = null
-        classificationBaseName = null
         disconnectUri = null
         return result
     }
@@ -225,18 +127,17 @@ class CsvWriter(private val context: Context) {
      */
     private fun createDataFile() {
         val base = dataBaseName ?: return
+        uri = createDownload(dataFileName(base, compressData), dataFileMime(compressData))
+    }
+
+    /** Downloads/ESR Logger に [name] のファイルを作る（IS_PENDING は付けず、すぐ見えるようにする）。 */
+    private fun createDownload(name: String, mime: String): Uri? {
         val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, dataFileName(base, compressData))
-            put(MediaStore.Downloads.MIME_TYPE, dataFileMime(compressData))
-            put(
-                MediaStore.Downloads.RELATIVE_PATH,
-                "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger",
-            )
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, mime)
+            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger")
         }
-        uri = context.contentResolver.insert(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            values,
-        )
+        return context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
     }
 
     /**
@@ -287,19 +188,7 @@ class CsvWriter(private val context: Context) {
         sb.append("// Acceleration sensor's range  : ${s.accRange.display}").append("\r\n")
         val gyroDisplay = if (s.mode == MemeMode.Quaternion) "2000dps" else s.gyroRange.display
         sb.append("// Gyroscope sensor's range  : $gyroDisplay").append("\r\n")
-        sb.append(
-            when (s.mode) {
-                MemeMode.Standard ->
-                    "//\r\n//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z," +
-                            "EOG_L1,EOG_R1,EOG_L2,EOG_R2,EOG_H1,EOG_H2,EOG_V1,EOG_V2"
-                MemeMode.Full ->
-                    "//\r\n//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z," +
-                            "GYRO_X,GYRO_Y,GYRO_Z,EOG_L,EOG_R,EOG_H,EOG_V"
-                MemeMode.Quaternion ->
-                    "//\r\n//ARTIFACT,NUM,DATE," +
-                            "QUATERNION_W,QUATERNION_X,QUATERNION_Y,QUATERNION_Z"
-            }
-        )
+        sb.append("//\r\n//").append((listOf("ARTIFACT", "NUM", "DATE") + s.mode.columns).joinToString(","))
         return sb.toString()
     }
 }
@@ -317,15 +206,26 @@ fun formatRow(
     timeMillisGmt: Long,
     values: IntArray,
 ): String {
-    val df = SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS", Locale.getDefault()).apply {
-        timeZone = TimeZone.getTimeZone("GMT")
-    }
     val sb = StringBuilder()
     sb.append(artifact).append(",")
     sb.append(totalCount).append(",")
-    sb.append(df.format(Date(timeMillisGmt)))
+    sb.append(formatGmtDate(timeMillisGmt))
     for (v in values) {
         sb.append(",").append(v)
     }
     return sb.toString()
 }
+
+/**
+ * GMT の日時の書式（ファイル名・DATE 列）。数字が端末の言語で変わらないよう [Locale.US] で作る
+ * （既定のロケールだと、アラビア語・ペルシア語などの端末で ASCII 以外の数字になり、CSV が読めなくなる）。
+ */
+private fun gmtFormat(pattern: String) = SimpleDateFormat(pattern, Locale.US).apply {
+    timeZone = TimeZone.getTimeZone("GMT")
+}
+
+// DATE 列は 1 行ごとに書くので書式を使い回す（SimpleDateFormat はスレッド安全でないのでスレッドごとに持つ）。
+private val gmtDateFormat = ThreadLocal.withInitial { gmtFormat("yyyy/MM/dd HH:mm:ss.SSS") }
+
+/** DATE 列の書式（GMT・ミリ秒まで。例 2026/10/02 10:24:23.004） */
+fun formatGmtDate(timeMillisGmt: Long): String = gmtDateFormat.get()!!.format(Date(timeMillisGmt))

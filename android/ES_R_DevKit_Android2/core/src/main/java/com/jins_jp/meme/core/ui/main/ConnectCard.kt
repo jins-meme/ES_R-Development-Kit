@@ -60,7 +60,7 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // ファイル再生中は、見出しの行(再生・設定のボタンごと)を出さずに上へ詰める(BLE の接続中は従来どおり出す)
-            if (!ui.mockEnabled) Row(
+            if (!ui.isReplaying) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -96,7 +96,7 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                 }
             }
             // 再生中は端末を探さないので、Scan device と見つかった端末の一覧は出さない
-            if (!ui.mockEnabled) Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!ui.isReplaying) Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { vm.startScan() },
                     enabled = !ui.scanning && ui.connection == ConnectionState.Disconnected,
@@ -117,10 +117,10 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ConnectButton(
-                    text = if (ui.connection == ConnectionState.Disconnected && !ui.mockEnabled)
+                    text = if (ui.connection == ConnectionState.Disconnected && !ui.isReplaying)
                         stringResource(R.string.button_connect)
                     else stringResource(R.string.button_disconnect),
-                    enabled = ui.mockEnabled || (ui.devices.isNotEmpty() && !ui.isEnteringShelf &&
+                    enabled = ui.isReplaying || (ui.devices.isNotEmpty() && !ui.isEnteringShelf &&
                             (ui.connection == ConnectionState.Disconnected ||
                                     ui.connection == ConnectionState.ServicesReady ||
                                     ui.connection == ConnectionState.Connected)),
@@ -202,7 +202,7 @@ private fun ConnectButton(
 
 @Composable
 private fun statusLabel(ui: MainUiState): String {
-    if (ui.mockEnabled) return ui.replayName ?: ""          // 再生中はファイル名だけ
+    if (ui.isReplaying) return ui.replayName ?: ""          // 再生中はファイル名だけ
     if (ui.isReconnecting) return stringResource(R.string.text_state_reconnecting)
     return when (ui.connection) {
         ConnectionState.Disconnected -> stringResource(R.string.text_state_disconnect)

@@ -32,6 +32,8 @@ import java.io.File
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_builtin true            # 同梱の標準版に戻す
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_replay <CSV>            # 再生を始める
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_end true                # 再生を終える(書き戻し)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_crash true              # グラフ画面のレンダラを落とす
+ *       # 作り直したページで、計測中なら計測(端末のアドレス)、再生中なら再生(ファイル名)が続いているかを crash.json に書く
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_live full --ei autotest_seconds 20 --es autotest_device 6E:AD
  *       # **実機(メガネ)を使う**: 条件を full|standard・100Hz・±8g・±1000dps にし、autotest_device(アドレスの末尾。省略時は
  *       # 見つかった最初の端末)に繋いで計測し、
@@ -77,9 +79,15 @@ object DebugAutoTest {
                 write(out, "live-$mode", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
         }
+        if (intent.getBooleanExtra("autotest_crash", false)) {
+            intent.removeExtra("autotest_crash")
+            scope.launch {
+                write(out, "crash", runCatching { crashPage(vm) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
+            }
+        }
         if (intent.getBooleanExtra("autotest_end", false)) {
             intent.removeExtra("autotest_end")
-            if (vm.ui.value.mockEnabled) vm.connectOrDisconnect()
+            if (vm.ui.value.isReplaying) vm.connectOrDisconnect()
         }
     }
 
@@ -196,7 +204,7 @@ object DebugAutoTest {
         val hit = data.firstOrNull { it.startsWith("autotest,") }
         res.put("artifactNum", hit?.split(",")?.getOrNull(1))
         val det = res.getJSONObject("measuring").optJSONObject("detector")
-        val wantMode = if (mode == "standard") "Standard" else "Full"
+        val wantMode = (if (mode == "standard") MemeMode.Standard else MemeMode.Full).display
         val modeOk = lines.take(h + 1).any { it.startsWith("// Data mode") && it.substringAfter(":").trim() == wantMode }
         val artifactOk = hit != null && hit.split(",")[1] == i.toString()
         // 判定器の条件は、判定器のあるページ(高機能版)だけに掛ける。標準版は CSV(モード・行数・アーティファクト)だけを見る
@@ -211,6 +219,29 @@ object DebugAutoTest {
         res.put("check", JSONObject().put("mode", modeOk).put("artifact", artifactOk).put("detector", detOk)
             .put("rows", data.size > seconds * 80).put("num", numGaps == 0))
         return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80)
+    }
+
+    /**
+     * レンダラを落として(chrome://crash。onRenderProcessGone → WebView を作り直して読み込み直す)、作り直したページで
+     * 計測・再生が続いているかを見る。ステータスの行は start / openReplay を受けたときだけ端末のアドレス・ファイル名を出す。
+     */
+    private suspend fun crashPage(vm: MainViewModel): JSONObject {
+        val st = vm.ui.value
+        val key = when {
+            st.isReplaying -> st.replayName
+            st.isMeasuring -> vm.currentAddress()
+            else -> null
+        }
+        val before = JSONObject(page(vm, STATE))
+        val old = vm.web.webView.value
+        old.loadUrl("chrome://crash")
+        waitFor("recreated", 20_000) { vm.web.webView.value !== old && vm.web.isReady }
+        delay(3000)
+        val after = JSONObject(page(vm, STATE))
+        val status = after.optString("status")
+        val ok = key != null && status.contains(key) && (!st.isMeasuring || status.contains("Hz"))
+        return JSONObject().put("ok", ok).put("key", key).put("measuring", st.isMeasuring).put("replaying", st.isReplaying)
+            .put("before", before).put("after", after)
     }
 
     private fun write(dir: File, name: String, o: JSONObject) {

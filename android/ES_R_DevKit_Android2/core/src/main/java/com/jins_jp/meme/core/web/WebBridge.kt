@@ -22,7 +22,6 @@ import androidx.webkit.WebViewFeature
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -64,12 +63,17 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     private var replayToken: String? = null
     private var replayUri: Uri? = null
 
+    /** 今ページに出している計測/再生。レンダラが落ちて作り直したときに送り直す */
+    private sealed class Session {
+        data class Live(val cond: JSONObject) : Session()      // start の中身
+        data class Replay(val arg: JSONObject) : Session()     // openReplay の中身
+    }
+    private var session: Session? = null
+
     /** ページで付けたアーティファクト（i = ライブはアプリのサンプル番号、再生は CSV のデータ行の番号（0 始まり）） */
     var onArtifact: ((Long, String) -> Unit)? = null
     /** 再生する CSV をページが読み終えた */
     var onReplayInfo: ((JSONObject) -> Unit)? = null
-    /** ページの準備ができた（manifest の name / version） */
-    var onReady: ((String, String) -> Unit)? = null
 
     init { load() }
 
@@ -160,13 +164,35 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         load()
     }
 
-    /** 中身を読み込み直す（設定で zip を切り替えたとき） */
+    /** 中身を読み込み直す（設定で zip を切り替えたとき・レンダラが落ちて作り直したとき） */
     fun load() {
         isReady = false
         pending.clear()
         rows.setLength(0)
         val entry = store.manifest?.entry ?: "index.html"
         _webView.value.loadUrl("$ORIGIN/$entry")
+        resumeSession()
+    }
+
+    /**
+     * 読み込み直したページへ、テーマと、計測中・再生中ならその条件を送り直す（ready まで溜めておき、届いたサンプルより先に送る）。
+     * ライブは読み込み直した後に届いた分から描くので、0 行目の時刻(startedAt)を今にする。
+     * 再生は頭から読み直す（付けたまま書き戻していないアーティファクトはグラフから消えるが、アプリが控えていて CSV へは書く）。
+     */
+    private fun resumeSession() {
+        call("jmasHost.setTheme(${JSONObject.quote(if (dark) "dark" else "light")})")
+        when (val s = session) {
+            is Session.Live -> {
+                val cond = JSONObject(s.cond.toString()).put("startedAt", System.currentTimeMillis())
+                session = Session.Live(cond)
+                call("jmasHost.start(${JSONObject.quote(cond.toString())})")
+            }
+            is Session.Replay -> {
+                val arg = JSONObject(s.arg.toString()).put("theme", if (dark) "dark" else "light")
+                call("jmasHost.openReplay(${JSONObject.quote(arg.toString())})")
+            }
+            null -> Unit
+        }
     }
 
     // ------------------------------------------------------------------ アプリ → ページ
@@ -179,6 +205,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     fun start(cond: JSONObject) {
         flushRows()
         missedWhileBackground = false
+        session = Session.Live(cond)
         call("jmasHost.start(${JSONObject.quote(cond.toString())})")
     }
 
@@ -202,7 +229,6 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     }
 
     fun gap() { flushRows(); call("jmasHost.gap()") }
-    fun status(text: String) = call("jmasHost.status(${JSONObject.quote(text)})")
     fun mark(i: Long, text: String) {
         flushRows()
         call("jmasHost.mark(${JSONObject().put("i", i).put("text", text)})")
@@ -215,6 +241,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
 
     fun stop() {
         flushRows()
+        session = null
         call("jmasHost.stop()")
     }
 
@@ -236,6 +263,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
             .put("url", "$ORIGIN/replay/$token/${Uri.encode(name)}")
             .put("name", name)
             .put("theme", if (dark) "dark" else "light")
+        session = Session.Replay(arg)
         call("jmasHost.openReplay(${JSONObject.quote(arg.toString())})")
     }
 
@@ -261,7 +289,6 @@ class WebBridge(private val context: Context, private val store: WebContentStore
                 isReady = true
                 val queued = pending.toList(); pending.clear()
                 for (js in queued) _webView.value.evaluateJavascript("$js;0", null)
-                onReady?.invoke(o.optString("name"), o.optString("version"))
             }
             "artifact" -> {
                 if (!o.has("i") || !o.has("text")) return
@@ -334,12 +361,5 @@ class WebBridge(private val context: Context, private val store: WebContentStore
 
         private fun empty(code: Int) = WebResourceResponse("text/plain", "utf-8", code,
             if (code == 404) "Not Found" else "Forbidden", mapOf("Cache-Control" to "no-store"), ByteArrayInputStream(ByteArray(0)))
-
-        /** start の columns(CSV の列名。DevKit の CSV と同じ並び) */
-        fun columns(mode: String): JSONArray = JSONArray(when (mode) {
-            "full" -> listOf("ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V")
-            "standard" -> listOf("ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2", "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2")
-            else -> emptyList()
-        })
     }
 }

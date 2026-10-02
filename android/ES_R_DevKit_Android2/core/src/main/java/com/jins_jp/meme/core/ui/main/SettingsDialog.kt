@@ -57,7 +57,7 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
     // グラフ画面の zip は計測中・再生中は切り替えない
-    val canChangeGraph = !ui.isMeasuring && !ui.mockEnabled
+    val canChangeGraph = !ui.isMeasuring && !ui.isReplaying
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> vm.chooseGraphZip(uri) }
 
     // 既定の幅(プラットフォームのダイアログ幅)だと Display Engine のボタンが折り返して崩れるので、画面幅の 95% まで広げ、

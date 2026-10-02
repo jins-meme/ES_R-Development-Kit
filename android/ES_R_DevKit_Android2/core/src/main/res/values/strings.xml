@@ -18,7 +18,6 @@
     <string name="text_label_location_logging">Record approximate location when moved 50m or more</string>
     <string name="text_label_gzip_compression">Compress saved data (.csv.gz)</string>
     <string name="text_label_oss_licenses">OSS Licenses</string>
-    <string name="mock_error_title">Playback CSV load error</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
     <string name="bluetooth_error_text">Bluetooth is off. Please turn it on from the settings.</string>
     <string name="text_label_starting">Starting…</string>

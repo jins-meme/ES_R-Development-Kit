@@ -78,47 +78,4 @@ class CsvIoTest {
         assertEquals("application/gzip", dataFileMime(true))
         assertEquals("text/csv", dataFileMime(false))
     }
-
-    /* ---- ローダが両形式を同じように読めること ---- */
-
-    private fun loggerCsv(): String = buildString {
-        append("// Data mode  : Full\r\n")
-        append("// Transmission speed  : 100Hz\r\n")
-        append("// Acceleration sensor's range  : 8g\r\n")
-        append("// Gyroscope sensor's range  : 1000dps\r\n")
-        append("//\r\n")
-        append("//ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,GYRO_X,GYRO_Y,GYRO_Z,EOG_L,EOG_R,EOG_H,EOG_V\r\n")
-        for (i in 1..3) {
-            append("," + i + ",2026/01/01 00:00:0" + i + ".000,1,2,3,4,5,6,7,8,9,10\r\n")
-        }
-        append("lc:35.6802_139.7521,4,2026/01/01 00:00:04.000,1,2,3,4,5,6,7,8,9,10\r\n")
-    }
-
-    private fun assertParsedLoggerCsv(data: MockCsvData) {
-        assertEquals(MemeMode.Full, data.settings.mode)
-        assertEquals(MemeQuality.Hz100, data.settings.quality)
-        assertEquals(AccRange.G8, data.settings.accRange)
-        assertEquals(GyroRange.Dps1000, data.settings.gyroRange)
-        assertEquals(4, data.rows.size)
-        assertEquals(1, data.artifacts.size)
-        assertEquals(4, data.artifacts[0].rowNumber)
-        assertEquals("lc:35.6802_139.7521", data.artifacts[0].text)
-    }
-
-    @Test
-    fun loaderReadsPlainCsv() {
-        val bytes = loggerCsv().toByteArray(Charsets.UTF_8)
-        assertParsedLoggerCsv(MockCsvLoader.parse(ByteArrayInputStream(bytes)))
-    }
-
-    /** 実際に書かれるのと同じ「ヘッダ + 100 行ごと」の連結メンバ形式で読めること。 */
-    @Test
-    fun loaderReadsGzippedCsvWrittenAsConcatenatedMembers() {
-        val text = loggerCsv()
-        val split = text.indexOf("//ARTIFACT")
-        val bytes = writeAsConcatenatedMembers(
-            listOf(text.substring(0, split), text.substring(split)),
-        )
-        assertParsedLoggerCsv(MockCsvLoader.parse(ByteArrayInputStream(bytes)))
-    }
 }

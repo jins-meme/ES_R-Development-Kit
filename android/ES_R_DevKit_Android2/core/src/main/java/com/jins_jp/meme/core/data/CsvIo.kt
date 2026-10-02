@@ -4,7 +4,7 @@ import java.io.BufferedInputStream
 import java.io.InputStream
 import java.util.zip.GZIPInputStream
 
-/** 非圧縮CSVの拡張子と MIME。サイドカー(分類・切断ログ)は常にこちら。 */
+/** 非圧縮CSVの拡張子と MIME。切断ログのサイドカーは常にこちら。 */
 const val CSV_EXTENSION = ".csv"
 const val CSV_MIME = "text/csv"
 

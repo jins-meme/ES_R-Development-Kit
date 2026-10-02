@@ -26,7 +26,6 @@ import android.os.Build
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.jins.meme.academic.util.LogCat
-import com.jins_jp.meme.core.data.MockCsvData
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -89,9 +88,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     private val _descriptorWritten = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     override val descriptorWritten: SharedFlow<Unit> = _descriptorWritten.asSharedFlow()
 
-    private val _playbackPosition = MutableStateFlow(PlaybackPosition())
-    override val playbackPosition: StateFlow<PlaybackPosition> = _playbackPosition.asStateFlow()
-
     private var gatt: BluetoothGatt? = null
     private var scanner: BluetoothLeScanner? = null
     private var currentAddress: String? = null
@@ -141,7 +137,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
      * クローズ・切断サイドカーの記録・自動再接続が通常の切断と同じように走る。
      */
     private fun handleAdapterOff() {
-        if (mockMode) return
         _scanning.value = false
         // すでに切断済みなら何もしない（アイドル中の BT OFF で余計な切断を作らない）。
         if (gatt == null && _connection.value == ConnectionState.Disconnected) return
@@ -153,58 +148,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         _connection.value = ConnectionState.Disconnected
     }
 
-    private val mock = MockMemeBleEngine(
-        scanning = _scanning,
-        devices = _devices,
-        connection = _connection,
-        incoming = _incoming,
-        descriptorWritten = _descriptorWritten,
-        playbackPosition = _playbackPosition,
-    )
-
-    /**
-     * When true, all calls are routed to [MockMemeBleEngine] and the real
-     * GATT stack is never touched. Toggling while connected forces the
-     * existing connection (real or mock) closed so the next scan/connect
-     * cycle starts from a clean state.
-     */
-    override var mockMode: Boolean = false
-        set(value) {
-            if (field == value) return
-            field = value
-            if (value) {
-                runCatching { gatt?.disconnect() }
-                runCatching { gatt?.close() }
-                gatt = null
-            } else {
-                mock.reset()
-            }
-            _scanning.value = false
-            _devices.value = emptySet()
-            _connection.value = ConnectionState.Disconnected
-            currentAddress = null
-        }
-
-    /** Hand the mock engine logged rows to replay instead of synthetic data. */
-    override fun loadMockCsv(data: MockCsvData) = mock.loadCsv(data)
-
-    /** Freeze CSV playback in place (Pause). No-op outside mock mode. */
-    override fun pausePlayback() {
-        if (mockMode) mock.pause()
-    }
-
-    /** Continue CSV playback from where it was paused (Resume). No-op outside mock mode. */
-    override fun resumePlayback() {
-        if (mockMode) mock.resume()
-    }
-
-    /** Jump the CSV playback position by [deltaSeconds] (negative rewinds). No-op outside mock mode. */
-    override fun seekPlayback(deltaSeconds: Double) {
-        if (mockMode) mock.seek(deltaSeconds)
-    }
-
     fun hasConnectPermission(): Boolean {
-        if (mockMode) return true
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             context, Manifest.permission.BLUETOOTH_CONNECT
@@ -212,14 +156,13 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     fun hasScanPermission(): Boolean {
-        if (mockMode) return true
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             context, Manifest.permission.BLUETOOTH_SCAN
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun isBluetoothEnabled(): Boolean = mockMode || adapter?.isEnabled == true
+    fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
 
     // サービス UUID でコントローラ側マッチングさせるフィルタ。ソフト側の手動バイト解析や
     // device.name への依存を無くし、取りこぼしを減らす（名前はスキャンレスポンスにしか
@@ -258,7 +201,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     override fun startScan() {
-        if (mockMode) { mock.startScan(); return }
         if (_scanning.value) return
         // スキャン開始＝一覧のやり直し。実際にスキャンを張れない場合（BT OFF・権限なし）も
         // 先に空にする。古い発見結果が残っていると再接続ループが毎周「見つかった」と
@@ -279,7 +221,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
      * uuids が空の端末は名前パターンで補完する。
      */
     fun mergeSystemDevices() {
-        if (mockMode) return
         val m = manager ?: return
         if (!hasConnectPermission()) return
         val candidates = buildSet {
@@ -307,7 +248,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     override fun stopScan() {
-        if (mockMode) { mock.stopScan(); return }
         if (!hasScanPermission()) return
         scanner?.stopScan(scanCallback)
         _scanning.value = false
@@ -373,10 +313,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         // 前の接続の切断理由を持ち越さない（再接続後の切断で古い status を
         // サイドカーへ書かないため）。
         lastDisconnectStatus = GATT_STATUS_NONE
-        if (mockMode) {
-            currentAddress = address
-            return mock.connect(address)
-        }
         val a = adapter ?: return false
         if (!hasConnectPermission() || !a.isEnabled) return false
         val device: BluetoothDevice = runCatching { a.getRemoteDevice(address) }
@@ -397,7 +333,6 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     fun enableNotifications(): Boolean {
-        if (mockMode) return mock.enableNotifications()
         val g = gatt ?: return false
         val service = g.getService(MemeBleConstants.SERVICE_UUID) ?: return false
         val rx = service.getCharacteristic(MemeBleConstants.RX_CHAR_UUID) ?: return false
@@ -415,12 +350,10 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     }
 
     override fun disconnect() {
-        if (mockMode) { mock.disconnect(); return }
         gatt?.disconnect()
     }
 
     fun send(data: ByteArray): Boolean {
-        if (mockMode) return mock.send(data)
         val g = gatt ?: return false
         val service = g.getService(MemeBleConstants.SERVICE_UUID) ?: return false
         val tx = service.getCharacteristic(MemeBleConstants.TX_CHAR_UUID) ?: return false

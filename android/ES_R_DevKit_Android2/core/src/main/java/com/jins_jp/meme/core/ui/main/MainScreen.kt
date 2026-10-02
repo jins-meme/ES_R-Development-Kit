@@ -62,12 +62,11 @@ fun MainScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    // 計測完了時、設定が有効なら本体データCSV・分類CSVを「その他のアプリと共有」で開く。
+    // 計測完了時、設定が有効なら本体データCSVを「その他のアプリと共有」で開く。
     LaunchedEffect(ui.shareRequest) {
         val req = ui.shareRequest ?: return@LaunchedEffect
         viewModel.dismissShareRequest()
-        // 本体データは設定により .csv.gz か .csv、分類サイドカーは常に .csv と
-        // 種類が混ざりうるので、受け手を絞りすぎないよう intent の type は "*/*"。
+        // 本体データは設定により .csv.gz か .csv なので、受け手を絞りすぎないよう intent の type は "*/*"。
         val shareMimes = arrayOf(CSV_GZ_MIME, CSV_MIME)
         val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             type = "*/*"
@@ -119,19 +118,6 @@ fun MainScreen(
             }
             charts(ui)
         }
-    }
-
-    if (ui.mockError != null) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissMockError() },
-            title = { Text(stringResource(R.string.mock_error_title)) },
-            text = { Text(ui.mockError ?: "") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.dismissMockError() }) {
-                    Text(stringResource(R.string.button_dialog_ok))
-                }
-            },
-        )
     }
 
     // Disconnect 長押しで開く Shelf mode の確認。Yes で CONFIG → SHELF を送り、

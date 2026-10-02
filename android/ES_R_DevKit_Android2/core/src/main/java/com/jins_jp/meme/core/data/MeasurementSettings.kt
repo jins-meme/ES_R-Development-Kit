@@ -1,9 +1,19 @@
 package com.jins_jp.meme.core.data
 
-enum class MemeMode(val display: String) {
-    Standard("Standard"),
-    Full("Full"),
-    Quaternion("Quaternion");
+/**
+ * 計測モード。[columns] は 1 サンプルの列（CSV の列名。ARTIFACT・NUM・DATE より後ろ）で、CSV のヘッダとグラフ画面へ渡す
+ * 列はここだけを見る。値の並びは [DataParser] が作る [ParsedPacket.values] と同じ（列を足す・並べ替えるときは両方を直す）。
+ */
+enum class MemeMode(val display: String, val columns: List<String>) {
+    Standard("Standard", listOf("ACC_X", "ACC_Y", "ACC_Z", "EOG_L1", "EOG_R1", "EOG_L2", "EOG_R2", "EOG_H1", "EOG_H2", "EOG_V1", "EOG_V2")),
+    Full("Full", listOf("ACC_X", "ACC_Y", "ACC_Z", "GYRO_X", "GYRO_Y", "GYRO_Z", "EOG_L", "EOG_R", "EOG_H", "EOG_V")),
+    Quaternion("Quaternion", listOf("QUATERNION_W", "QUATERNION_X", "QUATERNION_Y", "QUATERNION_Z"));
+
+    /** グラフ画面とのやり取りで使う名前（webview/BRIDGE.md の mode） */
+    val pageName: String get() = display.lowercase()
+
+    /** グラフ画面に波形を出すか（Quaternion はグラフを持たない） */
+    val hasGraph: Boolean get() = this != Quaternion
 
     companion object {
         fun fromIndex(i: Int) = entries.getOrElse(i) { Standard }
