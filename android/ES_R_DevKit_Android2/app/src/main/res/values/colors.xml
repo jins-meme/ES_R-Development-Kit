@@ -2,4 +2,5 @@
 <resources>
     <color name="meme_red">#FFD00D2B</color>
     <color name="meme_red_dark">#FFBE0C27</color>
+    <color name="ic_launcher_background">#FFF7F7F7</color>
 </resources>
