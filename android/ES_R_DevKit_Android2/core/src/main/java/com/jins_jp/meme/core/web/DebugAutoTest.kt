@@ -1,9 +1,11 @@
 package com.jins_jp.meme.core.web
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
+import android.os.PowerManager
 import android.util.Log
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.data.AccRange
@@ -48,6 +50,11 @@ import java.io.File
  *       # 判定器の表の CSV ができたこと・行数が 0 でないこと・NUM がデータ CSV の範囲に入っていること・DATE が入っていること・
  *       # 通知を受けた回数(立ち座りが無ければ 0 でよい)を outputs に書く。autotest_bg と一緒なら、画面オフの間も行が届いたかも見る
  *       # (webview/BRIDGE.md の Detector notifications and tables)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_reconnect true --ei autotest_seconds 15 [--es autotest_device 6E:AD]
+ *       # **実機を使う**: 計測を始めて autotest_seconds 秒後にアプリから接続を切り(予期しない切断として扱われる)、自動再接続で
+ *       # 計測が始まり直して行が増えるかを autotest/reconnect.json に書く(設定の自動再接続はテストの間だけオンにする)。
+ *       # 切る前に画面を消しておくと(adb shell input keyevent KEYCODE_SLEEP)、再開の MeasurementService.start が裏から呼ばれる。
+ *       # 裏からの FGS 開始が断られるとアプリが落ちて json は書かれない(logcat の ForegroundServiceStartNotAllowedException)
  *
  * ページの中の状態は chrome://inspect(デバッグビルドは WebView のデバッグが有効)から見る。
  */
@@ -94,6 +101,21 @@ object DebugAutoTest {
                 }
                 if (r.isFailure && vm.ui.value.isMeasuring) vm.toggleMeasurement()   // 途中で失敗したら計測を止めておく
                 write(out, "live-$mode", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
+            }
+        }
+        if (intent.getBooleanExtra("autotest_reconnect", false)) {
+            intent.removeExtra("autotest_reconnect")
+            val seconds = intent.getIntExtra("autotest_seconds", 15)
+            val device = intent.getStringExtra("autotest_device")
+            scope.launch {
+                vm.suppressShareForAutotest = true
+                val r = try {
+                    runCatching { reconnectTest(context, vm, seconds, device) }
+                } finally {
+                    vm.suppressShareForAutotest = false
+                }
+                if (r.isFailure && vm.ui.value.isMeasuring) vm.toggleMeasurement()
+                write(out, "reconnect", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
         }
         if (intent.getBooleanExtra("autotest_crash", false)) {
@@ -186,18 +208,48 @@ object DebugAutoTest {
     private const val OUTPUTS_ON = "(localStorage.setItem('advanced.notify', JSON.stringify(['posture']))," +
         " localStorage.setItem('advanced.csv', JSON.stringify(['hve'])), 1)"
 
-    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean, outs: Boolean): JSONObject {
-        if (outs) {
-            page(vm, OUTPUTS_ON)
-            vm.web.load()
-            delay(500)
-            waitFor("page reloaded", 30_000) { vm.web.isReady }
+    /** 画面と画面ロックの状態(裏から呼ばれたかを結果に残す) */
+    private fun screen(context: Context): JSONObject = JSONObject()
+        .put("interactive", context.getSystemService(PowerManager::class.java).isInteractive)
+        .put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+
+    /**
+     * 計測中の予期しない切断 → 自動再接続 → 計測の再開(新しい CSV)を通す。再開は ReconnectController が
+     * MainViewModel.startMeasurement を呼び、そこで MeasurementService.start(startForegroundService)をもう一度呼ぶ。
+     * 画面を消しておけば、それが裏から呼ばれる(サービスは切断の間も止めずに動いている)。
+     */
+    private suspend fun reconnectTest(context: Context, vm: MainViewModel, seconds: Int, device: String?): JSONObject {
+        val res = JSONObject()
+        val reconnect0 = vm.ui.value.reconnectEnabled
+        vm.setReconnectEnabled(true)
+        try {
+            connectIdle(vm, device)
+            res.put("device", vm.currentAddress())
+            val saved0 = vm.lastSaved.second
+            vm.toggleMeasurement()
+            waitFor("measuring", 20_000) { vm.ui.value.isMeasuring }
+            delay(seconds * 1000L)
+            res.put("beforeDrop", screen(context).put("measuring", vm.ui.value.isMeasuring).put("rows", vm.ui.value.recordingRows))
+            vm.debugDropConnection()
+            waitFor("dropped", 15_000) { !vm.ui.value.isMeasuring }
+            val t0 = System.currentTimeMillis()
+            waitFor("measuring again", 120_000) { vm.ui.value.isMeasuring }
+            res.put("reconnectMs", System.currentTimeMillis() - t0)
+            res.put("restarted", screen(context))
+            delay(8000)
+            val rows = vm.ui.value.recordingRows
+            res.put("rowsAfterRestart", rows)
+            vm.toggleMeasurement()
+            waitFor("stopped", 30_000) { !vm.ui.value.isMeasuring && vm.lastSaved.second > saved0 }
+            // 8 秒で 100 Hz なら 800 行近く。再開した計測が行を書いていれば ok
+            return res.put("ok", rows > 300)
+        } finally {
+            vm.setReconnectEnabled(reconnect0)
         }
-        val res = JSONObject().put("mode", mode).put("page", vm.web.pageName)
-        vm.updateSettings {
-            it.copy(mode = if (mode == "standard") MemeMode.Standard else MemeMode.Full,
-                quality = MemeQuality.Hz100, accRange = AccRange.G8, gyroRange = GyroRange.Dps1000)
-        }
+    }
+
+    /** autotest_device(アドレスの末尾。null なら見つかった最初の端末)に繋ぎ、計測していない状態にする */
+    private suspend fun connectIdle(vm: MainViewModel, device: String?) {
         val want = { a: String? -> a != null && (device == null || a.endsWith(device, ignoreCase = true)) }
         val settled = { vm.ui.value.connection.let { it == ConnectionState.Disconnected || it == ConnectionState.ServicesReady } }
         if (!(vm.ui.value.connection == ConnectionState.ServicesReady && want(vm.currentAddress()))) {
@@ -224,12 +276,27 @@ object DebugAutoTest {
             }
             delay(3000)                                            // 通知の有効化・端末情報の取得を待つ
         }
-        res.put("device", vm.currentAddress())
         if (vm.ui.value.isMeasuring) {                              // 前の計測が残っていたら止めてから
             vm.toggleMeasurement()
             waitFor("previous stopped", 30_000) { !vm.ui.value.isMeasuring }
             delay(2000)
         }
+    }
+
+    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean, outs: Boolean): JSONObject {
+        if (outs) {
+            page(vm, OUTPUTS_ON)
+            vm.web.load()
+            delay(500)
+            waitFor("page reloaded", 30_000) { vm.web.isReady }
+        }
+        val res = JSONObject().put("mode", mode).put("page", vm.web.pageName)
+        vm.updateSettings {
+            it.copy(mode = if (mode == "standard") MemeMode.Standard else MemeMode.Full,
+                quality = MemeQuality.Hz100, accRange = AccRange.G8, gyroRange = GyroRange.Dps1000)
+        }
+        connectIdle(vm, device)
+        res.put("device", vm.currentAddress())
         val saved0 = vm.lastSaved.second
         val keep = vm.graphStore.manifest?.runInBackground == true
         if (bg) { res.put("runInBackground", keep); page(vm, BG_PROBE) }

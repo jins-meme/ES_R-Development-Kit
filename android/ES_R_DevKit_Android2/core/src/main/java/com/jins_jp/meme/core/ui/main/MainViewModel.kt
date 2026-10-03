@@ -240,6 +240,8 @@ class MainViewModel(
 
     /** 今つないでいる(つなごうとしている)端末のアドレス（自己テスト用） */
     internal fun currentAddress(): String? = repo.currentAddress()
+    /** 自己テスト用: ユーザーの Disconnect を通さずに GATT を切る(予期しない切断として自動再接続が動く) */
+    internal fun debugDropConnection() = repo.disconnect()
 
     /** 最後に停止した計測の本体CSV と、停止(書き戻しまで)を終えた回数（自己テスト用） */
     internal var lastSaved: Pair<Uri?, Int> = null to 0
