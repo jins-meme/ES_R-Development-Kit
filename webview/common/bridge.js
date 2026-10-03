@@ -21,6 +21,7 @@ export function post(kind, data = {}) {
   } catch (e) {
     console.warn("post failed", e);
   }
+  window.jmasDevSink?.(msg);     // ブラウザで ?dev を付けて開いたとき: dev.js がアプリの受け口を真似る
   console.debug("[bridge →app]", msg);
 }
 
