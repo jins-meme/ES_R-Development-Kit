@@ -15,6 +15,8 @@ index.html      the entry page (manifest.entry)
 - The app refuses a zip whose `bridgeApi` differs from the one it supports (currently `1`), a zip without
   `manifest.json` or its entry page, and a zip that breaks the limits below.
 - `manifest.json` may carry more keys (for example `build: {date, commit, …}`); the app ignores them.
+- Optional `"runInBackground": true` asks the app to keep sending samples while it is in the background
+  (see [Running in the background](#running-in-the-background)).
 
 ### Limits
 
@@ -57,7 +59,7 @@ Every argument may be a value or its JSON string.
 | :--- | :--- |
 | `jmasHost.start(cond)` | A measurement starts. `cond` is below. The page clears what it showed and starts a new record. |
 | `jmasHost.push(rows)` | Received samples, sent every 0.05 s: `[[i, v1, v2, …], …]`. `i` is the app's sample number (0, 1, 2 … from the start of the measurement, counting every packet). The values follow `cond.columns`, as raw LSB. |
-| `jmasHost.gap()` | Reception was interrupted (the app was in the background, reconnected …). |
+| `jmasHost.gap()` | Reception was interrupted (the app was in the background without `runInBackground`, reconnected …). |
 | `jmasHost.status(text)` | One line of status made by the app (optional). |
 | `jmasHost.mark({i, text})` | A mark made in the app at sample `i` (Free Marking writes `X`). |
 | `jmasHost.openReplay({url, name, timeZone, accOffset, theme})` | Replay a recorded CSV. The page fetches `url` (same origin) and owns playback: play, pause, speed, seek. |
@@ -92,6 +94,25 @@ Every argument may be a value or its JSON string.
 | `{kind: "artifact", i, text}` | The user added an artifact. `text` must not start with `=` `+` `-` `@` (a spreadsheet would read it as a formula): the page refuses it at input and the app ignores it. Commas and line breaks become spaces; at most 64 characters. `i` is the sample number during a measurement, or the 0-based data row of the CSV during replay. The app writes it to the CSV's `ARTIFACT` column (when the measurement stops, or on Save Artifacts / disconnect during replay). |
 | `{kind: "replay-info", mode, cps, accRange, gyroRange, rows, startedAt, warning}` | The page finished reading the replayed CSV (the app shows its conditions). |
 | `{kind: "log", level, message}` | Written to the app log (errors in the page are sent here). |
+
+## Running in the background
+
+When the app goes to the background (the screen turns off, another app comes to the front) while measuring, the page is
+hidden: `document.visibilityState` becomes `"hidden"` and `requestAnimationFrame` stops, so nothing is drawn.
+
+- **Android**: by default the app stops calling `push` while it is in the background and calls `gap()` when it comes back.
+  A page whose `manifest.json` has `"runInBackground": true` keeps receiving `push` (every 0.05 s, as usual) and no `gap()`,
+  so it can keep calculating with the screen off. The measurement itself and the CSV do not depend on this.
+- **Mac / Windows**: the app always keeps calling `push`; `runInBackground` changes nothing.
+
+For a page that calculates in the background:
+
+- Calculate in the `push` handler (or in a Worker it feeds), **not** in a `requestAnimationFrame` loop, and do not rely
+  on `setTimeout` / `setInterval` timing: hidden pages get their timers throttled (to about once a second, or less).
+- Drawing resumes by itself when the page becomes visible again. Keep only a bounded history, as for a long measurement.
+- The page's process can still be ended by the system (for example, out of memory). The app then reloads the page and
+  calls `start` again, with `startedAt` set to the reload time; anything the page kept only in memory is lost. Store results
+  you need to keep (for example in `localStorage`) as they are made.
 
 ## Reference implementation
 

@@ -40,6 +40,8 @@ import java.util.UUID
  *  - アプリ → ページ: evaluateJavascript("jmasHost.xxx(JSON)")。ページが ready を返すまでは溜めておく。
  *  - 受信したサンプルは 0.05 秒ごとにまとめて push する。アプリが裏に回っている間は push をやめ、戻ったら gap を送る
  *    （止まった WebView に積むと戻ったときに一度に流れ込むため。devkit-webview.md §3）。
+ *    ただし manifest の runInBackground が true のページ（画面オフ中も演算を続けたいページ）には裏でも送り続ける。
+ *    描画は止まるが（requestAnimationFrame が来ない）、evaluateJavascript で呼ぶ push は動く。BRIDGE.md の Running in the background。
  *  - ページ → アプリ: window.jmasNative.postMessage(JSON 文字列)（addWebMessageListener。自分のオリジンのメインフレームだけ受ける）。
  */
 class WebBridge(private val context: Context, private val store: WebContentStore) {
@@ -57,6 +59,8 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     private val rows = StringBuilder()
     private var flushScheduled = false
     private var foreground = true
+    /** 今のページが裏でも push を受けたいか（manifest の runInBackground。読み込むたびに見直す） */
+    private var keepRunning = false
     private var missedWhileBackground = false
     private var dark = false
 
@@ -143,6 +147,9 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         } else {
             Log.e(TAG, "WEB_MESSAGE_LISTENER is not supported by this WebView")
         }
+        // 見えていない間もレンダラの優先度を下げない（画面オフ中も演算を続けるページが、メモリ不足のときに先に落とされないように）。
+        // 既定と同じ値だが、裏で動かす前提をここに固定しておく
+        wv.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
         return wv
     }
 
@@ -169,6 +176,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         isReady = false
         pending.clear()
         rows.setLength(0)
+        keepRunning = store.manifest?.runInBackground == true
         val entry = store.manifest?.entry ?: "index.html"
         _webView.value.loadUrl("$ORIGIN/$entry")
         resumeSession()
@@ -211,7 +219,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
 
     /** 1 サンプルぶん（i = アプリのサンプル番号、values = start の columns の並び） */
     fun push(i: Long, values: IntArray) {
-        if (!foreground) { missedWhileBackground = true; return }
+        if (!foreground && !keepRunning) { missedWhileBackground = true; return }
         rows.append('[').append(i)
         for (v in values) rows.append(',').append(v)
         rows.append("],")
@@ -245,11 +253,11 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         call("jmasHost.stop()")
     }
 
-    /** アプリが前に出た / 裏に回った。裏の間は push をやめ、戻ったら途切れとして知らせる */
+    /** アプリが前に出た / 裏に回った。裏の間は push をやめ、戻ったら途切れとして知らせる（runInBackground のページには送り続ける） */
     fun setForeground(fg: Boolean) {
         if (foreground == fg) return
         foreground = fg
-        if (!fg) rows.setLength(0)
+        if (!fg) { if (!keepRunning) rows.setLength(0) }
         else if (missedWhileBackground) { missedWhileBackground = false; gap() }
     }
 

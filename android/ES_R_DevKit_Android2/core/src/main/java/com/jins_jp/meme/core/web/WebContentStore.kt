@@ -19,7 +19,9 @@ import java.util.UUID
  */
 class WebContentStore(private val context: Context) {
 
-    data class Manifest(val name: String, val title: String?, val version: String, val bridgeApi: Int, val entry: String) {
+    /** runInBackground: アプリが裏に回っても(画面オフなど)サンプルを送り続けてほしいページ(BRIDGE.md の Running in the background) */
+    data class Manifest(val name: String, val title: String?, val version: String, val bridgeApi: Int, val entry: String,
+                        val runInBackground: Boolean = false) {
         val displayName: String get() = "${title ?: name} $version"
     }
 
@@ -153,6 +155,7 @@ class WebContentStore(private val context: Context) {
                 version = str("version") ?: throw ZipExtractor.Failure("manifest.json could not be read. version is missing"),
                 bridgeApi = if (o.has("bridgeApi")) o.optInt("bridgeApi", -1) else throw ZipExtractor.Failure("manifest.json could not be read. bridgeApi is missing"),
                 entry = str("entry") ?: throw ZipExtractor.Failure("manifest.json could not be read. entry is missing"),
+                runInBackground = o.optBoolean("runInBackground", false),
             )
             // 設定画面にそのまま出すので、短く・制御文字なし
             for ((k, v) in listOf("name" to m.name, "title" to (m.title ?: ""), "version" to m.version)) {

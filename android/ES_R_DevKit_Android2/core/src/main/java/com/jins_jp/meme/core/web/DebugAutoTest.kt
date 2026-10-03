@@ -39,6 +39,11 @@ import java.io.File
  *       # 見つかった最初の端末)に繋いで計測し、
  *       # ページの状態・アーティファクトの書き戻し・保存した CSV(モード・行数・NUM の抜け)を autotest/live-<モード>.json に書く
  *       # (標準版・高機能版のどちらでも回せる。判定器の状態を見るのは高機能版のときだけ)
+ *       # --ez autotest_bg true を足すと、計測中に画面を消した間もページへ push が届いたかも見る。画面は adb から消して点ける:
+ *       #   adb shell input keyevent KEYCODE_SLEEP   (計測が始まって数秒後)
+ *       #   adb shell input keyevent KEYCODE_WAKEUP  (終わる前。点けなくてもよい。画面ロックがあると点けても前には戻らない)
+ *       # manifest の runInBackground が true のページは「消えている間も途切れなく届き、gap が来ない」、
+ *       # そうでないページは「消えている間は届かず、戻ったら gap が来る」なら ok
  *
  * ページの中の状態は chrome://inspect(デバッグビルドは WebView のデバッグが有効)から見る。
  */
@@ -73,11 +78,12 @@ object DebugAutoTest {
             intent.removeExtra("autotest_live")
             val seconds = intent.getIntExtra("autotest_seconds", 20)
             val device = intent.getStringExtra("autotest_device")
+            val bg = intent.getBooleanExtra("autotest_bg", false)
             scope.launch {
                 // 設定「計測完了時に共有を開く」が ON でも、テストの間は共有シートを出さない（設定値は変えない）
                 vm.suppressShareForAutotest = true
                 val r = try {
-                    runCatching { live(context, vm, mode, seconds, device) }
+                    runCatching { live(context, vm, mode, seconds, device, bg) }
                 } finally {
                     vm.suppressShareForAutotest = false
                 }
@@ -151,7 +157,27 @@ object DebugAutoTest {
         " status: document.querySelector('.status')?.textContent, toast: document.querySelector('.toast')?.hidden === false ? document.querySelector('.toast').textContent : ''," +
         " detector: window.jmasEngine ? {state: jmasEngine.state, error: jmasEngine.error, fed: jmasEngine.fed, rows: jmasEngine.store?.n, counts: jmasEngine.counts, loadSec: jmasEngine.loadSec} : null})"
 
-    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?): JSONObject {
+    /**
+     * 画面オフの確認用: ページの jmasHost.push / gap を包んで、届いた行数・見えていない間に届いた行数・push の最大間隔・
+     * gap の回数・隠れた回数を window.__bg に数える(ページは変えない。レンダラが作り直されたら消える)。
+     */
+    private const val BG_PROBE = """(() => {
+  const h = window.jmasHost, b = window.__bg = {rows: 0, hiddenRows: 0, maxHiddenIntervalMs: 0, gaps: 0, hides: 0};
+  let last = 0;
+  const push = h.push, gap = h.gap;
+  h.push = (r) => {
+    const n = (typeof r === 'string' ? JSON.parse(r) : r).length, now = performance.now();
+    b.rows += n;
+    if (document.hidden) { b.hiddenRows += n; if (last) b.maxHiddenIntervalMs = Math.max(b.maxHiddenIntervalMs, Math.round(now - last)); }
+    last = now;
+    return push(r);
+  };
+  h.gap = () => { b.gaps++; return gap(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) b.hides++; });
+  return 1;
+})()"""
+
+    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean): JSONObject {
         val res = JSONObject().put("mode", mode).put("page", vm.web.pageName)
         vm.updateSettings {
             it.copy(mode = if (mode == "standard") MemeMode.Standard else MemeMode.Full,
@@ -190,6 +216,8 @@ object DebugAutoTest {
             delay(2000)
         }
         val saved0 = vm.lastSaved.second
+        val keep = vm.graphStore.manifest?.runInBackground == true
+        if (bg) { res.put("runInBackground", keep); page(vm, BG_PROBE) }
         vm.toggleMeasurement()
         waitFor("measuring", 20_000) { vm.ui.value.isMeasuring }
         delay(1500)
@@ -227,9 +255,21 @@ object DebugAutoTest {
         val nums = data.mapNotNull { it.split(",").getOrNull(1)?.toLongOrNull() }
         val numGaps = nums.zipWithNext().count { (a, b) -> b != a + 1 }   // 番号(NUM)の抜け・戻り
         res.put("numGaps", numGaps)
+        // 画面オフ: 実際に隠れたこと。runInBackground なら全部(止めたときの端数ぶんの余裕を見る)届き gap なし、そうでなければ隠れた間は届かず gap あり
+        var bgOk = true
+        if (bg) {
+            val b = JSONObject(page(vm, "({...window.__bg, hiddenAtEnd: document.hidden})"))
+            res.put("background", b)
+            bgOk = b.optInt("hides") > 0 && if (keep) {
+                b.optInt("hiddenRows") > 0 && b.optInt("gaps") == 0 && b.optInt("rows") >= data.size - 20 && b.optInt("maxHiddenIntervalMs") < 3000
+            } else {
+                // 隠れる直前に送った分(1 秒未満)は数に入りうる。画面ロックで前に戻れないまま終わったときは gap はまだ来ない
+                b.optInt("hiddenRows") < 100 && (b.optInt("gaps") > 0 || b.optBoolean("hiddenAtEnd"))
+            }
+        }
         res.put("check", JSONObject().put("mode", modeOk).put("artifact", artifactOk).put("detector", detOk)
-            .put("rows", data.size > seconds * 80).put("num", numGaps == 0))
-        return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80)
+            .put("rows", data.size > seconds * 80).put("num", numGaps == 0).apply { if (bg) put("background", bgOk) })
+        return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80 && bgOk)
     }
 
     /**

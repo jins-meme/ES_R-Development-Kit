@@ -4,7 +4,7 @@
     python3 webview/tools/make_zip.py [--page standard] [--out <出力先>] [--install]
 
 zip の中の並び(アプリは展開して、仮想ホストの根に置く):
-    manifest.json   {"name", "title", "version", "bridgeApi", "entry"}
+    manifest.json   {"name", "title", "version", "bridgeApi", "entry"}(省略可: "runInBackground")
     index.html      入口
     common/         共通部分(開発用の dev.js は入れない)
 
