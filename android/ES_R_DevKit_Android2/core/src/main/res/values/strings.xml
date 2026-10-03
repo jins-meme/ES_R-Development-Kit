@@ -61,4 +61,6 @@
     <string name="notification_channel_measurement">計測</string>
     <string name="notification_measuring_title">計測中</string>
     <string name="notification_measuring_text">センサーデータを受信しています</string>
+    <!-- 判定器のイベント通知(グラフ画面のページが送る notify。DetectorOutputs) -->
+    <string name="notification_channel_detector">Detector events</string>
 </resources>

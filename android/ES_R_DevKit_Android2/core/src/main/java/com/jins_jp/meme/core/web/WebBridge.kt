@@ -43,6 +43,7 @@ import java.util.UUID
  *    ただし manifest の runInBackground が true のページ（画面オフ中も演算を続けたいページ）には裏でも送り続ける。
  *    描画は止まるが（requestAnimationFrame が来ない）、evaluateJavascript で呼ぶ push は動く。BRIDGE.md の Running in the background。
  *  - ページ → アプリ: window.jmasNative.postMessage(JSON 文字列)（addWebMessageListener。自分のオリジンのメインフレームだけ受ける）。
+ *    判定器の通知・演算結果の表(notify / table / records)は [onOutput] へ渡す([DetectorOutputs]。start の features で受け付けると知らせる)。
  */
 class WebBridge(private val context: Context, private val store: WebContentStore) {
 
@@ -78,6 +79,8 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     var onArtifact: ((Long, String) -> Unit)? = null
     /** 再生する CSV をページが読み終えた */
     var onReplayInfo: ((JSONObject) -> Unit)? = null
+    /** 判定器の通知・演算結果の表(kind = notify / table / records)。ライブの間だけ受けるかは受け手([DetectorOutputs])が決める */
+    var onOutput: ((JSONObject) -> Unit)? = null
 
     init { load() }
 
@@ -305,6 +308,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
                 if (i >= 0) onArtifact?.invoke(i, text)
             }
             "replay-info" -> onReplayInfo?.invoke(o)
+            "notify", "table", "records" -> onOutput?.invoke(o)
             "log" -> {
                 val msg = o.optString("message").take(2000)
                 val level = o.optString("level", "info")

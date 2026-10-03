@@ -44,6 +44,10 @@ import java.io.File
  *       #   adb shell input keyevent KEYCODE_WAKEUP  (終わる前。点けなくてもよい。画面ロックがあると点けても前には戻らない)
  *       # manifest の runInBackground が true のページは「消えている間も途切れなく届き、gap が来ない」、
  *       # そうでないページは「消えている間は届かず、戻ったら gap が来る」なら ok
+ *       # --ez autotest_outputs true を足すと、高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直してから計測し、
+ *       # 判定器の表の CSV ができたこと・行数が 0 でないこと・NUM がデータ CSV の範囲に入っていること・DATE が入っていること・
+ *       # 通知を受けた回数(立ち座りが無ければ 0 でよい)を outputs に書く。autotest_bg と一緒なら、画面オフの間も行が届いたかも見る
+ *       # (webview/BRIDGE.md の Detector notifications and tables)
  *
  * ページの中の状態は chrome://inspect(デバッグビルドは WebView のデバッグが有効)から見る。
  */
@@ -79,11 +83,12 @@ object DebugAutoTest {
             val seconds = intent.getIntExtra("autotest_seconds", 20)
             val device = intent.getStringExtra("autotest_device")
             val bg = intent.getBooleanExtra("autotest_bg", false)
+            val outs = intent.getBooleanExtra("autotest_outputs", false)
             scope.launch {
                 // 設定「計測完了時に共有を開く」が ON でも、テストの間は共有シートを出さない（設定値は変えない）
                 vm.suppressShareForAutotest = true
                 val r = try {
-                    runCatching { live(context, vm, mode, seconds, device, bg) }
+                    runCatching { live(context, vm, mode, seconds, device, bg, outs) }
                 } finally {
                     vm.suppressShareForAutotest = false
                 }
@@ -177,7 +182,17 @@ object DebugAutoTest {
   return 1;
 })()"""
 
-    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean): JSONObject {
+    /** 高機能版の設定(detectors.js)の Notify・CSV をオンにする localStorage のキー(ページは読み込むときに読む) */
+    private const val OUTPUTS_ON = "(localStorage.setItem('advanced.notify', JSON.stringify(['posture']))," +
+        " localStorage.setItem('advanced.csv', JSON.stringify(['hve'])), 1)"
+
+    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean, outs: Boolean): JSONObject {
+        if (outs) {
+            page(vm, OUTPUTS_ON)
+            vm.web.load()
+            delay(500)
+            waitFor("page reloaded", 30_000) { vm.web.isReady }
+        }
         val res = JSONObject().put("mode", mode).put("page", vm.web.pageName)
         vm.updateSettings {
             it.copy(mode = if (mode == "standard") MemeMode.Standard else MemeMode.Full,
@@ -267,9 +282,48 @@ object DebugAutoTest {
                 b.optInt("hiddenRows") < 100 && (b.optInt("gaps") > 0 || b.optBoolean("hiddenAtEnd"))
             }
         }
+        val outsOk = if (outs) checkOutputs(context, vm, res, nums, bg && keep) else true
         res.put("check", JSONObject().put("mode", modeOk).put("artifact", artifactOk).put("detector", detOk)
-            .put("rows", data.size > seconds * 80).put("num", numGaps == 0).apply { if (bg) put("background", bgOk) })
-        return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80 && bgOk)
+            .put("rows", data.size > seconds * 80).put("num", numGaps == 0).apply { if (bg) put("background", bgOk) }
+            .apply { if (outs) put("outputs", outsOk) })
+        return res.put("ok", modeOk && artifactOk && detOk && numGaps == 0 && data.size > seconds * 80 && bgOk && outsOk)
+    }
+
+    /**
+     * 判定器の表の CSV と通知(--ez autotest_outputs true)。表 hve が 1 本でき、行が 0 でなく、NUM がデータ CSV の範囲に入り、
+     * DATE が(ほぼ)全部入っていること。ページが送った数(jmasOutputs.sent)とアプリが受けた数も並べる。
+     * inBackground(runInBackground のページで画面を消したとき)は、消えている間にも行が届いたこと
+     */
+    private suspend fun checkOutputs(context: Context, vm: MainViewModel, res: JSONObject, dataNums: List<Long>, inBackground: Boolean): Boolean {
+        val o = vm.detectorOutputs
+        val stats = o.stats.toJson()
+        val out = JSONObject().put("app", stats).put("tables", o.tablesJson())
+            .put("pageSent", JSONObject(page(vm, "window.jmasOutputs?.sent ?? null").let { if (it == "null") "{}" else it }))
+        val lo = dataNums.minOrNull() ?: 0L
+        val hi = dataNums.maxOrNull() ?: -1L
+        val files = JSONArray()
+        var ok = vm.lastSavedTables.isNotEmpty() && stats.getJSONArray("warnings").length() == 0
+        for (uri in vm.lastSavedTables) {
+            val lines = context.contentResolver.openInputStream(uri)!!.use { decompressIfGzip(it).bufferedReader().readLines() }
+            val head = lines.takeWhile { it.startsWith("//") }
+            val rows = lines.drop(head.size).filter { it.isNotEmpty() }.map { it.split(",") }
+            val nums = rows.mapNotNull { it.getOrNull(0)?.toLongOrNull() }
+            val inRange = nums.isNotEmpty() && nums.all { it in lo..hi }
+            val withDate = rows.count { it.getOrNull(1)?.isNotEmpty() == true }
+            val f = JSONObject().put("uri", uri.toString()).put("header", JSONArray(head)).put("rows", rows.size)
+                .put("numMin", nums.minOrNull()).put("numMax", nums.maxOrNull()).put("numInDataRange", inRange)
+                .put("withDate", withDate).put("first", JSONArray(rows.take(3).map { it.joinToString(",") }))
+            files.put(f)
+            ok = ok && rows.isNotEmpty() && inRange && withDate >= rows.size * 0.95
+        }
+        out.put("files", files)
+        if (inBackground) {
+            val bgRows = stats.optLong("rowsInBackground")
+            out.put("rowsWhileHidden", bgRows)
+            ok = ok && bgRows > 0
+        }
+        res.put("outputs", out)
+        return ok
     }
 
     /**

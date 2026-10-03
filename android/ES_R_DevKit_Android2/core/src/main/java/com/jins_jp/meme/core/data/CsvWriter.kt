@@ -42,6 +42,12 @@ class CsvWriter(private val context: Context) {
 
     val recordedRows: Long get() = rowCount
 
+    /** 今のセッションのベース名（"<アドレス>_<GMT の日時>"。[start] から [stop] まで）。判定器の表の CSV が同じベース名を使う */
+    val baseName: String? get() = dataBaseName
+
+    /** 今のセッションの本体データCSVを gz 圧縮するか（[start] で確定） */
+    val compressed: Boolean get() = compressData
+
     /**
      * 計測セッションを開始する。[compress] は設定「保存時に gz 圧縮する」(既定 ON)で、
      * このセッションのファイル 1 つ分の形式をここで確定させる。途中で設定を変えても
@@ -130,15 +136,7 @@ class CsvWriter(private val context: Context) {
         uri = createDownload(dataFileName(base, compressData), dataFileMime(compressData))
     }
 
-    /** Downloads/ESR Logger に [name] のファイルを作る（IS_PENDING は付けず、すぐ見えるようにする）。 */
-    private fun createDownload(name: String, mime: String): Uri? {
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, name)
-            put(MediaStore.Downloads.MIME_TYPE, mime)
-            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger")
-        }
-        return context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-    }
+    private fun createDownload(name: String, mime: String): Uri? = createEsrLoggerFile(context, name, mime)
 
     /**
      * 溜まった行を追記する。[compressData] が true なら gz 圧縮する。
@@ -191,6 +189,16 @@ class CsvWriter(private val context: Context) {
         sb.append("//\r\n//").append((listOf("ARTIFACT", "NUM", "DATE") + s.mode.columns).joinToString(","))
         return sb.toString()
     }
+}
+
+/** Downloads/ESR Logger に [name] のファイルを作る（IS_PENDING は付けず、すぐ見えるようにする）。判定器の表の CSV も使う */
+fun createEsrLoggerFile(context: Context, name: String, mime: String): Uri? {
+    val values = ContentValues().apply {
+        put(MediaStore.Downloads.DISPLAY_NAME, name)
+        put(MediaStore.Downloads.MIME_TYPE, mime)
+        put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/ESR Logger")
+    }
+    return context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
 }
 
 /**

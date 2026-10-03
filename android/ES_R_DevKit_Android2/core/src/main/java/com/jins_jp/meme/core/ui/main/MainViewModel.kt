@@ -30,6 +30,7 @@ import com.jins_jp.meme.core.data.SettingsStore
 import com.jins_jp.meme.core.data.mergeLabelsIntoCsv
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.service.MeasurementService
+import com.jins_jp.meme.core.web.DetectorOutputs
 import com.jins_jp.meme.core.web.WebBridge
 import com.jins_jp.meme.core.web.WebContentStore
 import android.provider.OpenableColumns
@@ -54,6 +55,10 @@ private const val SCAN_RETRY_GAP_MS = 500L
 // 端末(ES_R)の電池残量を logcat へ出す最長間隔。残量が変わらなくてもこの間隔で
 // 1 行出し、長時間計測中の減り方を追えるようにする。
 private const val BATTERY_LOG_INTERVAL_MS = 60_000L
+
+// 計測を止めてから判定器の表を閉じるまで待つ時間。ページは stop を受けてから溜めた行(最大 1 秒ぶん)を送るので、
+// それが届くのを待つ(DetectorOutputs。webview/BRIDGE.md の Detector notifications and tables)。
+private const val OUTPUTS_STOP_GRACE_MS = 1000L
 
 data class MainUiState(
     val scanning: Boolean = false,
@@ -127,6 +132,9 @@ class MainViewModel(
 
     private val csv = CsvWriter(application)
 
+    // 判定器の通知と演算結果の表(ページ → アプリの notify / table / records)。ライブ計測の間だけ受ける
+    private val outputs = DetectorOutputs(application)
+
     // Sample / timing book-keeping
     private val counter = SampleCounter()
     private var prevTimeMs: Long = 0
@@ -193,6 +201,7 @@ class MainViewModel(
         viewModelScope.launch { collectIncoming() }
         viewModelScope.launch { collectDescriptorWritten() }
         web.onArtifact = ::receiveArtifact
+        web.onOutput = outputs::receive
         web.onReplayInfo = { info ->
             _ui.update { it.copy(toast = "再生データを読み込みました（${info.optLong("rows")} 行）") }
         }
@@ -236,6 +245,13 @@ class MainViewModel(
     internal var lastSaved: Pair<Uri?, Int> = null to 0
         private set
 
+    /** 最後に停止した計測で作った判定器の表の CSV（自己テスト用。[lastSaved] より先に入る） */
+    internal var lastSavedTables: List<Uri> = emptyList()
+        private set
+
+    /** 判定器の通知・表の受け口（自己テスト用） */
+    internal val detectorOutputs: DetectorOutputs get() = outputs
+
     /**
      * 自己テストの間は、設定に関わらず計測後の共有シートを開かない（シートがアプリを覆って裏に回すと、
      * グラフ画面への送りが止まり、続くテストの手順が進まなくなるため）。設定値そのものは変えない。
@@ -250,7 +266,10 @@ class MainViewModel(
     }
 
     /** アプリが前に出た / 裏に回った（裏の間はページへの push をやめ、戻ったら途切れを知らせる） */
-    fun setForeground(foreground: Boolean) = web.setForeground(foreground)
+    fun setForeground(foreground: Boolean) {
+        outputs.foreground = foreground
+        web.setForeground(foreground)
+    }
 
     private fun displayName(uri: Uri): String {
         val app = getApplication<Application>()
@@ -383,7 +402,12 @@ class MainViewModel(
                                 "battery=${_ui.value.batteryLevel}/5 rows=${csv.recordedRows}",
                         )
                     }
-                    if (wasMeasuring) web.stop()
+                    if (wasMeasuring) {
+                        web.stop()
+                        // 判定器の表はページが stop の後に送る残りを待ってから閉じる(閉じる前に次の計測が始まっていたら何もしない)
+                        val s = outputs.session
+                        viewModelScope.launch { delay(OUTPUTS_STOP_GRACE_MS); outputs.stop(s) }
+                    }
                     val dropResult = csv.stop()
                     // 予期しない切断でもタップラベルを失わないよう本体CSVへ統合する。
                     // 再生停止(Stop Replay/Disconnect)は stopMeasurement 側で統合済み。
@@ -525,6 +549,7 @@ class MainViewModel(
                 return@launch
             }
             csv.start(addr, ui.value.settings, ui.value.gzipCompression)
+            outputs.start(csv.baseName ?: "", csv.compressed, ui.value.settings.quality.hz) { web.pageName }
             // 計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
             // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
             MeasurementService.start(getApplication())
@@ -561,12 +586,15 @@ class MainViewModel(
             .put("startedAt", System.currentTimeMillis())
             .put("timeZone", "local")
             .put("accOffset", JSONArray(listOf(0, 0, 0)))
+            .put("features", JSONArray(DetectorOutputs.FEATURES))
     }
 
     private fun stopMeasurement() {
         viewModelScope.launch {
             sendEncoded(MemeCommands.startStop(false))
             web.stop()
+            val stoppedAt = SystemClock.elapsedRealtime()
+            val outputsSession = outputs.session
             val stopResult = csv.stop()
             stopCommTicker()
             location.stop()
@@ -582,10 +610,14 @@ class MainViewModel(
             // Stop Measurement: アーティファクトをこのセッションで書いた本体CSVへ統合する
             // (再生のぶんは再生を終えるとき [PlaybackController.exit] が再生元へ書き戻す)。
             mergeTapLabels(target = stopResult.dataUri, byRowIndex = false)
+            // 判定器の表: ページが stop の後に送る残りを待ってから閉じる(統合で既に待ったぶんは差し引く)
+            delay((OUTPUTS_STOP_GRACE_MS - (SystemClock.elapsedRealtime() - stoppedAt)).coerceAtLeast(0))
+            val tableUris = outputs.stop(outputsSession)
+            lastSavedTables = tableUris
             lastSaved = stopResult.dataUri to (lastSaved.second + 1)
             // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
-            // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。
-            val shareUris = listOfNotNull(stopResult.dataUri)
+            // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。判定器の表の CSV も一緒に渡す
+            val shareUris = listOfNotNull(stopResult.dataUri) + if (stopResult.dataUri != null) tableUris else emptyList()
             if (shareUris.isNotEmpty() && ui.value.openSharingOnComplete && !suppressShareForAutotest) {
                 _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
             }
@@ -693,6 +725,7 @@ class MainViewModel(
             // 分からないので、従来どおり停止時に LabelMerger が同じ列へ統合する。
             val row = formatRow(location.takePendingArtifact(), counter.totalCount, prevTimeMs, packet.values)
             csv.writeRow(row)
+            outputs.recordSample(counter.totalCount, prevTimeMs)     // 判定器の表の DATE 列(同じ NUM の行の DATE)
         }
 
         val battery = packets.last().batteryLevel.toInt()
