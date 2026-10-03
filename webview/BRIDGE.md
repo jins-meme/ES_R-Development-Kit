@@ -79,6 +79,7 @@ Every argument may be a value or its JSON string.
 | `timeZone` | `"local"` / `"utc"` | How to show clock times (app setting) |
 | `accOffset` | `[0, 0, 0]` | Accelerometer offsets in LSB (app setting), added before conversion |
 | `theme` | `"light"` / `"dark"` | App appearance |
+| `features` | `["notify", "records"]` | Extra page → app messages this app accepts (see [Detector notifications and tables](#detector-notifications-and-tables)). Missing or empty: none. Only sent for a live measurement |
 
 ## Page → app
 
@@ -94,6 +95,84 @@ Every argument may be a value or its JSON string.
 | `{kind: "artifact", i, text}` | The user added an artifact. `text` must not start with `=` `+` `-` `@` (a spreadsheet would read it as a formula): the page refuses it at input and the app ignores it. Commas and line breaks become spaces; at most 64 characters. `i` is the sample number during a measurement, or the 0-based data row of the CSV during replay. The app writes it to the CSV's `ARTIFACT` column (when the measurement stops, or on Save Artifacts / disconnect during replay). |
 | `{kind: "replay-info", mode, cps, accRange, gyroRange, rows, startedAt, warning}` | The page finished reading the replayed CSV (the app shows its conditions). |
 | `{kind: "log", level, message}` | Written to the app log (errors in the page are sent here). |
+| `{kind: "notify", tag, title, text, i}` | Show an app notification for a detector event. Only if `cond.features` has `"notify"`. See below. |
+| `{kind: "table", name, columns, title}` / `{kind: "records", name, rows}` | Declare a table of detector results / add rows to it; the app saves each table as a CSV next to the data CSV. Only if `cond.features` has `"records"`. See below. |
+
+An app ignores (logs and drops) a `kind` it does not know, so a page may send these to any app, but it should not:
+check `cond.features` first.
+
+## Detector notifications and tables
+
+A page that runs detectors can have the app **notify** the user of an event (for example "stood up"), also with the
+screen off, and can have the app **save its results as CSV** together with the data CSV. The app does not know what the
+detectors are: the page decides what to notify and which columns to write, and the app only offers the two generic
+receivers. Support: Android (3.1.0, versionCode 23). Mac and Windows do not offer `features` yet.
+
+- **Live measurements only.** The app accepts these from `start` until shortly after `stop` (it waits about 1 s for the
+  rows the page sends when it receives `stop`). It drops them during a replay (a replay may be analyzed again from the
+  start, which would repeat every notification).
+- Names (`tag`, table `name`): `^[a-z][a-z0-9_]{0,31}$`. Text: no control characters.
+- A message is at most 64 KB, like every page → app message. Send rows about once a second, not per sample.
+
+### `notify`
+
+```json
+{"kind": "notify", "tag": "posture", "title": "Stood up", "text": "score 82", "i": 123456}
+```
+
+| Key | Required | Meaning |
+| :--- | :---: | :--- |
+| `tag` | yes | Group of notifications. **One notification per tag**: a new one replaces the previous one (and still alerts). |
+| `title` | yes | First line, at most 64 characters |
+| `text` | | Second line, at most 200 characters |
+| `i` | | Sample number of the event (the data CSV's `NUM`). The app shows that sample's time |
+
+The app (Android) shows them in the notification channel "Detector events" (default importance; sound and vibration follow
+the system settings), separate from the measurement's ongoing notification. Tapping one opens the app. At most one per
+`tag` every 2 s (within 2 s, only the last one is shown, 2 s after the previous one), at most 16 tags per measurement.
+Without the notification permission nothing is shown and the measurement goes on.
+
+### `table` and `records`
+
+```json
+{"kind": "table", "name": "hve", "columns": ["HEIGHT_CM", "VELOCITY_CM_S"], "title": "Height / velocity (5 Hz)"}
+{"kind": "records", "name": "hve", "rows": [[123460, 12.3, -0.8], [123480, 12.1, -1.0]]}
+```
+
+| Message | Key | Meaning |
+| :--- | :--- | :--- |
+| `table` | `name` | Table name. `disconnect` is reserved (the disconnect log). |
+| | `columns` | Column names, `^[A-Z][A-Z0-9_]{0,31}$`, 1 to 32 of them, no duplicates. `NUM` and `DATE` are not allowed (the app adds them). |
+| | `title` | Optional, at most 64 characters. Written in the CSV's preamble |
+| `records` | `name` | A table declared in this measurement |
+| | `rows` | `[[i, v1, v2, …], …]`. `i` is the row's sample number (the data CSV's `NUM`); the values follow `columns` and are numbers, strings or `null` (empty) |
+
+- **Declare after each `start`**: a `start` forgets the declarations. When the app reloads the page during a measurement
+  (it calls `start` again), declaring the same `name` with the same `columns` **continues the same file**; with other
+  `columns`, that table's rows are dropped (and logged). At most 16 tables per measurement.
+- Numbers are written as JSON numbers. Strings: at most 64 characters, commas and line breaks become spaces, and a string
+  starting with `=` `+` `-` `@` is written empty (a spreadsheet would read it as a formula).
+- Rows are written in the order they arrive. Detectors may confirm results late, so they are **not necessarily in `NUM` order**.
+- A row that does not have `1 + columns` values, or whose `i` is not a non-negative integer, is dropped (and logged).
+
+The app (Android) writes each table to `<data CSV name>_<name>.csv(.gz)` in the same folder (Downloads/ESR Logger), with the
+same compression setting (for example `6EAD12345678_20261003012345_hve.csv.gz`). The file is created with its first row
+(a table without rows makes no file) and appended every 100 rows, like the data CSV. The app adds `DATE`: the `DATE` of the
+data CSV's row with the same `NUM` (UTC, same format), empty if that sample is older than 30 minutes or was not received.
+When the measurement completes, the share sheet offers these CSV files together with the data CSV.
+
+```text
+// Detector output  : hve (Height / velocity (5 Hz))
+// Page  : advanced 0.1.0 (10-03 11:01)
+// Data file  : 6EAD12345678_20261003012345.csv.gz
+//
+//NUM,DATE,HEIGHT_CM,VELOCITY_CM_S
+123460,2026/10/03 01:23:45.678,12.3,-0.8
+```
+
+A page offers these per detector, off by default: the Advanced page (python-processing-core `js/viewer/advanced/`)
+has "Notify" and "CSV" check boxes in its detector settings, for the detectors that declare them (notify: sit / stand;
+CSV: height / velocity at 5 Hz).
 
 ## Running in the background
 
@@ -118,4 +197,6 @@ For a page that calculates in the background:
 
 `webview/common/` (shared by every page) and `webview/standard/` (the built-in page). `common/bridge.js` implements
 this document; `common/dev.js` plays the app's part in a browser (`python3 webview/tools/serve.py`, then open
-`http://127.0.0.1:8790/?dev`).
+`http://127.0.0.1:8790/?dev`), including the receivers for `notify` / `table` / `records` with the same rules as the app
+("App features" turns `cond.features` on and off; "Download tables" saves the tables as the app would; `window.jmasDevApp`
+holds what arrived).

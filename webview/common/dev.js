@@ -3,7 +3,7 @@
 //   ・CSV を開く … ファイルを選ぶと blob URL を openReplay に渡す(アプリは仮想ホストの URL を渡す)
 //   ・アプリの受け口の真似 … start の features(notify / records)を渡し、ページから届いた notify / table / records を
 //     アプリと同じ規則で検査して、パネルに出す。表は Stop の後に「Download tables」で CSV に落とせる(アプリが書くのと同じ形)。
-//     仕様は webview/proposals/detector-events-and-records.md(確定したら BRIDGE.md)。
+//     仕様は webview/BRIDGE.md の Detector notifications and tables。
 // アプリへの post はブラウザでは console に出る(bridge.js の post が jmasDevSink を呼ぶ)。
 const host = window.jmasHost;
 const panel = document.createElement("div");
