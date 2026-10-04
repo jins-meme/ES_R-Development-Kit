@@ -31,6 +31,9 @@ final class DataPersistenceService {
     /// DATE 列（UTC。Android 版 DevKit と同じ ES_R CSV フォーマット）
     private static let dateFormatter = utcFormatter("yyyy/MM/dd HH:mm:ss.SS")
 
+    /// DATE 列の書き方(判定器の表の DATE も同じにする。DetectorOutputs)
+    static func formatDate(_ date: Date) -> String { dateFormatter.string(from: date) }
+
     private static func utcFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -134,7 +137,8 @@ final class DataPersistenceService {
 
     // MARK: - File move (save dialog)
 
-    func presentSaveDialog() {
+    /// moved: 移した後に (元の場所, 移した先) で呼ぶ(判定器の表の CSV も一緒に移すため)
+    func presentSaveDialog(moved: @escaping @MainActor (URL, URL) -> Void = { _, _ in }) {
         guard let sourceFilePath = csvManager.saveFilePath, !sourceFilePath.isEmpty else {
             csvManager.reset()
             return
@@ -157,6 +161,7 @@ final class DataPersistenceService {
                 do {
                     try FileManager.default.copyItem(at: URL(fileURLWithPath: sourceFilePath), to: url)
                     try? FileManager.default.removeItem(at: URL(fileURLWithPath: sourceFilePath))
+                    MainActor.assumeIsolated { moved(URL(fileURLWithPath: sourceFilePath), url) }
                 } catch {
                     NSLog("コピー失敗:%@", error.localizedDescription)
                 }

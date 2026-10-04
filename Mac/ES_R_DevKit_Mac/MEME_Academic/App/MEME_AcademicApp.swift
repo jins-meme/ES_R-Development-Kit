@@ -23,6 +23,11 @@ final class FileOpenCoordinator: ObservableObject {
 /// Finder からの「開く」イベント（application(_:open:)）を受け取る AppDelegate。
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // 判定器の通知(グラフ画面の notify)の許可は起動時に求める(本人の方針、2026-10-03)。拒否されても計測には関係ない
+        DetectorNotifications.setUp()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         // 複数選択されても先頭の1件のみ File Replay として扱う。
         if let url = urls.first {

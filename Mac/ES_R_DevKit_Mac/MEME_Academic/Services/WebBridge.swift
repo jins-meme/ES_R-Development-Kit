@@ -9,6 +9,7 @@
 //  - アプリ → ページ: evaluateJavaScript("jmasHost.xxx(JSON)")。ページが ready を返すまでは溜めておく。
 //  - 受信したサンプルは 0.05 秒ごとにまとめて push する(1 件ずつ呼ぶと重い)。
 //  - ページ → アプリ: window.webkit.messageHandlers.jmas.postMessage({kind, …})。
+//    判定器の通知・演算結果の表(notify / table / records)は onOutput へ渡す(DetectorOutputs。start の features で受け付けると知らせる)。
 //  - **ページから外へは通信させない**(zip は任意の JS を動かせるので、計測データを外へ送らせない。webview/BRIDGE.md の Limits):
 //    全応答に Content-Security-Policy を付け(fetch・WebSocket・画像・Worker の中まで自分のオリジンだけ)、CSP の外にある
 //    WebRTC は読み込みの最初に消し、外のページへの移動は断る。アプリ自身の通信(外部出力のソケットなど)はネイティブなので関係ない。
@@ -40,6 +41,8 @@ final class WebBridge: NSObject {
     var onArtifact: ((Int, String) -> Void)?
     /// 再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)
     var onReplayInfo: (([String: Any]) -> Void)?
+    /// 判定器の通知・演算結果の表(kind = notify / table / records)。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める
+    var onOutput: (([String: Any]) -> Void)?
 
     override init() {
         let cfg = WKWebViewConfiguration()
@@ -185,6 +188,8 @@ extension WebBridge: WKScriptMessageHandler {
             onArtifact?(i, text)
         case "replay-info":
             onReplayInfo?(body)
+        case "notify", "table", "records":
+            onOutput?(body)
         case "log":
             NSLog("[WebView %@] %@", String(describing: body["level"] ?? "info"), String(describing: body["message"] ?? ""))
         default:

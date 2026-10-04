@@ -105,6 +105,12 @@ final class MEMEViewModel: NSObject {
 
     private let persistence = DataPersistenceService()
     private let stats = CommunicationStatsTracker()
+    /// 判定器の通知と演算結果の表(ページ → アプリの notify / table / records)。ライブ計測の間だけ受ける
+    let outputs = DetectorOutputs()
+
+    /// 計測を止めてから判定器の表を閉じるまで待つ時間。ページは stop を受けてから溜めた行(最大 1 秒ぶん)を送るので、
+    /// それが届くのを待つ(webview/BRIDGE.md の Detector notifications and tables。Android と同じ 1 秒)
+    private static let outputsStopGrace: TimeInterval = 1.0
 
     // MARK: - Init
 
@@ -125,6 +131,7 @@ final class MEMEViewModel: NSObject {
 
         web.onArtifact = { [weak self] i, text in self?.receiveArtifact(i: i, text: text) }
         web.onReplayInfo = { [weak self] info in self?.applyReplayInfo(info) }
+        web.onOutput = { [weak self] body in self?.outputs.receive(body) }
 
         showAppVersion()
         showLocalAddress()
@@ -422,6 +429,9 @@ final class MEMEViewModel: NSObject {
         }
 
         liveSampleIndex = 0
+        outputs.start(cps: MeasurementRange.hz(quality: UInt32(transSpeed + 1)),
+                      dataFile: { [weak self] in self?.persistence.savedFileURL },
+                      pageName: { [weak self] in self?.web.pageName ?? "" })
         web.start(liveCondition())
 
         phase = .measuring
@@ -432,6 +442,7 @@ final class MEMEViewModel: NSObject {
         memelib.stopDataReport()
         stats.stopMeasurement()
         web.stop()
+        closeOutputsLater()
 
         // 届きかけのパケットを待ってから締める。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -447,16 +458,25 @@ final class MEMEViewModel: NSObject {
     /// 書き戻し、設定なら保存ダイアログを出して、次の計測が新しいファイルになるよう状態を戻す。
     private func finishMeasurement() {
         flushCsv()
+        outputs.noteDataFile()      // 表はこの後(ページの残りを待って)閉じるので、データ CSV の場所を覚えさせる
         // 確定したCSVファイルへ、計測中に付けた Artifact を書き戻す。
         // （保存ダイアログでファイルを移動する前に、元パスへ書き込んでおく。）
         flushLiveArtifacts()
 
         if UserSetting.getShowSaveFileDialog() {
-            persistence.presentSaveDialog()
+            persistence.presentSaveDialog { [weak self] from, to in self?.outputs.dataFileMoved(from: from, to: to) }
         } else {
             persistence.resetCsvManager()
         }
         reset()
+    }
+
+    /// 判定器の表は、ページが stop の後に送る残りを待ってから閉じる(閉じる前に次の計測が始まっていたら何もしない)
+    private func closeOutputsLater() {
+        let s = outputs.session
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.outputsStopGrace) { [weak self] in
+            self?.outputs.stop(session: s)
+        }
     }
 
     func toggleFreeMarking() {
@@ -486,6 +506,7 @@ final class MEMEViewModel: NSObject {
         cond["gyroRange"] = MeasurementRange.gyroDps(device: memelib.getGyroRange())
         cond["columns"] = mode.hasGraph ? mode.columns : []
         cond["startedAt"] = Date().timeIntervalSince1970 * 1000
+        cond["features"] = DetectorOutputs.features
         return cond
     }
 
@@ -674,6 +695,7 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         if wasMeasuring {
             NSLog("disconnected while measuring; finishing the measurement")
             stats.stopMeasurement()
+            closeOutputsLater()
             finishMeasurement()
         }
         // SHELF 送信後の切断は端末が移行を受理した合図。
@@ -710,6 +732,8 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
             isFreeMarking = false
             let row = CsvRow(data: data, packetCount: stats.totalCount, date: data.date ?? Date(), isFreeMarking: freeMarked)
             persistence.append(row)
+            // 判定器の表の NUM / DATE 列(このパケットがページへ渡る番号 = liveSampleIndex。pushToGraph はこの後)
+            outputs.recordSample(i: liveSampleIndex, num: row.packetCount, date: row.date)
             saveCsv()
             if socket?.isConnected() == true {
                 socketDatas.append(row)

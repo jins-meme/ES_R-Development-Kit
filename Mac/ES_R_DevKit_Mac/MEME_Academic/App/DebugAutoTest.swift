@@ -24,6 +24,12 @@
 //  終わったら元の中身に戻す(高機能版 advanced.zip の確かめ用。ページに検出器があれば、その状態も result.json に書く)。
 //  もともと選んだ zip を使っていたら、それを退避しておいて戻す(zip の組も同じ)。
 //
+//  MEME_AUTOTEST_OUTPUTS=1 を足すと(MEME_AUTOTEST_ZIP で高機能版を読み込んだとき)、計測の前に高機能版の設定の Notify(立ち座り)・
+//  CSV(高さ・速度)をオンにして読み込み直し、判定器の表の CSV(データ CSV と同じベース名 + _hve・同じ圧縮)ができたこと・行数が 0 でないこと・
+//  ページが送った行の数とアプリが受けた数が同じこと・NUM がデータ CSV の範囲に入ること・DATE が入っていること・規則に合わず捨てたものが無いこと、
+//  保存ダイアログで移したときに表も同じフォルダ・同じベース名へ移ることを outputs に書く(Android の autotest_outputs と同じ。
+//  webview/BRIDGE.md の Detector notifications and tables)。
+//
 //  MEME_AUTOTEST_SOCKET_PORT=<ポート> を足すと、テストの間だけ TCP 出力(Settings の TCP Output)をそのポートで有効にする
 //  (受け取る側は外で用意する。例: nc localhost <ポート> > out.csv)。終わったら元の設定に戻す。
 //
@@ -168,6 +174,15 @@ enum DebugAutoTest {
         try await wait("page ready", 20) { vm.web.isReady }
         result["page"] = vm.web.pageName
         await snapshot(vm, "0-idle", out)
+        let outputsTest = ProcessInfo.processInfo.environment["MEME_AUTOTEST_OUTPUTS"] == "1"
+        if outputsTest {
+            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)
+            _ = try? await vm.web.webView.evaluateJavaScript(
+                "localStorage.setItem('advanced.notify', JSON.stringify(['posture'])); localStorage.setItem('advanced.csv', JSON.stringify(['hve'])); 0")
+            vm.reloadGraph()
+            await sleep(0.5)
+            try await wait("page reloaded", 30) { vm.web.isReady }
+        }
 
         // 接続して 100Hz・±8G・±1000dps で計測(モードは既定 Full。実機では MEME_AUTOTEST_MODE=standard も)
         let env = ProcessInfo.processInfo.environment
@@ -214,6 +229,20 @@ enum DebugAutoTest {
         result["measuring"] = await pageState(vm)
         result["probeMeasuring"] = await probe(vm)
         await snapshot(vm, "1-measuring", out)
+        if outputsTest {
+            // 受け口の検査規則(dev.js と同じ): 数式風・カンマ・真偽値・列数の違い・名前の形・同じ列 / 違う列での宣言し直し
+            _ = try? await vm.web.webView.evaluateJavaScript("""
+                for (const m of [
+                  {kind: 'table', name: 'selftest', columns: ['A', 'B'], title: 'self test'},
+                  {kind: 'table', name: 'selftest', columns: ['A', 'B']},
+                  {kind: 'records', name: 'selftest', rows: [[300, '=SUM(1)', 'a,b'], [301, true, 1], [302, 1.5, null], [303, 1], [-1, 1, 2], [304, -7, 'x\\ny']]},
+                  {kind: 'table', name: 'Bad', columns: ['A']},
+                  {kind: 'table', name: 'nodate', columns: ['DATE']},
+                  {kind: 'notify', tag: 'selftest', title: 'Self test', text: 'from the Mac self test', i: 300},
+                  {kind: 'notify', tag: 'Bad', title: 'x'},
+                ]) window.webkit.messageHandlers.jmas.postMessage(m); 0
+                """)
+        }
 
         // ページで付けたのと同じ形でアーティファクトを送る(サンプル 300 = CSV の 299 行目)
         _ = try? await vm.web.webView.evaluateJavaScript(
@@ -239,6 +268,7 @@ enum DebugAutoTest {
         if result["savedMode"] as? String != result["mode"] as? String { problems.append("mode \(result["savedMode"] ?? "") in CSV") }
         if result["numGaps"] as? Int != 0 { problems.append("NUM has \(result["numGaps"] ?? 0) gaps") }
         if result["artifactRow"] as? Int != 299 { problems.append("artifact at row \(result["artifactRow"] ?? -1), expected 299") }
+        if outputsTest { problems += await checkOutputs(vm, dataCsv: csv, dataNums: nums, result: &result) }
 
         // 再生
         vm.toggleConnect()
@@ -267,14 +297,98 @@ enum DebugAutoTest {
         if firstField(10) != "" { problems.append("replay artifact row 10 = \(firstField(10)), expected refused") }
         if firstField(20) != "X" { problems.append("replay artifact row 20 = \(firstField(20)), expected 'X'") }
         if firstField(299) != "autotest" { problems.append("live artifact row 299 lost after replay: \(firstField(299))") }
+        if outputsTest { problems += checkOutputsMove(vm, dataCsv: csv, result: &result) }
         if !problems.isEmpty { throw CheckFailed(problems: problems) }
+    }
+
+    /// 判定器の表の CSV と通知(MEME_AUTOTEST_OUTPUTS=1)。表 hve が 1 本でき、行が 0 でなく、ページが送った行がすべて書かれ、
+    /// NUM がデータ CSV の範囲に入り、DATE が入っているか
+    private static func checkOutputs(_ vm: MEMEViewModel, dataCsv: URL, dataNums: [Int], result: inout [String: Any]) async -> [String] {
+        let o = vm.outputs
+        var out: [String: Any] = ["app": o.stats.json, "tables": o.tablesJson]
+        var problems: [String] = []
+        var pageSent: [String: Any] = [:]
+        if let s = try? await vm.web.webView.evaluateJavaScript("JSON.stringify(window.jmasOutputs?.sent ?? {})") as? String,
+           let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] { pageSent = obj }
+        out["pageSent"] = pageSent
+        // 規則の確かめで送った分(selftest の表 3 行・通知 2 件)を除いて、ページが送った数と比べる
+        let wantWarnings = ["records selftest: 3 row(s) dropped", "table: bad name Bad", "table nodate: bad columns", "notify: bad tag Bad"]
+        let unexpected = o.stats.warnings.filter { w in !wantWarnings.contains { w.hasPrefix($0) } }
+        let missing = wantWarnings.filter { want in !o.stats.warnings.contains { $0.hasPrefix(want) } }
+        if !unexpected.isEmpty || !missing.isEmpty { problems.append("outputs warnings: unexpected \(unexpected), missing \(missing)") }
+        let selftestRows = 3, selftestNotify = 2
+        // ページが送った行 = 書いた行 + データ CSV に行の無いサンプルの行(先頭パケット。多くて 1 行)
+        if (pageSent["records"] as? Int ?? -1) != o.stats.rowsReceived - selftestRows + o.stats.rowsNotInData || o.stats.rowsNotInData > 1 {
+            problems.append("table rows: page sent \(pageSent["records"] ?? "?"), app wrote \(o.stats.rowsReceived) + \(o.stats.rowsNotInData) not in the data CSV")
+        }
+        if (pageSent["notify"] as? Int ?? -1) != o.stats.notifyReceived - selftestNotify {
+            problems.append("notify: page sent \(pageSent["notify"] ?? "?"), app received \(o.stats.notifyReceived)")
+        }
+        let lo = dataNums.min() ?? 0, hi = dataNums.max() ?? -1
+        // 規則の確かめの表: 数式風は空欄・カンマと改行は空白・数はそのまま・null は空欄、真偽値・列数違い・負の i の行は捨てる
+        if let st = o.lastFiles.first(where: { $0.lastPathComponent.contains("_selftest.") }) {
+            let lines = ((try? CsvFile.readText(at: st)) ?? "").components(separatedBy: "\n").filter { !$0.isEmpty }
+            let body = lines.filter { !$0.hasPrefix("//") }.map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+            let cells = body.map { Array($0.dropFirst(2)) }
+            out["selftest"] = ["header": lines.filter { $0.hasPrefix("//") }, "rows": body.map { $0.joined(separator: ",") }]
+            if cells != [["", "a b"], ["1.5", ""], ["-7", "x y"]] { problems.append("selftest table cells \(cells)") }
+            if body.contains(where: { $0.count < 2 || $0[1].isEmpty }) { problems.append("selftest table rows without DATE") }
+            if !lines.contains("// Detector output  : selftest (self test)") { problems.append("selftest table title") }
+        } else { problems.append("no selftest table CSV") }
+        let dataStem = dataCsv.lastPathComponent.replacingOccurrences(of: ".csv.gz", with: "").replacingOccurrences(of: ".csv", with: "")
+        var files: [[String: Any]] = []
+        if o.lastFiles.isEmpty { problems.append("no table CSV") }
+        for f in o.lastFiles where !f.lastPathComponent.contains("_selftest.") {
+            let text = (try? CsvFile.readText(at: f)) ?? ""
+            let lines = text.components(separatedBy: "\n")
+            let head = Array(lines.prefix { $0.hasPrefix("//") })
+            let rows = lines.dropFirst(head.count).filter { !$0.isEmpty }.map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+            let nums = rows.compactMap { Int($0.first ?? "") }
+            let inRange = !nums.isEmpty && nums.allSatisfy { (lo...hi).contains($0) }
+            let withDate = rows.filter { $0.count > 1 && !$0[1].isEmpty }.count
+            let sameBase = f.lastPathComponent.hasPrefix(dataStem + "_") && f.deletingLastPathComponent() == dataCsv.deletingLastPathComponent()
+                && CsvFile.isGzip(f) == CsvFile.isGzip(dataCsv)
+            files.append(["file": f.lastPathComponent, "header": head, "rows": rows.count, "numMin": nums.min() ?? -1, "numMax": nums.max() ?? -1,
+                          "numInDataRange": inRange, "withDate": withDate, "sameBaseAsData": sameBase, "first": rows.prefix(3).map { $0.joined(separator: ",") }])
+            if rows.isEmpty { problems.append("\(f.lastPathComponent): no rows") }
+            if !inRange { problems.append("\(f.lastPathComponent): NUM outside the data CSV (\(nums.min() ?? -1)…\(nums.max() ?? -1) vs \(lo)…\(hi))") }
+            if Double(withDate) < Double(rows.count) * 0.95 { problems.append("\(f.lastPathComponent): DATE on \(withDate) of \(rows.count) rows") }
+            if !sameBase { problems.append("\(f.lastPathComponent): not next to \(dataCsv.lastPathComponent) with the same base name / compression") }
+            if head.last != "//NUM,DATE,HEIGHT_CM,VELOCITY_CM_S" && f.lastPathComponent.contains("_hve.") { problems.append("hve header \(head.last ?? "")") }
+        }
+        out["files"] = files
+        result["outputs"] = out
+        return problems
+    }
+
+    /// 保存ダイアログでデータ CSV を移したときと同じ扱い(DetectorOutputs.dataFileMoved)で、表も同じフォルダ・同じベース名へ移るか
+    private static func checkOutputsMove(_ vm: MEMEViewModel, dataCsv: URL, result: inout [String: Any]) -> [String] {
+        let fm = FileManager.default
+        let dir = dataCsv.deletingLastPathComponent().appendingPathComponent("moved", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let ext = CsvFile.isGzip(dataCsv) ? "csv.gz" : "csv"
+        let to = dir.appendingPathComponent("renamed.\(ext)")
+        let before = vm.outputs.lastFiles
+        do { try fm.moveItem(at: dataCsv, to: to) } catch { return ["move data CSV: \(error.localizedDescription)"] }
+        vm.outputs.dataFileMoved(from: dataCsv, to: to)
+        let after = vm.outputs.lastFiles
+        result["outputsMoved"] = after.map(\.lastPathComponent)
+        var problems: [String] = []
+        for (a, b) in zip(before, after) {
+            let suffix = a.lastPathComponent.split(separator: "_").last.map(String.init) ?? ""
+            if b.deletingLastPathComponent() != dir || b.lastPathComponent != "renamed_\(suffix)" || !fm.fileExists(atPath: b.path) || fm.fileExists(atPath: a.path) {
+                problems.append("table not moved with the data CSV: \(a.lastPathComponent) -> \(b.path)")
+            }
+        }
+        return problems
     }
 
     /// 保存先で一番新しい CSV
     private static func newestCsv() -> URL? {
         let dir = URL(fileURLWithPath: UserSetting.getSaveFilePath())
         let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        return files.filter { CsvFile.isSupported(fileName: $0.lastPathComponent) }
+        // 判定器の表(<データ CSV のベース名>_<名前>.csv)は除く。データ CSV は <アドレス>_<日時>.csv
+        return files.filter { CsvFile.isSupported(fileName: $0.lastPathComponent) && $0.lastPathComponent.split(separator: "_").count == 2 }
             .max { a, b in
                 let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
