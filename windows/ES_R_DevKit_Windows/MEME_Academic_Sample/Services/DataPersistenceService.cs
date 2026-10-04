@@ -19,6 +19,9 @@ public sealed class DataPersistenceService : IDisposable
     /// </summary>
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+    /// <summary>DATE 列の書き方(判定器の表の DATE も同じにする。DetectorOutputs)</summary>
+    public static string FormatDate(DateTime utc) => utc.ToString(DateFormat, Invariant);
+
     private readonly Lock _gate = new();
     private readonly List<string> _pendingRows = [];
 

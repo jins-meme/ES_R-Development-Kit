@@ -9,6 +9,12 @@
     <IsPackable>false</IsPackable>
     <!-- 参照するロガー本体と同じ理由(WebView2 の NuGet が WPF 用の dll も参照に載せる)。 -->
     <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+    <!-- ロガー本体が参照する Windows App SDK が引き継がれる。本体と同じく、パッケージ化せず起動時の初期化もしない。
+         WebView2 は WinForms 用のまま(WinRT の投影にすると Core.dll が 2 つになり、リソース(PRI)の生成で APPX1101 になる) -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WebView2EnableCsWinRTProjection>false</WebView2EnableCsWinRTProjection>
   </PropertyGroup>
 
   <ItemGroup>

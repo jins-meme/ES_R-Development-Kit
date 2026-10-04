@@ -17,7 +17,7 @@ namespace MEME_Academic_Sample;
 ///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|settings|webcrash|reconnect] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
 ///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;] [--probe-live &lt;同&gt;]
 ///                              [--expect &lt;瞬目,EMR,EML[,歩のイベント]&gt;] [--real [--device &lt;アドレスか名前の末尾&gt;]]
-///                              [--socket &lt;ポート&gt; [--socket-stall]]
+///                              [--socket &lt;ポート&gt; [--socket-stall]] [--outputs]
 ///
 /// - live(既定): 実機の代わりに --csv の行を 100 Hz で受信の口(HandleSample)へ流して「計測 → アーティファクト → 停止 →
 ///   保存した CSV を再生」を回す(BLE には触らない)。--mode standard は同じ値を Standard の形に詰め替えて流す。
@@ -35,6 +35,10 @@ namespace MEME_Academic_Sample;
 /// - reconnect: 計測中に切断 → 繋ぎ直して Start Measurement で計測が始まるか、切断した回の CSV が停止と同じく締められるか
 ///   (ファイルが分かれる・NUM が続かない・付けた Artifact が書き戻される)を見る。--real なら実機で、無ければ --csv の行を流し、
 ///   切断は端末側から切られたときと同じ口(OnPeripheralDisconnected)を呼ぶ。
+/// --outputs は live で(--zip で高機能版を読み込んだとき)、計測の前に高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして
+/// 読み込み直し、判定器の表の CSV(データ CSV と同じベース名 + _hve・同じ圧縮)ができたこと・ページが送った行と通知の数をアプリが受けたこと・
+/// NUM がデータ CSV の行と DATE ごと一致すること・受け口の検査規則(数式風・カンマ・真偽値・列数・名前)・保存ダイアログで移したときに表も移ること、
+/// 通知が使えたか(Windows App Runtime が無ければ、案内のダイアログを出そうとしたこと)を outputs に書く(Android の autotest_outputs と同じ)。
 /// --socket はテストの間だけ TCP 出力をそのポートで有効にし、live の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
 /// 同じかを見る。--socket-stall を足すと受け取る側が読まないままにし、送信が詰まっても受信(計測)が止まらないことを見る。
 /// --zip は始める前に設定の Display Engine と同じ経路(WebContentStore.ImportZip)で読み込み、終わったら元に戻す
@@ -349,6 +353,17 @@ public partial class MainForm
         var seconds = double.Parse(Arg(args, "--seconds") ?? "20", System.Globalization.CultureInfo.InvariantCulture);
 
         await Wait("page ready", 30, () => web.IsReady);
+        var outputsTest = args.Contains("--outputs");
+        if (outputsTest)
+        {
+            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)
+            await Eval("localStorage.setItem('advanced.notify', JSON.stringify(['posture'])); localStorage.setItem('advanced.csv', JSON.stringify(['hve'])); 0");
+            var readyBefore = web.ReadyCount;
+            web.Load();
+            await Wait("page reloaded", 30, () => web.ReadyCount > readyBefore && web.IsReady);
+            DetectorNotifications.SuppressedDialogs = [];
+        }
+
         result["page"] = web.PageName;
         result["real"] = real;
         await Snapshot(dir, "0-idle");
@@ -397,6 +412,22 @@ public partial class MainForm
         result["measuring"] = await PageState();
         result["probeMeasuring"] = await Probe(args);
         await Snapshot(dir, "1-measuring");
+        if (outputsTest)
+        {
+            // 受け口の検査規則(dev.js と同じ): 数式風・カンマ・真偽値・列数の違い・名前の形・同じ列での宣言し直し
+            await Eval("""
+                for (const m of [
+                  {kind: 'table', name: 'selftest', columns: ['A', 'B'], title: 'self test'},
+                  {kind: 'table', name: 'selftest', columns: ['A', 'B']},
+                  {kind: 'records', name: 'selftest', rows: [[300, '=SUM(1)', 'a,b'], [301, true, 1], [302, 1.5, null], [303, 1], [-1, 1, 2], [304, -7, 'x\ny']]},
+                  {kind: 'table', name: 'Bad', columns: ['A']},
+                  {kind: 'table', name: 'nodate', columns: ['DATE']},
+                  {kind: 'notify', tag: 'selftest', title: 'Self test', text: 'from the Windows self test', i: 300},
+                  {kind: 'notify', tag: 'Bad', title: 'x'},
+                ]) window.chrome.webview.postMessage(m); 0
+                """);
+            await Sleep(0.5);
+        }
 
         // アーティファクト(サンプル 300 = CSV の 299 行目)
         await SendArtifact(300, "autotest");
@@ -444,6 +475,12 @@ public partial class MainForm
             problems.Add($"only {data.Count} rows for {seconds} s");
         }
 
+        if (outputsTest)
+        {
+            await Sleep(1);                                   // 表はページの残りを待って 1 秒後に閉じる
+            problems.AddRange(await CheckOutputs(saved, data, result));
+        }
+
         if (socket is not null)
         {
             problems.AddRange(await socket.Check(saved, lb_SocketStatus.Text, result));
@@ -482,10 +519,151 @@ public partial class MainForm
             problems.Add($"replay write-back changed rows [{string.Join(",", changed)}], expected [500,600]");
         }
 
+        if (outputsTest)
+        {
+            problems.AddRange(CheckOutputsMove(saved, result));
+            DetectorNotifications.SuppressedDialogs = null;
+        }
+
         if (problems.Count > 0)
         {
             throw new CheckFailed(problems);
         }
+    }
+
+    /// <summary>
+    /// 判定器の表の CSV と通知(--outputs)。表 hve ができ、ページが送った行・通知をアプリが受け、表の NUM がデータ CSV の行と DATE ごと一致し、
+    /// 受け口の検査規則の確かめ(selftest の表)が合っているか
+    /// </summary>
+    private async Task<List<string>> CheckOutputs(string dataCsv, List<string[]> data, JsonObject result)
+    {
+        var problems = new List<string>();
+        var st = outputs.Stats;
+        var o = new JsonObject
+        {
+            ["app"] = new JsonObject
+            {
+                ["notifyReceived"] = st.NotifyReceived, ["notifyShown"] = st.NotifyShown, ["rowsReceived"] = st.RowsReceived,
+                ["rowsNotInData"] = st.RowsNotInData, ["rowsInBackground"] = st.RowsInBackground,
+                ["warnings"] = new JsonArray(st.Warnings.Select(w => (JsonNode)w).ToArray()),
+            },
+            ["notificationsAvailable"] = DetectorNotifications.Available,
+            ["notificationsError"] = DetectorNotifications.LastError,
+            ["runtimeHelp"] = new JsonArray((DetectorNotifications.SuppressedDialogs ?? []).Select(m => (JsonNode)m).ToArray()),
+        };
+        var sent = JsonNode.Parse(JsonSerializer.Deserialize<string>(await Eval("JSON.stringify(window.jmasOutputs?.sent ?? {})")) ?? "{}");
+        o["pageSent"] = sent;
+        // 規則の確かめで送った分(selftest の表 3 行・通知 2 件)を除いて、ページが送った数と比べる
+        string[] wantWarnings = ["records selftest: 3 row(s) dropped", "table: bad name \"Bad\"", "table nodate: bad columns", "notify: bad tag \"Bad\""];
+        var unexpected = st.Warnings.Where(w => !wantWarnings.Any(w.StartsWith)).ToList();
+        var missing = wantWarnings.Where(w => !st.Warnings.Any(x => x.StartsWith(w, StringComparison.Ordinal))).ToList();
+        if (unexpected.Count > 0 || missing.Count > 0)
+        {
+            problems.Add($"outputs warnings: unexpected [{string.Join(" | ", unexpected)}], missing [{string.Join(" | ", missing)}]");
+        }
+
+        var pageRecords = sent?["records"]?.GetValue<int>() ?? -1;
+        var pageNotify = sent?["notify"]?.GetValue<int>() ?? -1;
+        if (pageRecords != st.RowsReceived - 3 + st.RowsNotInData || st.RowsNotInData > 1)
+        {
+            problems.Add($"table rows: page sent {pageRecords}, app wrote {st.RowsReceived - 3} + {st.RowsNotInData} not in the data CSV");
+        }
+
+        if (pageNotify != st.NotifyReceived - 2)
+        {
+            problems.Add($"notify: page sent {pageNotify}, app received {st.NotifyReceived - 2}");
+        }
+
+        // 通知: ランタイムがあれば出せた数が受けた数(規則に合わない 1 件を除く)と同じ。無ければ出さず、案内を 1 回だけ出そうとした
+        var helps = DetectorNotifications.SuppressedDialogs?.Count ?? 0;
+        if (DetectorNotifications.Available == true && st.NotifyShown != st.NotifyReceived - 1)
+        {
+            problems.Add($"notifications: shown {st.NotifyShown} of {st.NotifyReceived - 1}");
+        }
+
+        if (DetectorNotifications.Available == false && (st.NotifyShown != 0 || helps != 1))
+        {
+            problems.Add($"no runtime: shown {st.NotifyShown}, help dialogs {helps} (expected 0 and 1)");
+        }
+
+        var byNum = data.ToDictionary(r => r[1], r => r[2]);
+        var stem = CsvFile.BaseName(dataCsv);
+        var files = new JsonArray();
+        if (!outputs.LastFiles.Any(f => f.Contains("_hve.", StringComparison.Ordinal)))
+        {
+            problems.Add("no hve table CSV");
+        }
+
+        foreach (var f in outputs.LastFiles)
+        {
+            var lines = CsvFile.ReadAllLines(f);
+            var head = lines.TakeWhile(l => l.StartsWith("//", StringComparison.Ordinal)).ToArray();
+            var rows = lines.Skip(head.Length).Where(l => l.Length > 0).Select(l => l.Split(',')).ToList();
+            var joined = rows.Count(r => byNum.TryGetValue(r[0], out var d) && d == r[1]);
+            var sameBase = Path.GetFileName(f).StartsWith(stem + "_", StringComparison.Ordinal) &&
+                           Path.GetDirectoryName(f) == Path.GetDirectoryName(dataCsv) && CsvFile.IsGzip(f) == CsvFile.IsGzip(dataCsv);
+            files.Add(new JsonObject
+            {
+                ["file"] = Path.GetFileName(f), ["header"] = new JsonArray(head.Select(h => (JsonNode)h).ToArray()), ["rows"] = rows.Count,
+                ["matchDataNumAndDate"] = joined, ["sameBaseAsData"] = sameBase,
+                ["first"] = new JsonArray(rows.Take(3).Select(r => (JsonNode)string.Join(',', r)).ToArray()),
+            });
+            if (rows.Count == 0 || joined != rows.Count)
+            {
+                problems.Add($"{Path.GetFileName(f)}: {joined} of {rows.Count} rows match the data CSV's NUM and DATE");
+            }
+
+            if (!sameBase)
+            {
+                problems.Add($"{Path.GetFileName(f)}: not next to {Path.GetFileName(dataCsv)} with the same base name / compression");
+            }
+
+            if (f.Contains("_selftest.", StringComparison.Ordinal))
+            {
+                var cells = rows.Select(r => string.Join(',', r.Skip(2))).ToArray();
+                if (!cells.SequenceEqual([",a b", "1.5,", "-7,x y"]))
+                {
+                    problems.Add($"selftest table cells [{string.Join(" | ", cells)}]");
+                }
+
+                if (!head.Contains("// Detector output  : selftest (self test)"))
+                {
+                    problems.Add("selftest table title");
+                }
+            }
+            else if (f.Contains("_hve.", StringComparison.Ordinal) && head.LastOrDefault() != "//NUM,DATE,HEIGHT_CM,VELOCITY_CM_S")
+            {
+                problems.Add($"hve header {head.LastOrDefault()}");
+            }
+        }
+
+        o["files"] = files;
+        result["outputs"] = o;
+        return problems;
+    }
+
+    /// <summary>保存ダイアログでデータ CSV を移したときと同じ扱い(DataFileMoved)で、表も同じフォルダ・同じベース名へ移るか</summary>
+    private List<string> CheckOutputsMove(string dataCsv, JsonObject result)
+    {
+        var dir = Path.Combine(Path.GetDirectoryName(dataCsv) ?? "", "moved");
+        Directory.CreateDirectory(dir);
+        var to = Path.Combine(dir, "renamed" + CsvFile.MatchingExtension(dataCsv));
+        var before = outputs.LastFiles.ToList();
+        File.Move(dataCsv, to, overwrite: true);
+        outputs.DataFileMoved(dataCsv, to);
+        var after = outputs.LastFiles;
+        result["outputsMoved"] = new JsonArray(after.Select(f => (JsonNode)Path.GetFileName(f)).ToArray());
+        var problems = new List<string>();
+        foreach (var (a, b) in before.Zip(after))
+        {
+            var suffix = Path.GetFileName(a)[CsvFile.BaseName(dataCsv).Length..];
+            if (Path.GetDirectoryName(b) != dir || Path.GetFileName(b) != "renamed" + suffix || !File.Exists(b) || File.Exists(a))
+            {
+                problems.Add($"table not moved with the data CSV: {Path.GetFileName(a)} -> {b}");
+            }
+        }
+
+        return problems;
     }
 
     /// <summary>--real: スキャンして --device(アドレス "D6260AC6E90D" か名前の末尾。省略時は最初の端末)に繋ぐ</summary>

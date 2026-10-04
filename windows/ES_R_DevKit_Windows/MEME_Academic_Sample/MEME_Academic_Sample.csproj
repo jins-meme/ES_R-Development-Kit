@@ -11,12 +11,22 @@
     <RootNamespace>MEME_Academic_Sample</RootNamespace>
     <!-- RootNamespace は据え置き。app.ico の埋め込みリソース名がこれに依存する。 -->
     <AssemblyName>JINS_MEME_DataLogger</AssemblyName>
-    <Version>2.2.1</Version>
+    <Version>2.3.0</Version>
     <Product>JINS MEME DataLogger</Product>
     <AssemblyTitle>JINS MEME DataLogger</AssemblyTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- WebView2 の NuGet が WPF 用の dll も参照に載せ、WindowsBase の版の食い違い(MSB3277)を出す。WinForms しか使わないので黙らせる。 -->
     <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+    <!-- 判定器の通知(AppNotificationManager)に Windows App SDK を使う。パッケージ化しないアプリで、ランタイムは同梱しない
+         (利用者の PC の Windows App Runtime を使う。本人の方針、2026-10-04)。ランタイムが無いとプロセスごと終わる起動時の
+         自動初期化は切り、最初に通知を出すときに自分で初期化する(Services/DetectorNotifications.cs)。版の定数だけはビルドに入れる。 -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkIncludeVersionInfo>true</WindowsAppSdkIncludeVersionInfo>
+    <!-- Windows App SDK(の WinUI)は WebView2 を WinRT の投影で参照させ、WinForms 用の WebView2 が参照から外れる。WinUI は使わないので戻す -->
+    <WebView2EnableCsWinRTProjection>false</WebView2EnableCsWinRTProjection>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +37,8 @@
   <ItemGroup>
     <!-- グラフ画面(WebView2)。ランタイムは Windows 11 に入っているので同梱しない(docs: devkit-webview.md §10 の 8)。 -->
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <!-- 判定器の通知。ランタイムは同梱しない(上の WindowsAppSDKSelfContained) -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
   </ItemGroup>
 
   <ItemGroup>

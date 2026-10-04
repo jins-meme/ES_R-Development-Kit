@@ -30,6 +30,15 @@ public partial class MainForm : Form
     private readonly WebContentStore webContent;
     private readonly WebBridge web;
 
+    /// <summary>判定器の通知と演算結果の表(ページ → アプリの notify / table / records)。ライブ計測の間だけ受ける</summary>
+    private readonly DetectorOutputs outputs;
+
+    /// <summary>
+    /// 計測を止めてから判定器の表を閉じるまで待つ時間。ページは stop を受けてから溜めた行(最大 1 秒ぶん)を送るので、
+    /// それが届くのを待つ(webview/BRIDGE.md の Detector notifications and tables。Android・Mac と同じ 1 秒)
+    /// </summary>
+    private const int OutputsStopGraceMs = 1000;
+
     private Phase phase = Phase.Idle;
     private bool isScanning;
     private bool isFreeMarking;
@@ -77,6 +86,11 @@ public partial class MainForm : Form
         web = new WebBridge(webContent, webHost);
         web.Artifact += ReceiveArtifact;
         web.ReplayInfo += ApplyReplayInfo;
+        outputs = new DetectorOutputs(this);
+        web.Output += outputs.Receive;
+        DetectorNotifications.Attach(this);
+        Activated += (_, _) => outputs.Foreground = true;
+        Deactivate += (_, _) => outputs.Foreground = false;
 
         SetupOptions();
         lb_AppVersion.Text = $"Version {AppInfo.Version}";
@@ -276,6 +290,7 @@ public partial class MainForm : Form
         var wasMeasuring = phase == Phase.Measuring;
         stats.StopMeasurement();
         persistence.End();
+        RunOnUi(outputs.NoteDataFile);
 
         RunOnUi(() =>
         {
@@ -284,6 +299,7 @@ public partial class MainForm : Form
             if (wasMeasuring)
             {
                 web.Stop();
+                CloseOutputsLater();
             }
 
             phase = cb_DeviceList.Items.Count > 0 ? Phase.DeviceFound : Phase.Idle;
@@ -338,6 +354,7 @@ public partial class MainForm : Form
         var freeMarking = isFreeMarking;
         isFreeMarking = false;
         persistence.Append(data, stats.TotalCount, recordedUtc, freeMarking);
+        outputs.RecordSample(i, stats.TotalCount, recordedUtc);   // 判定器の表の NUM / DATE 列(i はこのサンプルをページへ渡した番号)
 
         // CSV に X を書いた行と同じサンプル位置へ印を出す(Quaternion はグラフが無いので出さない)
         if (freeMarking && mode.HasGraph)
@@ -604,6 +621,8 @@ public partial class MainForm : Form
         isFreeMarking = false;
         artifacts.Clear();
 
+        // 前の計測の表がまだ開いていれば、データ CSV を忘れる前(Begin の前)にここで閉じる
+        outputs.Start(MeasurementRange.Hz(quality), () => persistence.CurrentFilePath, () => web.PageName);
         var header = DataPersistenceService.BuildHeader(mode, quality, accelRange, gyroRange);
         persistence.Begin(
             setting.EnsureSaveDirectory(), CurrentDeviceAddress(), header, mode, quality, setting.CompressSaveFile);
@@ -623,10 +642,19 @@ public partial class MainForm : Form
         stats.StopMeasurement();
         web.Stop();
         persistence.End();
+        outputs.NoteDataFile();
+        CloseOutputsLater();
         FlushLiveArtifacts();
         phase = Phase.Connected;
         UpdateUiState();
         OfferSaveFileDialog();
+    }
+
+    /// <summary>判定器の表は、ページが stop の後に送る残りを待ってから閉じる(閉じる前に次の計測が始まっていたら何もしない)</summary>
+    private void CloseOutputsLater()
+    {
+        var s = outputs.Session;
+        _ = Task.Delay(OutputsStopGraceMs).ContinueWith(_ => RunOnUi(() => outputs.Stop(s)), TaskScheduler.Default);
     }
 
     /// <summary>Setting が ON なら、確定した CSV を任意の場所へ保存し直せるようにする。</summary>
@@ -661,6 +689,7 @@ public partial class MainForm : Form
                     StringComparison.OrdinalIgnoreCase))
             {
                 File.Move(source, dialog.FileName, overwrite: true);
+                outputs.DataFileMoved(source, dialog.FileName);   // 判定器の表の CSV も同じフォルダ・同じベース名へ
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -714,6 +743,8 @@ public partial class MainForm : Form
             memeLib.stopDataReport();
         }
 
+        outputs.Stop();
+        DetectorNotifications.Shutdown();
         web.Dispose();
         persistence.Dispose();
         tcpServer.Dispose();
@@ -745,6 +776,7 @@ public partial class MainForm : Form
         cond["gyroRange"] = MeasurementRange.Dps(gyroRange);
         cond["columns"] = mode.HasGraph ? mode.Columns : Array.Empty<string>();
         cond["startedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        cond["features"] = DetectorOutputs.Features;
         return cond;
     }
 

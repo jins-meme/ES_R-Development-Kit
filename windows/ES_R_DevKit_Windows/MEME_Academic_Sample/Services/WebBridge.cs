@@ -16,6 +16,7 @@ namespace MEME_Academic_Sample.Services;
 /// - アプリ → ページ: ExecuteScriptAsync("jmasHost.xxx(JSON)")。ページが ready を返すまでは溜めておく。
 /// - 受信したサンプルは 0.05 秒ごとにまとめて push する(1 件ずつ呼ぶと重い)。受信スレッドから呼んでよい。
 /// - ページ → アプリ: window.chrome.webview.postMessage({kind, …})。
+///   判定器の通知・演算結果の表(notify / table / records)は <see cref="Output"/> へ渡す(DetectorOutputs。start の features で受け付けると知らせる)。
 /// - **ページから外へは通信させない**(zip は任意の JS を動かせるので、計測データを外へ送らせない。webview/BRIDGE.md の Limits):
 ///   配信は SetVirtualHostNameToFolderMapping ではなく WebResourceRequested で自分で返し、全応答に Content-Security-Policy を付ける
 ///   (フォルダの割り当てでは応答のヘッダを足せない)。自分のオリジン以外への要求は 403 で断り、CSP の外にある WebRTC は
@@ -65,6 +66,9 @@ public sealed class WebBridge : IDisposable
 
     /// <summary>再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)</summary>
     public event Action<JsonElement>? ReplayInfo;
+
+    /// <summary>判定器の通知・演算結果の表(kind = notify / table / records)と、メッセージの長さ。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める</summary>
+    public event Action<JsonElement, int>? Output;
 
     /// <param name="store">中身の置き場</param>
     /// <param name="host">WebView を置くパネル。WebView2 ランタイムが無いときは代わりに案内を置く</param>
@@ -363,6 +367,9 @@ public sealed class WebBridge : IDisposable
                 break;
             case "replay-info":
                 ReplayInfo?.Invoke(body.Clone());
+                break;
+            case "notify" or "table" or "records":
+                Output?.Invoke(body.Clone(), e.WebMessageAsJson.Length);
                 break;
             case "log":
                 Log($"[page {Str(body, "level")}] {Str(body, "message")}");
