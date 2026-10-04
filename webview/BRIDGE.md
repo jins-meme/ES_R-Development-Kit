@@ -186,8 +186,13 @@ hidden: `document.visibilityState` becomes `"hidden"` and `requestAnimationFrame
 
 For a page that calculates in the background:
 
-- Calculate in the `push` handler (or in a Worker it feeds), **not** in a `requestAnimationFrame` loop, and do not rely
-  on `setTimeout` / `setInterval` timing: hidden pages get their timers throttled (to about once a second, or less).
+- Calculate **synchronously in the `push` handler**, not in a `requestAnimationFrame` loop, a timer, or a Worker.
+  On Android, about a minute after the page is hidden, the WebView stops running its timers and Workers: `push` (and
+  the promise callbacks it starts) keeps running, but `setTimeout` / `setInterval` callbacks and messages to and from a
+  Worker wait until the page is visible again (checked on a Pixel with WebView 149, 2026-10). A page that calculates in a
+  Worker therefore falls behind with the screen off, and sends its `notify` / `records` late, all at once, when the user
+  comes back. Also send `notify` / `records` from the `push` handler, not from a timer. Before the page is hidden, timers
+  are only throttled (to about once a second, or less).
 - Drawing resumes by itself when the page becomes visible again. Keep only a bounded history, as for a long measurement.
 - The page's process can still be ended by the system (for example, out of memory). The app then reloads the page and
   calls `start` again, with `startedAt` set to the reload time; anything the page kept only in memory is lost. Store results
