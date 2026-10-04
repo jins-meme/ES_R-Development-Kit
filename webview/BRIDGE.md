@@ -106,7 +106,7 @@ check `cond.features` first.
 A page that runs detectors can have the app **notify** the user of an event (for example "stood up"), also with the
 screen off, and can have the app **save its results as CSV** together with the data CSV. The app does not know what the
 detectors are: the page decides what to notify and which columns to write, and the app only offers the two generic
-receivers. Support: Android (3.1.0, versionCode 23). Mac and Windows do not offer `features` yet.
+receivers. Support: Android (3.1.0, versionCode 23), Mac (1.5.0), Windows (2.3.0).
 
 - **Live measurements only.** The app accepts these from `start` until shortly after `stop` (it waits about 1 s for the
   rows the page sends when it receives `stop`). It drops them during a replay (a replay may be analyzed again from the
@@ -131,6 +131,13 @@ The app (Android) shows them in the notification channel "Detector events" (defa
 the system settings), separate from the measurement's ongoing notification. Tapping one opens the app. At most one per
 `tag` every 2 s (within 2 s, only the last one is shown, 2 s after the previous one), at most 16 tags per measurement.
 Without the notification permission nothing is shown and the measurement goes on.
+
+- **Mac**: macOS notifications (Notification Center). The app asks for permission when it starts, and shows them even
+  while it is in front. Clicking one brings the app to the front. The time shown is when it was posted (macOS does not
+  let the app set it).
+- **Windows**: Windows notifications (Windows App SDK). They need the **Windows App Runtime 2.5**, which the app does not
+  bundle: without it nothing is shown (the measurement and the tables go on), and the first time a notification is due the
+  app shows a dialog, once per run, offering to download the installer. Clicking one brings the app to the front.
 
 ### `table` and `records`
 
@@ -159,7 +166,11 @@ The app (Android) writes each table to `<data CSV name>_<name>.csv(.gz)` in the 
 same compression setting (for example `6EAD12345678_20261003012345_hve.csv.gz`). The file is created with its first row
 (a table without rows makes no file) and appended every 100 rows, like the data CSV. The app adds `DATE`: the `DATE` of the
 data CSV's row with the same `NUM` (UTC, same format), empty if that sample is older than 30 minutes or was not received.
-When the measurement completes, the share sheet offers these CSV files together with the data CSV.
+When the measurement completes, the share sheet offers these CSV files together with the data CSV. On Mac and Windows the
+tables go next to the data CSV in the save folder, with the data CSV's line endings and `DATE` format; when the "save
+dialog" setting moves the data CSV, its tables move with it (same folder, same new base name). There, `i` (the app's sample
+number) and the data CSV's `NUM` differ when packets are lost, and the app writes the table's `NUM` as the data CSV's `NUM`
+of that sample; a row for a sample that has no row in the data CSV (the first packet) is dropped.
 
 ```text
 // Detector output  : hve (Height / velocity (5 Hz))
