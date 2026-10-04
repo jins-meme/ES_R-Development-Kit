@@ -23,6 +23,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.jins.meme.academic.util.LogCat
@@ -88,6 +90,10 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
     private val _descriptorWritten = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     override val descriptorWritten: SharedFlow<Unit> = _descriptorWritten.asSharedFlow()
 
+    /**
+     * 今の接続。コールバックはどれも同じ [gattCallback] に来るので、これと違う BluetoothGatt から来たものは
+     * 参照を失った古い接続として捨てる（[isStale]）。コールバックはメインスレッドで受ける（[connect]）。
+     */
     private var gatt: BluetoothGatt? = null
     private var scanner: BluetoothLeScanner? = null
     private var currentAddress: String? = null
@@ -253,8 +259,20 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         _scanning.value = false
     }
 
+    /**
+     * [g] が今の接続でなければ閉じて true。OS 側に残った古いクライアントは、同じ端末に繋がっていれば通知を
+     * 受け続け（1 サンプルが 2 回届く）、切断が来れば今の接続の状態（gatt / Disconnected）を巻き込んで消してしまう。
+     */
+    private fun isStale(g: BluetoothGatt): Boolean {
+        if (g === gatt) return false
+        LogCat.w(TAG, "callback from a stale GATT client (${g.device?.address}); closing it")
+        runCatching { g.close() }
+        return true
+    }
+
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
+            if (isStale(g)) return
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     _connection.value = ConnectionState.Connected
@@ -276,6 +294,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+            if (isStale(g)) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 _connection.value = ConnectionState.ServicesReady
             }
@@ -284,6 +303,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         override fun onDescriptorWrite(
             g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int
         ) {
+            if (isStale(g)) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 _descriptorWritten.tryEmit(Unit)
             }
@@ -294,6 +314,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         override fun onCharacteristicChanged(
             g: BluetoothGatt, characteristic: BluetoothGattCharacteristic
         ) {
+            if (isStale(g)) return
             val value = characteristic.value ?: return
             val decoded = runCatching { MemeCipher.decode(value) }.getOrNull() ?: return
             _incoming.tryEmit(decoded)
@@ -304,6 +325,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            if (isStale(g)) return
             val decoded = runCatching { MemeCipher.decode(value) }.getOrNull() ?: return
             _incoming.tryEmit(decoded)
         }
@@ -317,8 +339,15 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
         if (!hasConnectPermission() || !a.isEnabled) return false
         val device: BluetoothDevice = runCatching { a.getRemoteDevice(address) }
             .getOrNull() ?: return false
+        // 前の接続は閉じてから作り直す。disconnect() だけで切断が返ってこなかった接続（再接続の待ちが
+        // 時間切れになったときなど）の参照を上書きすると、OS 側にクライアントが残り、同じ端末へ繋ぎ直したときに
+        // 通知が二重に届く（2026-10-03、1 秒に 200 行になった）。
+        gatt?.let { runCatching { it.close() } }
+        gatt = null
         currentAddress = address
         _connection.value = ConnectionState.Connecting
+        // コールバックはメインスレッドで受ける。connectGatt の戻り値を gatt へ入れ終わる前に最初のコールバックが
+        // 来ると [isStale] が新しい接続を古いものとして閉じてしまうため（呼び出し元もメインスレッド）。
         gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
             val settings = BluetoothGattConnectionSettings.Builder()
                 .setAutoConnectEnabled(false)
@@ -326,8 +355,8 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
                 .build()
             device.connectGatt(settings, ContextCompat.getMainExecutor(context), gattCallback)
         } else {
-            @Suppress("DEPRECATION")
-            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE,
+                BluetoothDevice.PHY_LE_1M_MASK, Handler(Looper.getMainLooper()))
         }
         return gatt != null
     }
