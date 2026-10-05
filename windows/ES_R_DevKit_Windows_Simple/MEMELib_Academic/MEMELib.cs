@@ -22,8 +22,19 @@ public delegate void memeAcademicFullDataReceivedDelegate(object sender, Academi
 /// </summary>
 public sealed class MEMELib : IDisposable
 {
-    private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Windows のスキャンは受信窓が約 15%(118.125ms 中 18.125ms。ScanParameters の LowLatency も同じ値で広げられない)で、
+    /// 約 1 秒おきの ES_R の広告は 10 秒では見落とすことが多い(実測で 10 秒に 1〜4 パケット)。30 秒探す。
+    /// </summary>
+    private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>接続の確立が Unreachable で返ったときに、やり直すまでの間。</summary>
+    private static readonly TimeSpan ConnectRetryInterval = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>手放す前に、送信待ちのコマンド(計測の停止など)を書き終えるのを待つ上限。</summary>
+    private static readonly TimeSpan FlushBeforeReleaseTimeout = TimeSpan.FromSeconds(1);
 
     public event memePeripheralFoundDelegate? memePeripheralFound;
     public event memePeripheralConnectedDelegate? memePeripheralConnected;
@@ -37,6 +48,9 @@ public sealed class MEMELib : IDisposable
     private BluetoothLEAdvertisementWatcher? _watcher;
     private Timer? _scanTimer;
     private Timer? _connectTimer;
+
+    /// <summary>進行中の接続(ConnectAsync)を止める。タイムアウトや切断で畳んだ後に、古い接続が続きを書き込まないため。</summary>
+    private CancellationTokenSource? _connectCts;
 
     private BluetoothLEDevice? _device;
     private GattDeviceService? _service;
@@ -228,6 +242,7 @@ public sealed class MEMELib : IDisposable
     {
         ArgumentNullException.ThrowIfNull(device);
 
+        CancellationToken ct;
         lock (_gate)
         {
             if (_connected)
@@ -236,10 +251,13 @@ public sealed class MEMELib : IDisposable
             }
 
             StopScanCore();
+            _connectCts?.Cancel();
+            _connectCts = new CancellationTokenSource();
+            ct = _connectCts.Token;
             _connectTimer = new Timer(_ => OnConnectTimeout(), null, ConnectTimeout, Timeout.InfiniteTimeSpan);
         }
 
-        _ = ConnectAsync(device);
+        _ = ConnectAsync(device, ct);
         return MEMEStatus.MEMELIB_OK;
     }
 
@@ -254,34 +272,65 @@ public sealed class MEMELib : IDisposable
         return connectPeripheral(new MEMEDevice(address, string.Empty));
     }
 
-    private async Task ConnectAsync(MEMEDevice target)
+    private async Task ConnectAsync(MEMEDevice target, CancellationToken ct)
     {
         try
         {
             var device = await BluetoothLEDevice.FromBluetoothAddressAsync(target.BluetoothAddress);
             if (device is null)
             {
-                FailConnect();
+                FailConnect(ct);
                 return;
             }
 
-            _device = device;
+            lock (_gate)
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    device.Dispose();
+                    return;
+                }
+
+                _device = device;
+            }
+
             device.ConnectionStatusChanged += OnConnectionStatusChanged;
 
             // 初回は必ず端末に問い合わせる。Windows のキャッシュを使うと、
             // ファーム更新後などに古いハンドルを掴んで通信できないことがある。
-            var services = await device.GetGattServicesForUuidAsync(
-                MemeProtocol.ServiceUuid, BluetoothCacheMode.Uncached);
+            // 接続の確立は端末の広告を拾えたときだけ成功し、拾えなければ数秒で Unreachable が返る
+            // (スキャンと同じく受信窓が狭いため)。接続のタイムアウトまではやり直す。
+            GattDeviceServicesResult services;
+            while (true)
+            {
+                services = await device.GetGattServicesForUuidAsync(
+                    MemeProtocol.ServiceUuid, BluetoothCacheMode.Uncached);
+                ct.ThrowIfCancellationRequested();
+                if (services.Status != GattCommunicationStatus.Unreachable)
+                {
+                    break;
+                }
+
+                await Task.Delay(ConnectRetryInterval, ct);
+            }
+
             if (services.Status != GattCommunicationStatus.Success || services.Services.Count == 0)
             {
-                FailConnect();
+                FailConnect(ct);
                 return;
             }
 
             _service = services.Services[0];
 
             // GattSession を保持している間だけ Windows は接続を維持する。
-            _session = await GattSession.FromDeviceIdAsync(device.BluetoothDeviceId);
+            var session = await GattSession.FromDeviceIdAsync(device.BluetoothDeviceId);
+            if (ct.IsCancellationRequested)
+            {
+                session.Dispose();
+                return;
+            }
+
+            _session = session;
             _session.MaintainConnection = true;
 
             // 100Hz の通知を取りこぼさないよう接続間隔を詰める(Windows 11 以降)。
@@ -295,10 +344,11 @@ public sealed class MEMELib : IDisposable
                 MemeProtocol.RxCharacteristicUuid, BluetoothCacheMode.Uncached);
             var tx = await _service.GetCharacteristicsForUuidAsync(
                 MemeProtocol.TxCharacteristicUuid, BluetoothCacheMode.Uncached);
+            ct.ThrowIfCancellationRequested();
             if (rx.Status != GattCommunicationStatus.Success || rx.Characteristics.Count == 0 ||
                 tx.Status != GattCommunicationStatus.Success || tx.Characteristics.Count == 0)
             {
-                FailConnect();
+                FailConnect(ct);
                 return;
             }
 
@@ -308,25 +358,40 @@ public sealed class MEMELib : IDisposable
 
             var cccd = await _rx.WriteClientCharacteristicConfigurationDescriptorAsync(
                 GattClientCharacteristicConfigurationDescriptorValue.Notify);
+            ct.ThrowIfCancellationRequested();
             if (cccd != GattCommunicationStatus.Success)
             {
-                FailConnect();
+                FailConnect(ct);
                 return;
             }
 
             _connected = true;
 
+            // Windows はアプリが手放してもリンクをすぐには切らないので、前の接続が計測中のまま終わっていると
+            // 端末は送り続けていて 0xA1 に応えない。先に計測の停止を送る(計測していなければ 0x8F が返るだけ)。
+            Send(MemeProtocol.StartStop(false));
+
             // ここから 0x81 → 0x83 → 0x89 と応答が返り、0x89 で接続完了を通知する。
             Send(MemeProtocol.GetDeviceInfo());
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // タイムアウトか切断で畳み済み(通知も済んでいる)。
+        }
         catch (Exception)
         {
-            FailConnect();
+            FailConnect(ct);
         }
     }
 
-    private void FailConnect()
+    private void FailConnect(CancellationToken ct)
     {
+        // タイムアウト(OnConnectTimeout)が先に畳んでいれば、通知も済んでいる。
+        if (ct.IsCancellationRequested)
+        {
+            return;
+        }
+
         Teardown();
         memePeripheralConnected?.Invoke(this, MEMEStatus.MEMELIB_NG);
     }
@@ -345,6 +410,7 @@ public sealed class MEMELib : IDisposable
             return MEMEStatus.MEMELIB_NG;
         }
 
+        StopAndFlushSends();
         Teardown();
         memePeripheralDisconnected?.Invoke(this, MEMEStatus.MEMELIB_OK);
         return MEMEStatus.MEMELIB_OK;
@@ -361,12 +427,37 @@ public sealed class MEMELib : IDisposable
         memePeripheralDisconnected?.Invoke(this, MEMEStatus.MEMELIB_NG);
     }
 
+    /// <summary>
+    /// 手放す前に、計測中なら停止を送り、送信待ちのコマンドを書き終えるのを待つ(上限 1 秒)。
+    /// Windows には BLE の切断 API が無く、手放してもリンクはしばらく残るので、計測中のまま手放すと
+    /// 端末は送り続け、次の接続で問い合わせ(0xA1)に応えなくなる(Mac / Android は切断で端末が止まる)。
+    /// </summary>
+    private void StopAndFlushSends()
+    {
+        if (_measuring)
+        {
+            _measuring = false;
+            Send(MemeProtocol.StartStop(false));
+        }
+
+        Task chain;
+        lock (_gate)
+        {
+            chain = _sendChain;
+        }
+
+        // 送信は既定のスケジューラで回るので、ここで待っても(UI スレッドでも)止まらない。
+        chain.Wait(FlushBeforeReleaseTimeout);
+    }
+
     private void Teardown()
     {
         lock (_gate)
         {
             _connectTimer?.Dispose();
             _connectTimer = null;
+            _connectCts?.Cancel();
+            _connectCts = null;
 
             if (_rx is not null)
             {
@@ -611,6 +702,11 @@ public sealed class MEMELib : IDisposable
         lock (_gate)
         {
             StopScanCore();
+        }
+
+        if (_connected)
+        {
+            StopAndFlushSends();
         }
 
         Teardown();

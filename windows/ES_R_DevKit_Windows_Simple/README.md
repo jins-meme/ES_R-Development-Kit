@@ -55,7 +55,7 @@ dotnet test
 
 1. ES_R の電源ボタンを 2 秒長押ししてペアリングモードにする。
 2. `Scan MEME` を押す。見つかった端末が `ESRG2_0 (28A183055C47)` の形で一覧に出る
-   (最大 10 秒でタイムアウト)。
+   (最大 30 秒でタイムアウト。Windows はスキャンで受信している時間が短く、見つかるまで 10 秒以上かかることがある)。
 3. `Connect` を押す。`Status : Connected` になり、ステータスバーに ES_R の
    ファームウェアバージョンが出る。
 4. Accelerometer / Gyroscope のレンジを選び、`Start Measurement` を押す。

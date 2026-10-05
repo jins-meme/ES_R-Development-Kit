@@ -674,7 +674,8 @@ public partial class MainForm
                                    d.Name.EndsWith(suffix!, StringComparison.OrdinalIgnoreCase);
 
         bt_Scan_Click(this, EventArgs.Empty);
-        await Wait("device found", 30, () => cb_DeviceList.Items.OfType<MEMEDevice>().Any(Want));
+        // ライブラリのスキャン(30 秒)が見つけるか、見つけずに終わるまで
+        await Wait("device found", 35, () => cb_DeviceList.Items.OfType<MEMEDevice>().Any(Want));
         var device = cb_DeviceList.Items.OfType<MEMEDevice>().First(Want);
         cb_DeviceList.SelectedItem = device;
         if (isScanning)
@@ -684,9 +685,22 @@ public partial class MainForm
 
         result["device"] = $"{device.Name} {device.Address}";
         bt_Connect_Click(this, EventArgs.Empty);
-        await Wait("connected", 30, () => phase == Phase.Connected);
+        await WaitConnected("connected");
         await Sleep(2);                                       // 通知の有効化・端末情報の取得を待つ
         result["memeVersion"] = lb_MemeVersion.Text;
+    }
+
+    /// <summary>接続を待つ。繋がらなければ左の欄の State(Connect failed / timeout)を理由に添える</summary>
+    private async Task WaitConnected(string what)
+    {
+        try
+        {
+            await Wait(what, 30, () => phase == Phase.Connected);
+        }
+        catch (TestTimeout)
+        {
+            throw new TestTimeout($"{what} ({lb_ConnectionState.Text})");
+        }
     }
 
     /// <summary>CSV の 1 行(ARTIFACT,NUM,DATE,ACC×3,GYRO×3,EOG_L,EOG_R,EOG_H,EOG_V)を受信したサンプルの形に</summary>
@@ -861,7 +875,7 @@ public partial class MainForm
                 else
                 {
                     bt_Connect_Click(this, EventArgs.Empty);     // 一覧に残っている同じ端末へ
-                    await Wait($"connected {round}", 30, () => phase == Phase.Connected);
+                    await WaitConnected($"connected {round}");
                     await Sleep(2);
                 }
             }
