@@ -64,8 +64,6 @@ public sealed class DataPersistenceService : IDisposable
             return;
         }
 
-        RowFormatted?.Invoke(row);
-
         lock (_gate)
         {
             if (_fileName is null)
@@ -79,6 +77,10 @@ public sealed class DataPersistenceService : IDisposable
                 FlushCore();
             }
         }
+
+        // CSV に入れた行だけを流す。停止(End)の後に届いた行を TCP にだけ流すと、TCP 出力が CSV より長くなる
+        // (実機では stopDataReport の後も数パケット届く)
+        RowFormatted?.Invoke(row);
     }
 
     /// <summary>計測停止。残りを書き出してファイルを確定する。</summary>

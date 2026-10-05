@@ -45,6 +45,24 @@ public class PersistenceTests : IDisposable
     }
 
     [Fact]
+    public void RowsAfterEnd_AreNotForwarded()
+    {
+        using var persistence = new DataPersistenceService();
+        var forwarded = new List<string>();
+        persistence.RowFormatted += forwarded.Add;
+        persistence.Begin(_directory, "AABBCCDDEEFF", "//ARTIFACT\r\n", MeasurementMode.Full, MEMEQuality.High, compressed: false);
+        persistence.Append(Sample(1), 1, DateTime.UtcNow, freeMarking: false);
+        persistence.End();
+
+        // 停止の後に届いたパケット(実機では stopDataReport の後も数個届く)は CSV にも TCP にも出さない
+        persistence.Append(Sample(2), 2, DateTime.UtcNow, freeMarking: false);
+
+        var rows = CsvFile.ReadAllLines(persistence.CurrentFilePath!).Where(l => !l.StartsWith("//", StringComparison.Ordinal)).ToArray();
+        Assert.Single(rows);
+        Assert.Equal(rows, forwarded);
+    }
+
+    [Fact]
     public void SameSecond_GetsAnotherName()
     {
         using var persistence = new DataPersistenceService();
