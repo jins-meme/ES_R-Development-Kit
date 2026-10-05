@@ -1,119 +1,117 @@
 # ES_R Development Kit for Windows 2
 
-JINS MEME ES_R (JINS MEME Academic Pack) を **Windows 本体の BLE Central** で
-直接扱うサンプルです。旧 `windows/ES_R_DevKit_Windows` が必要としていた
-**USB BLE ドングル(仮想 COM ポート)は不要**になりました。
+A sample that handles the JINS MEME ES_R (JINS MEME Academic Pack) directly through the
+**Windows PC's own BLE Central**. The **USB BLE dongle (virtual COM port)** required by the old
+`windows/ES_R_DevKit_Windows` is **no longer needed**.
 
-## 環境要件
+## Requirements
 
-| 項目 | 内容 |
+| Item | Details |
 |---|---|
-| OS | Windows 10 バージョン 1809 以降 / Windows 11 |
-| ハードウェア | BLE 対応の Bluetooth アダプタ(内蔵で可) |
+| OS | Windows 10 version 1809 or later / Windows 11 |
+| Hardware | A Bluetooth adapter with BLE support (built-in is fine) |
 | SDK | .NET 10 SDK |
-| IDE | 不要。Visual Studio がなくてもコマンドラインで完結する |
+| IDE | Not required. Everything works from the command line without Visual Studio |
 
-Windows SDK 本体のインストールは不要です。`net10.0-windows10.0.22621.0` を
-ターゲットにしているため、WinRT の射影(`Microsoft.Windows.SDK.NET.Ref`)は
-NuGet から自動で取得されます。
+You do not need to install the Windows SDK itself. The project targets `net10.0-windows10.0.22621.0`,
+so the WinRT projection (`Microsoft.Windows.SDK.NET.Ref`) is fetched automatically from NuGet.
 
-### .NET 10 SDK の導入
+### Installing the .NET 10 SDK
 
 ```
 winget install Microsoft.DotNet.SDK.10
 ```
 
-導入後、新しいシェルで `dotnet --list-sdks` に 10.x が出れば準備完了です。
+After installing, you are ready once `dotnet --list-sdks` shows 10.x in a new shell.
 
-### エディタ(任意)
+### Editor (optional)
 
-- **VS Code**: 拡張 `ms-dotnettools.csharp`(または C# Dev Kit)を入れると
-  IntelliSense とデバッガが使えます。
-- **Visual Studio 2022**: WinForms のビジュアルデザイナを使いたい場合のみ必要です。
-  `.Designer.cs` は普通の C# なので、手で編集する限り VS は不要です。
-  なお **Visual Studio 2019 では .NET 10 を扱えません**。
+- **VS Code**: Install the `ms-dotnettools.csharp` extension (or C# Dev Kit) to get
+  IntelliSense and the debugger.
+- **Visual Studio 2022**: Needed only if you want to use the WinForms visual designer.
+  `.Designer.cs` is plain C#, so VS is not required as long as you edit it by hand.
+  Note that **Visual Studio 2019 cannot handle .NET 10**.
 
-## ビルドと実行
+## Build and run
 
 ```
-cd windows/ES_R_DevKit_Windows2
+cd windows/ES_R_DevKit_Windows_Simple
 dotnet build
 dotnet run --project MEME_Academic_Sample
 ```
 
-成果物は `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`。
-プロジェクトのフォルダ名(`MEME_Academic_Sample`)と実行ファイル名(`JINS_MEME_DataLogger.exe`)は
-別なので注意してください。exe 単体では動かないので、フォルダごと扱ってください。
+The output is `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`.
+Note that the project folder name (`MEME_Academic_Sample`) differs from the executable name
+(`JINS_MEME_DataLogger.exe`). The exe does not work on its own, so handle the whole folder.
 
-テスト(BLE 実機は不要):
+Tests (no real BLE device needed):
 
 ```
 dotnet test
 ```
 
-## 使い方
+## Usage
 
-1. ES_R の電源ボタンを 2 秒長押ししてペアリングモードにする。
-2. `Scan MEME` を押す。見つかった端末が `ESRG2_0 (28A183055C47)` の形で一覧に出る
-   (最大 30 秒でタイムアウト。Windows はスキャンで受信している時間が短く、見つかるまで 10 秒以上かかることがある)。
-3. `Connect` を押す。`Status : Connected` になり、ステータスバーに ES_R の
-   ファームウェアバージョンが出る。
-4. Accelerometer / Gyroscope のレンジを選び、`Start Measurement` を押す。
-5. `Result/<MACアドレス>_<UTC日時>.csv` にセンサー値が追記される。
-   `Free Marking` を押すと、その直後の 1 行の ARTIFACT 列に `X` が入る。
+1. Hold the ES_R power button for 2 seconds to enter pairing mode.
+2. Press `Scan MEME`. Found devices appear in the list in the form `ESRG2_0 (28A183055C47)`
+   (times out after 30 seconds at most. Windows scanning listens only a small fraction of the time, so it can take more than 10 seconds to find the device).
+3. Press `Connect`. `Status : Connected` is shown, and the ES_R
+   firmware version appears in the status bar.
+4. Choose the Accelerometer / Gyroscope ranges and press `Start Measurement`.
+5. Sensor values are appended to `Result/<MAC address>_<UTC datetime>.csv`.
+   Pressing `Free Marking` puts `X` in the ARTIFACT column of the next row.
 
-CSV の書式(ヘッダ・列順・UTC 記録)は Mac 版・Android 版と共通です。
+The CSV format (header, column order, UTC timestamps) is shared with the Mac and Android versions.
 
-## 構成
+## Structure
 
-| プロジェクト | 役割 |
+| Project | Role |
 |---|---|
-| `MEMELib_Academic` | BLE 接続とプロトコル。旧 `MEMELib_Academic.dll` の置き換え |
-| `MEME_Academic_Sample` | WinForms のサンプル UI |
-| `MEMELib_Academic.Tests` | 暗号化とパケット解析の単体テスト |
+| `MEMELib_Academic` | BLE connection and protocol. Replaces the old `MEMELib_Academic.dll` |
+| `MEME_Academic_Sample` | WinForms sample UI |
+| `MEMELib_Academic.Tests` | Unit tests for encryption and packet parsing |
 
-`MEMELib_Academic` の中身:
+Contents of `MEMELib_Academic`:
 
-| ファイル | 内容 |
+| File | Contents |
 |---|---|
-| `MemeProtocol.cs` | GATT の UUID、ADN/AUP のオペコード、コマンド生成、パケット解析 |
-| `DecEnc.cs` | 20 byte パケットの難読化(先頭 2 byte 以外を固定鍵で変換) |
-| `MEMELib.cs` | WinRT (`Windows.Devices.Bluetooth`) を使った BLE Central の実装 |
-| `CsvFileWriter.cs` | 100Hz の追記に耐える CSV ライタ |
-| `MEMETypes.cs` | 公開列挙体と `AcademicFullData` |
+| `MemeProtocol.cs` | GATT UUIDs, ADN/AUP opcodes, command generation, packet parsing |
+| `DecEnc.cs` | Obfuscation of 20-byte packets (everything except the first 2 bytes is transformed with a fixed key) |
+| `MEMELib.cs` | BLE Central implementation using WinRT (`Windows.Devices.Bluetooth`) |
+| `CsvFileWriter.cs` | CSV writer that withstands 100Hz appends |
+| `MEMETypes.cs` | Public enums and `AcademicFullData` |
 
-## プロトコル
+## Protocol
 
-| 項目 | 値 |
+| Item | Value |
 |---|---|
 | Service | `D6F25BD1-5B54-4360-96D8-7AA62E04C7EF` |
-| Notify (端末 → PC) | `D6F25BD4-5B54-4360-96D8-7AA62E04C7EF` |
-| Write (PC → 端末) | `D6F25BD2-5B54-4360-96D8-7AA62E04C7EF` |
-| パケット長 | 20 byte 固定 |
+| Notify (device → PC) | `D6F25BD4-5B54-4360-96D8-7AA62E04C7EF` |
+| Write (PC → device) | `D6F25BD2-5B54-4360-96D8-7AA62E04C7EF` |
+| Packet length | Fixed 20 bytes |
 
-接続後のハンドシェイクは
-`0xA1 GetDevInfo` → `0x81` → `0xA3 GetMode` → `0x83` → `0xA9 Get6AxisParams` → `0x89`
-の順で、`0x89` を受け取った時点で接続完了を通知します。計測中は
-`0x99 (AUP_REPORT_ACADEMIA2)` が 100Hz で届きます。
+The handshake after connecting runs in the order
+`0xA1 GetDevInfo` → `0x81` → `0xA3 GetMode` → `0x83` → `0xA9 Get6AxisParams` → `0x89`,
+and connection completion is notified when `0x89` is received. During measurement,
+`0x99 (AUP_REPORT_ACADEMIA2)` arrives at 100Hz.
 
-実装は Mac 版 `Mac/ES_R_DevKit_Mac_Simple/MEME_Academic/BLE/MEMELib_Academic.swift` と
-Android 版 `android/ES_R_DevKit_Android2/core/src/main/java/com/jins_jp/meme/core/ble/`
-に準拠しています。
+The implementation follows the Mac version `Mac/ES_R_DevKit_Mac_Simple/MEME_Academic/BLE/MEMELib_Academic.swift` and
+the Android version `android/ES_R_DevKit_Android2/core/src/main/java/com/jins_jp/meme/core/ble/`.
 
-## 旧版 (`windows/ES_R_DevKit_Windows`) との違い
+## Differences from the old version (`windows/ES_R_DevKit_Windows`)
 
-- USB ドングルと COM ポートの UI(`Scan port` / `Open`)を廃止。
-- 非公開の `MEMELib_Academic.dll`(NuGet `JINSMEME_ES_R`)への依存を廃止し、
-  同等の機能を C# で実装。
-- .NET Framework 4.5.2 → .NET 10、csproj を SDK 形式へ移行。
-- スキャン結果を MAC アドレスだけでなくデバイス名付きで表示。
-- センサー値のラベル更新を 20Hz に間引き(CSV は 100Hz 全サンプルを記録)。
+- Removed the USB dongle and COM port UI (`Scan port` / `Open`).
+- Removed the dependency on the non-public `MEMELib_Academic.dll` (NuGet `JINSMEME_ES_R`),
+  and implemented equivalent functionality in C#.
+- Moved from .NET Framework 4.5.2 to .NET 10, and migrated the csproj to SDK style.
+- Scan results are shown with the device name, not just the MAC address.
+- Sensor value labels are updated at a decimated 20Hz (the CSV records all 100Hz samples).
 
-## うまく動かないとき
+## Troubleshooting
 
-- **`Scan MEME` で何も出ない**: ES_R がペアリングモード(電源ボタン 2 秒長押し)に
-  なっているか、Windows の Bluetooth が ON か確認してください。
-- **他のアプリが掴んでいる**: ES_R は同時に 1 つのホストとしか繋がりません。
-  スマートフォンのアプリなどが接続中なら切ってください。
-- **接続はできるが値が来ない**: Windows の設定 > Bluetooth とデバイス から
-  ES_R を一度削除し、再度スキャンし直すと GATT のキャッシュが解消することがあります。
+- **Nothing appears on `Scan MEME`**: Check that the ES_R is in pairing mode (hold the power button for 2 seconds)
+  and that Bluetooth is ON in Windows.
+- **Another app is holding it**: The ES_R can connect to only one host at a time.
+  If a smartphone app or similar is connected, disconnect it.
+- **Connects but no values arrive**: In Windows Settings > Bluetooth & devices, remove the ES_R once
+  and scan again; this can clear the GATT cache.

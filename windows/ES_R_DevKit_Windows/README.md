@@ -1,10 +1,10 @@
-# ES_R Development Kit for Windows（フル機能ロガー）
+# ES_R Development Kit for Windows (full-featured logger)
 
-JINS MEME ES_R を Windows 本体の BLE Central で扱う、計測用のロガーです。
-Mac 版 `ES_R_DevKit_Mac` に相当します。最小構成のサンプルが欲しい場合は
-[`ES_R_DevKit_Windows_Simple`](../ES_R_DevKit_Windows_Simple/README.md) を見てください。
+A measurement logger that handles the JINS MEME ES_R using the Windows PC's own BLE Central.
+It corresponds to the Mac version `ES_R_DevKit_Mac`. If you want a minimal sample, see
+[`ES_R_DevKit_Windows_Simple`](../ES_R_DevKit_Windows_Simple/README.md).
 
-環境要件とビルド手順は [windows/README.md](../README.md) にまとめてあります。
+Requirements and build steps are collected in [windows/README.md](../README.md).
 
 ```
 dotnet build
@@ -12,145 +12,149 @@ dotnet run --project MEME_Academic_Sample
 dotnet test
 ```
 
-成果物は `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`。
-プロジェクトのフォルダ名(`MEME_Academic_Sample`)と実行ファイル名(`JINS_MEME_DataLogger.exe`)は
-別なので注意してください。exe 単体では動かないので、フォルダごと扱ってください。
+The output is `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`.
+Note that the project folder name (`MEME_Academic_Sample`) differs from the executable name
+(`JINS_MEME_DataLogger.exe`). The exe does not work on its own, so handle the whole folder.
 
-## 画面
+## Screen
 
-左カラムに接続と計測の操作、右側にグラフ画面を置きます（Mac 版 `ContentView` と同じ構成）。
-グラフ画面は **WebView2 の中の Web ページ**（`webview/` の標準版 zip、または設定で選んだ zip）で、
-3 アプリ（Mac / Windows / Android）で同じものです。ページとアプリの取り決めは
-[`webview/BRIDGE.md`](../../webview/BRIDGE.md)。
+The left column holds connection and measurement controls, and the graph view is on the right (the same layout as the Mac version's `ContentView`).
+The graph view is a **web page inside WebView2** (the standard zip in `webview/`, or a zip chosen in Settings),
+and it is the same page across the three apps (Mac / Windows / Android). The contract between the page and the app is in
+[`webview/BRIDGE.md`](../../webview/BRIDGE.md).
 
-- **Setting (S) メニュー** — 保存先や TCP 出力、グラフ画面の中身などの設定（[Setting](#setting) 参照）
-- **バージョン表示** — アプリと ES_R ファームウェアのバージョン
-- **Scan → デバイス選択 → Connect** — 接続状態は `State :` に出る。
-  接続中に `Disconnect` を 5 秒押したままにすると Shelf mode へ移行できる
-  （[Shelf mode](#shelf-mode) 参照）
-- **File Replay** — 記録済み CSV を読み込んで再生する（[File Replay](#file-replay) 参照）
-- **Select Mode / Trans Speed / Accel Range / Gyro Range** — 接続時に端末の現在値を読み出して反映する
-- **Start Measurement** — 計測と CSV 記録の開始・停止
-- **Free Marking** — 直後の 1 行の ARTIFACT 列に `X` を入れる。押した位置はグラフにも印として出る
-- **Success rate / Communication** — 受信の成功率と直近 1 秒の通信率
-- **グラフ画面** — 表示幅（60 / 30 / 15 / 10 秒）、◀◀ ▶▶ と LIVE、グラフごとの縦の拡大・縮小（− / + / Auto / ↺）、
-  畳む・開く。Ctrl + ホイールで時間の拡大・縮小、ドラッグ / Shift + ホイールで前後に動かす。
-  計測中・再生中はクリックで Artifact を付けられる（[Artifact](#artifact) 参照）。
-  データのあるグラフだけを出す（Full = EOG・加速度・角速度 / Standard = EOG・加速度 / Quaternion = なし）
+- **Setting (S) menu** — Settings such as the save location, TCP output, and the contents of the graph view (see [Setting](#setting))
+- **Version display** — App and ES_R firmware versions
+- **Scan → select device → Connect** — The connection state appears in `State :`.
+  While connected, holding `Disconnect` for 5 seconds moves the device to Shelf mode
+  (see [Shelf mode](#shelf-mode))
+- **File Replay** — Loads and plays back a recorded CSV (see [File Replay](#file-replay))
+- **Select Mode / Trans Speed / Accel Range / Gyro Range** — Reads the device's current values on connection and reflects them
+- **Start Measurement** — Starts and stops measurement and CSV recording
+- **Free Marking** — Puts `X` in the ARTIFACT column of the next row. The position is also shown as a mark on the graph
+- **Success rate / Communication** — Reception success rate and the communication rate over the last second
+- **Graph view** — Display width (60 / 30 / 15 / 10 seconds), ◀◀ ▶▶ and LIVE, per-graph vertical zoom (− / + / Auto / ↺),
+  and collapse / expand. Ctrl + wheel zooms time; drag / Shift + wheel pans.
+  During measurement or playback, click to add an Artifact (see [Artifact](#artifact)).
+  Only graphs that have data are shown (Full = EOG, acceleration, angular velocity / Standard = EOG, acceleration / Quaternion = none)
 
-波形は間引かずに全サンプルを描いています。ハム（50/60Hz）成分を残して
-電極の状態を目視で判断できるようにするためです。
+Waveforms are drawn with every sample, without decimation. This keeps the hum (50/60Hz) component
+so that electrode condition can be judged by eye.
 
-**WebView2 ランタイム**は Windows 11 に最初から入っているので同梱しません。無い環境ではグラフの場所に
-入手先の案内を出します。ページはアプリの中から `https://app.memeview.example/` として配り、
-**ページから外へは通信させません**（全応答に Content-Security-Policy を付け、他のオリジンへの要求は断り、
-WebRTC は読み込みの最初に消し、外のページへの移動と新しい窓は開かない）。開発者ツール（F12）は Debug ビルドだけです。
+The **WebView2 runtime** is preinstalled on Windows 11, so it is not bundled. On machines without it, the graph area
+shows where to get it. The page is served from inside the app as `https://app.memeview.example/`, and
+**the page is not allowed to communicate outward** (a Content-Security-Policy is attached to every response, requests to other origins are refused,
+WebRTC is disabled at the very start of loading, and navigation to external pages and new windows are blocked). Developer tools (F12) are available only in Debug builds.
 
-**判定器の通知と演算結果の表**（2.3.0）: グラフ画面のページ（高機能版）が送る判定器のイベントを Windows の通知に出し、
-演算結果をデータ CSV と同じフォルダ・同じベース名 + `_<名前>` の CSV に書きます（仕様は `webview/BRIDGE.md` の
-Detector notifications and tables）。通知には **Windows App SDK のランタイム（Windows App Runtime 2.5）** を使い、
-**アプリには同梱しません**。入っていない PC では通知だけ出さず（計測と表はそのまま）、最初に通知を出そうとしたときに
-起動中 1 回だけ、インストーラの入手を案内するダイアログを出します（他のアプリの依存として本体だけ入っている PC も同じ。
-通知に要る付属パッケージは公式のインストーラが入れる）。
+**Detector notifications and result tables** (2.3.0): Detector events sent by the graph view page (full-featured version) are shown as Windows notifications,
+and computation results are written to a CSV in the same folder as the data CSV, with the same base name + `_<name>` (the specification is in
+Detector notifications and tables in `webview/BRIDGE.md`). Notifications use the **Windows App SDK runtime (Windows App Runtime 2.5)**, which is
+**not bundled with the app**. On a PC without it, only the notifications are skipped (measurement and tables continue as usual), and
+the first time a notification is attempted, a dialog pointing to the installer download is shown once per run (the same applies to a PC that has only
+the main package installed as another app's dependency; the accompanying packages needed for notifications are installed by the official installer).
 
-## 構成
+## Structure
 
-| プロジェクト | 役割 |
+| Project | Role |
 |---|---|
-| `MEMELib_Academic` | BLE 接続とプロトコル、CSV ファイルの読み書き |
-| `MEME_Academic_Sample` | ロガー本体（WinForms） |
-| `MEMELib_Academic.Tests` | 暗号化・パケット解析・CSV 読み書きの単体テスト |
-| `MEME_Academic_Sample.Tests` | ロガー本体の単体テスト(CSV のヘッダと行の書式・OS の言語によらないこと・Artifact の無害化と書き戻し) |
+| `MEMELib_Academic` | BLE connection and protocol, CSV file reading and writing (`CsvFile.cs`) |
+| `MEME_Academic_Sample` | The logger itself (WinForms) |
+| `MEMELib_Academic.Tests` | Unit tests for encryption, packet parsing, and CSV reading/writing |
+| `MEME_Academic_Sample.Tests` | Unit tests for the logger itself (CSV header and row format, independence from the OS language, Artifact sanitization and write-back) |
 
-`MEME_Academic_Sample` の構成:
+Layout of `MEME_Academic_Sample`:
 
-| ファイル | 内容 |
+| File | Contents |
 |---|---|
-| `MainForm.cs` | 画面の状態遷移と操作。Mac 版 `MEMEViewModel` に対応 |
-| `Services/WebBridge.cs` | グラフ画面（WebView2）とのやり取り・配信・通信の制限。Mac 版 `WebBridge.swift` に対応 |
-| `Services/WebContentStore.cs` | グラフ画面の中身（zip）の展開・切り替え。同梱の `WebContent/standard.zip` |
-| `Services/ZipExtractor.cs` | zip の検査と展開（zip slip・zip 爆弾・リンクなどを展開前に断る。規則は `webview/BRIDGE.md` の Limits） |
-| `Models/MeasurementMode.cs` | モードごとの列名・並びとレンジの表(CSV のヘッダと行、グラフへ渡す列と値、左の欄の選択肢が同じ表を見る) |
-| `Services/ArtifactBuffer.cs` | ページで付けた Artifact の無害化と、CSV のデータ行の番号への換算 |
-| `Services/CommunicationStatsTracker.cs` | 成功率・通信率の集計 |
-| `Services/DataPersistenceService.cs` | CSV のヘッダ生成・行整形・バッファ保存 |
-| `Services/TcpOutputServer.cs` | TCP による外部出力 |
-| `Services/CsvArtifactWriter.cs` | Artifact の CSV への書き戻し |
-| `SettingsForm.cs` | Setting ダイアログ |
-| `MainForm.AutoTest.cs` | Debug ビルドだけの自己テスト（[自己テスト](#自己テストdebug-ビルド) 参照） |
-| `ShelfModeForm.cs` | Shelf mode の確認ダイアログ |
-| `UI/UiTheme.cs` | 角丸半径・枠線色。Mac 版の `cornerRadius: 6` に合わせてある |
-| `UI/RoundedButton.cs` | 角丸ボタン。標準ボタンは直角なので自前で描く |
+| `MainForm.cs` | Screen state transitions and operations. Corresponds to the Mac version's `MEMEViewModel` |
+| `Services/WebBridge.cs` | Communication with the graph view (WebView2), serving, and communication restrictions. Corresponds to the Mac version's `WebBridge.swift` |
+| `Services/WebContentStore.cs` | Extraction and switching of the graph view contents (zip). The bundled `WebContent/standard.zip` |
+| `Services/ZipExtractor.cs` | Zip inspection and extraction (rejects zip slip, zip bombs, links, etc. before extracting. Rules are in Limits in `webview/BRIDGE.md`) |
+| `Models/MeasurementMode.cs` | Per-mode column names/order and range table (the CSV header and rows, the columns and values passed to the graph, and the choices in the left column all refer to this same table) |
+| `Services/ArtifactBuffer.cs` | Sanitization of Artifacts added in the page, and conversion to CSV data-row numbers |
+| `Services/CommunicationStatsTracker.cs` | Aggregation of success rate and communication rate |
+| `Services/DataPersistenceService.cs` | CSV header generation, row formatting, and buffered saving |
+| `Services/TcpOutputServer.cs` | External output over TCP |
+| `Services/CsvArtifactWriter.cs` | Writing Artifacts back into the CSV |
+| `Services/DetectorNotifications.cs` | Shows the detector's notify events as Windows notifications (Windows App SDK; the runtime is not bundled) |
+| `Services/DetectorOutputs.cs` | Receives the page's notify / table / records and writes result tables to CSV |
+| `Utility/` | Helpers: file association, file error text, network info, and saving/restoring settings (`UserSetting.cs`) |
+| `AppInfo.cs` / `VersionForm.cs` | App name, version and icon lookup / the version dialog |
+| `SettingsForm.cs` | Setting dialog |
+| `MainForm.AutoTest.cs` | Self-test for Debug builds only (see [Self-test](#self-test-debug-build)) |
+| `ShelfModeForm.cs` | Confirmation dialog for Shelf mode |
+| `UI/UiTheme.cs` | Corner radius and border color. Matched to the Mac version's `cornerRadius: 6` |
+| `UI/RoundedButton.cs` | Rounded button. Standard buttons have square corners, so this is drawn by hand |
 
 ## File Replay
 
-`File Replay` で CSV を選ぶと、その場で再生が始まります。**再生はグラフ画面（ページ）が受け持ちます**
-（アプリはファイルをページに渡すだけ）。ページが読み終えると Select Mode / Trans Speed / Accel Range /
-Gyro Range がファイルの記録条件に切り替わり、`State :` にファイル名が出ます。
+Choosing a CSV with `File Replay` starts playback immediately. **Playback is handled by the graph view (the page)**
+(the app only passes the file to the page). When the page finishes reading, Select Mode / Trans Speed / Accel Range /
+Gyro Range switch to the recording conditions of the file, and the file name appears in `State :`.
 
-- 再生・一時停止・速度・位置の操作はグラフ画面の下の操作バーにあります。
-- CSV の `ARTIFACT` 列に値がある行は、グラフ上に縦線とラベルで重ねて表示します。
-- `Disconnect` で再生を終えます（付けた Artifact はそのとき書き戻す）。
-- 読み込めるのは本アプリ形式（Mac 版・Android 版と共通）の CSV です。`.csv` と `.csv.gz` のどちらも開けます。
-- エクスプローラーで `.csv` / `.csv.gz` を右クリック →「プログラムから開く」からも起動できます。
+- Play, pause, speed, and position controls are in the control bar below the graph view.
+- Rows with a value in the CSV's `ARTIFACT` column are overlaid on the graph with a vertical line and a label.
+- `Disconnect` ends playback (Artifacts added are written back at that time).
+- The CSV format that can be loaded is this app's own (shared with the Mac and Android versions). Both `.csv` and `.csv.gz` can be opened.
+- You can also launch it by right-clicking a `.csv` / `.csv.gz` in Explorer → "Open with".
 
 ## Shelf mode
 
-Shelf mode（保管モード）は、ペアリング機能を止めて消費電力を抑える端末側のモードです。
-出荷前や長期保管の前に使います。**復帰は充電のみで、アプリからは戻せません。**
+Shelf mode (storage mode) is a device-side mode that disables the pairing function to reduce power consumption.
+Use it before shipping or long-term storage. **The only way to return is charging; it cannot be reverted from the app.**
 
-接続中かつ非計測のときに `Disconnect` を **5 秒押したまま**にすると確認ダイアログが出て、
-`Yes` を選ぶと移行します。誤操作を防ぐための隠し操作なので、押している間のゲージ表示などは
-出しません。移行の手順は Mac 版・Web Bluetooth 版 SDK と同じです。
+While connected and not measuring, **hold `Disconnect` for 5 seconds** and a confirmation dialog appears;
+choosing `Yes` performs the transition. This is a hidden operation to prevent accidents, so no gauge or similar is
+shown while holding. The procedure is the same as in the Mac version and the Web Bluetooth SDK.
 
-1. CONFIG モードへの遷移（`ADN_SET_MODE` の mode=0x0F）を送る
-2. その ACK（`0x8F`、3 秒でタイムアウト）を待つ
-3. SHELF コマンド（`0x41` + ASCII `"SHELF"`）を送る
-4. 端末が自ら切断したら成功（5 秒待っても切断されなければ失敗）
+1. Send the transition to CONFIG mode (`ADN_SET_MODE` with mode=0x0F)
+2. Wait for its ACK (`0x8F`, 3-second timeout)
+3. Send the SHELF command (`0x41` + ASCII `"SHELF"`)
+4. Success if the device disconnects by itself (failure if it is still connected after 5 seconds)
 
-ACK が返らなければ SHELF は送らないので、失敗しても端末は通常モードのままです。
+If no ACK arrives, SHELF is not sent, so even on failure the device stays in normal mode.
 
 ## Artifact
 
-計測中または再生中にグラフをクリックすると、グラフ画面の中に入力欄が出ます。空のまま確定すると
-`X` が入ります。付けた印はその場でグラフへ表示され、CSV へは次のタイミングでまとめて書き戻します。
+Clicking the graph during measurement or playback shows an input field inside the graph view. Confirming it empty
+enters `X`. The mark is shown on the graph immediately, and written back to the CSV in bulk at the next opportunity.
 
-| 状況 | 書き戻すタイミング | 書き戻し先 |
+| Situation | When it is written back | Where it is written |
 |---|---|---|
-| 計測中 | `Stop Measurement` / 切断 | その計測で保存した CSV |
-| 再生中 | `Save Artifacts` / `Disconnect` | 再生元の CSV |
+| During measurement | `Stop Measurement` / disconnect | The CSV saved for that measurement |
+| During playback | `Save Artifacts` / `Disconnect` | The source CSV of the playback |
 
-- カンマと改行は列が崩れないよう空白へ置き換えます（64 文字まで）。
-- `=` `+` `-` `@` で始まる文字は受けません（表計算ソフトで数式として読まれるため。ページも入力時に断る）。
-- 同じ行に何度付けても、最後に入力した値で上書きされます。
-- `Free Marking` の `X` は受信時にその場で CSV へ書くので、書き戻しの対象にはなりません。
-- 書き戻しは一時ファイルへ書いてから置き換えるので、途中で失敗しても元の CSV は壊れません。
+- Commas and line breaks are replaced with spaces so columns do not break (up to 64 characters).
+- Text starting with `=` `+` `-` `@` is not accepted (spreadsheet software would read it as a formula; the page also rejects it on input).
+- If you add one to the same row multiple times, the last value entered overwrites the earlier ones.
+- The `X` from `Free Marking` is written to the CSV on the spot at reception, so it is not subject to write-back.
+- Write-back writes to a temporary file and then replaces the original, so the original CSV is not corrupted even if it fails midway.
 
-以前あった「ドラッグで区間を切り出す」は無くなりました（Artifact で区間の印を付けて代わりにする）。
+The former "drag to cut out a range" feature has been removed (use Artifacts to mark ranges instead).
 
 ## Setting
 
-メニューバーの `Setting (S)` で開きます。内容は `%APPDATA%\JINS\MEME_Academic\settings.json` に保存され、
-次回起動時に復元されます。
+Open it from `Setting (S)` in the menu bar. The contents are saved to `%APPDATA%\JINS\MEME_Academic\settings.json`
+and restored on the next launch.
 
-| 項目 | 内容 |
+| Item | Details |
 |---|---|
-| Save File Path | CSV の保存先。既定は `ドキュメント\JINS\MEME_Academic` |
-| Acc Offset X / Y / Z | グラフ表示のみに足すオフセット（LSB）。CSV の値は変えない |
-| Save Format | 計測データを gzip 圧縮して保存する（既定 ON）。ON なら `.csv.gz`、OFF なら `.csv` |
-| Save Dialog | 計測終了後に保存先を選び直すダイアログを出す |
-| Time Display | グラフの時刻をローカルタイムで表示する（記録は常に UTC） |
-| TCP Output | 計測データを TCP で外部へ流す |
-| Local Port | 待ち受けポート。既定は 88 |
-| Display Engine | グラフ画面の中身。`Choose zip…` で zip を選ぶとその場で検査して取り込み（通らなければ理由を赤で出し、今のまま）、`Use Built-in` で同梱の標準版に戻す。計測中・再生中は切り替えられない。展開先は `%LOCALAPPDATA%\JINS\MEME_Academic\WebContent` |
+| Save File Path | CSV save location. Defaults to `Documents\JINS\MEME_Academic` |
+| Acc Offset X / Y / Z | Offset (LSB) added to the graph display only. CSV values are unchanged |
+| Save Format | Save measurement data gzip-compressed (default ON). ON gives `.csv.gz`, OFF gives `.csv` |
+| Save Dialog | Show a dialog to re-choose the save location after measurement ends |
+| Time Display | Show graph times in local time (recording is always UTC) |
+| TCP Output | Stream measurement data to the outside over TCP |
+| Local Port | Listening port. Defaults to 88 |
+| Display Engine | Contents of the graph view. `Choose zip…` inspects the chosen zip on the spot and imports it (if it fails, the reason is shown in red and nothing changes); `Use Built-in` returns to the bundled standard version. Cannot be switched during measurement or playback. Extracted to `%LOCALAPPDATA%\JINS\MEME_Academic\WebContent` |
 
-## TCP 出力
+## TCP output
 
-`TCP Output` を ON にすると、指定ポートで待ち受けを始めます（左カラムの `Status :` が
-`Listen` になります）。クライアントが 1 台つながると `Accepted` になり、CSV とまったく
-同じ書式のヘッダと行が流れます。計測開始より前に接続していた場合は、計測開始時に
-ヘッダが送られます。同時に受け付けるのは 1 台までです。受け取る側が読まなくなり、1 秒待っても送れないときは
-そのクライアントを切ります（計測と CSV の記録は止めません）。
+Turning `TCP Output` ON starts listening on the specified port (`Status :` in the left column becomes
+`Listen`). When one client connects it becomes `Accepted`, and a header and rows in exactly the same format
+as the CSV are streamed. If a client was already connected before measurement started, the header
+is sent when measurement starts. Only one client is accepted at a time. If the receiver stops reading and data cannot be sent within 1 second,
+that client is disconnected (measurement and CSV recording are not stopped).
 
 ```
 $ ncat 127.0.0.1 88
@@ -165,85 +169,84 @@ $ ncat 127.0.0.1 88
 
 ## CSV
 
-Setting の保存先に `<MACアドレス>_<UTC日時>.csv.gz` として出力します（Setting の Save Format を
-OFF にすると `.csv`）。書式は Mac 版・Android 版と共通で、モードごとに列が変わります。
+Files are written to the save location from Setting as `<MAC address>_<UTC datetime>.csv.gz` (`.csv` if Save Format in Setting
+is OFF). The format is shared with the Mac and Android versions, and the columns vary by mode.
 
-| モード | 列 |
+| Mode | Columns |
 |---|---|
 | Standard | `ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,EOG_L1,EOG_R1,EOG_L2,EOG_R2,EOG_H1,EOG_H2,EOG_V1,EOG_V2` |
 | Full | `ARTIFACT,NUM,DATE,ACC_X,ACC_Y,ACC_Z,GYRO_X,GYRO_Y,GYRO_Z,EOG_L,EOG_R,EOG_H,EOG_V` |
 | Quaternion | `ARTIFACT,NUM,DATE,QUATERNION_W,QUATERNION_X,QUATERNION_Y,QUATERNION_Z` |
 
-- `DATE` は UTC。ローカルタイム表示は Setting の Time Display で切り替える（表示のみ）。
-- `NUM` は端末カウンタの差分を積算した単調増加値。取りこぼしがあると番号が飛ぶ。
-- `ARTIFACT` は `Free Marking` を押した直後の 1 行に `X` が入る。
-- 100Hz なら 100 行、50Hz なら 50 行たまるごとに書き出します。1 行ずつ open/close すると
-  取りこぼすためで、計測停止時に残りをフラッシュします。
-- `.csv.gz` の場合、この 1 回の書き出しが gzip の 1 メンバーになり、それをファイルへ
-  連結していきます。gzip は複数メンバーの連結を 1 ファイルとして扱えるので、`gzip -d` でも
-  本アプリの File Replay でもそのまま読めます。ストリームを開きっぱなしにして最後に
-  トレーラを書く方式と違い、アプリが落ちても切断で計測が途切れても、その時点までの
-  ファイルが常に完結しています（圧縮率の悪化は実測で数％）。
+- `DATE` is UTC. Local-time display is toggled with Time Display in Setting (display only).
+- `NUM` is a monotonically increasing value accumulated from differences of the device counter. If samples are dropped, the number jumps.
+- `ARTIFACT` gets `X` in the single row right after `Free Marking` is pressed.
+- Data is written out every 100 rows at 100Hz, or every 50 rows at 50Hz. Opening and closing the file for each row
+  would drop samples; the remainder is flushed when measurement stops.
+- For `.csv.gz`, each such write becomes one gzip member, and members are concatenated into the file.
+  Since gzip treats concatenated members as a single file, the result can be read as-is by `gzip -d` and by this app's File Replay.
+  Unlike keeping the stream open and writing the trailer at the end, the file up to that point is always complete
+  even if the app crashes or a disconnect interrupts measurement (the compression ratio worsens by a few percent in measurements).
 
-## Mac 版との対応状況
+## Status relative to the Mac version
 
-Mac 版の機能は段階的に移植し、現時点で一通り揃っています。
+Mac version features have been ported in stages, and by now all of them are in place.
 
-| 機能 | 状態 |
+| Feature | Status |
 |---|---|
-| グラフ画面（WebView2 + uPlot。表示幅・拡大縮小・畳む。zip で差し替え） | 実装済み |
-| 通信統計 | 実装済み |
-| Setting ダイアログ（保存先、Acc オフセット、TCP 出力、ローカルタイム表示） | 実装済み（メニューバーの `Setting (S)`） |
-| CSV のバッファ保存・保存先指定・計測後の保存ダイアログ | 実装済み |
-| TCP ソケットによる外部出力 | 実装済み |
-| Standard / Quaternion モード（0x98 / 0x9A） | 実装済み |
-| File Replay（再生・一時停止・シーク・速度切替。ページ側） | 実装済み |
-| グラフのクリックでの Artifact 付与 | 実装済み（範囲切り出しは廃止） |
-| CSV の gz 圧縮保存（`.csv` / `.csv.gz` の読み込み） | 実装済み |
-| `Disconnect` 長押しでの Shelf mode 移行 | 実装済み |
-| 判定器の通知と演算結果の表（ページの notify / table / records） | 実装済み（通知は Windows App Runtime が要る） |
+| Graph view (WebView2 + uPlot. Display width, zoom, collapse. Replaceable by zip) | Implemented |
+| Communication statistics | Implemented |
+| Setting dialog (save location, Acc offset, TCP output, local time display) | Implemented (`Setting (S)` in the menu bar) |
+| Buffered CSV saving, save location selection, post-measurement save dialog | Implemented |
+| External output over TCP socket | Implemented |
+| Standard / Quaternion modes (0x98 / 0x9A) | Implemented |
+| File Replay (play, pause, seek, speed change. Page side) | Implemented |
+| Adding an Artifact by clicking the graph | Implemented (range cut-out removed) |
+| gz-compressed CSV saving (loading `.csv` / `.csv.gz`) | Implemented |
+| Shelf mode transition by long-pressing `Disconnect` | Implemented |
+| Detector notifications and result tables (the page's notify / table / records) | Implemented (notifications require Windows App Runtime) |
 
-Quaternion モードにはグラフに出せる波形が無いため、グラフ画面は「このモードで表示するグラフはありません」を出します
-（Mac 版も同じ）。Standard モードは 1 パケットに EOG が 2 サンプルあり、ページが両方を描きます。
+Quaternion mode has no waveforms that can be drawn on the graph, so the graph view shows "No graph to display in this mode"
+(the Mac version does the same). Standard mode has two EOG samples per packet, and the page draws both.
 
-## 自己テスト（Debug ビルド）
+## Self-test (Debug build)
 
-画面を操作できない環境（Mac から Parallels の Windows を動かすときなど）から、グラフ画面が動くことを確かめる口です。
-結果（`result.json`）とスナップショット（PNG）を指定のフォルダに書いて、アプリが自分で閉じます。Release ビルドには入りません。
+An entry point for verifying that the graph view works from environments where the screen cannot be operated (for example, running Windows in Parallels from a Mac).
+It writes the result (`result.json`) and snapshots (PNG) to the specified folder, and the app closes itself. It is not included in Release builds.
 
 ```
-JINS_MEME_DataLogger.exe --autotest <出力フォルダ> [--suite live|replay|zip|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
-                         [--mode full|standard] [--seconds 20] [--badzips <フォルダ>] [--probe <JS の式 | @ファイル>]
-                         [--probe-live <同>] [--expect <瞬目,EMR,EML[,歩のイベント]>] [--real [--device <アドレスか名前の末尾>]]
-                         [--socket <ポート> [--socket-stall]]
+JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
+                         [--mode full|standard] [--seconds 20] [--badzips <folder>] [--probe <JS expression | @file>]
+                         [--probe-live <same>] [--expect <blinks,EMR,EML[,step events]>] [--real [--device <address or name suffix>]]
+                         [--socket <port> [--socket-stall]]
 ```
 
-`--probe` は各場面の後に、`--probe-live` は live で行を流している最中にページで評価します（描画の進み方を測るときなど）。
+`--probe` is evaluated in the page after each scenario, and `--probe-live` while rows are being streamed in live (for example, to measure how drawing progresses).
 
-| suite | 中身 |
+| suite | Contents |
 |---|---|
-| `live`（既定） | 実機の代わりに `--csv` の行を 100 Hz で受信の口へ流し、計測 → Artifact → 停止 → 保存した CSV を再生（BLE には触らない）。保存した CSV のモード・番号（NUM）の抜け・Artifact の行（299）、高機能版の Standard では判定器が止まってトーストが出ること、再生中の Artifact が `Save Artifacts`（500 行目）と `Disconnect`（600 行目）で書き戻されることを確かめる。**`--real` を付けたときだけ実機（BLE）を使う**（`--device` の端末に繋いで `--seconds` 計測。`--csv` は要らない） |
-| `replay` | `--csv` の写しを再生（高機能版なら最後まで解析を待つ）。Artifact を `Save Artifacts`（299 行目）と `Disconnect`（600 行目）で書き戻す。`--expect` で判定数を比べる（golden `w-sit-jump-stairs` なら `459,1169,1045,2837`） |
-| `zip` | `--badzips` の zip を 1 つずつ取り込み、`good` で始まるものだけ通り、断られたものは今の中身が変わらず外に書かれないことを見る（`webview/tools/make_bad_zips.py`） |
-| `settings` | 設定画面を撮る（計測中の形も） |
-| `webcrash` | `--csv` の行を流して計測している最中と、その CSV を再生している最中に、グラフ画面のプロセスを落とす（DevTools の `Page.crash`）。読み込み直したページで計測・再生が続いていることを確かめる |
-| `reconnect` | 計測中に切断 → 繋ぎ直して `Start Measurement` で計測が始まること、切断した回の CSV が停止と同じく締められること（ファイルが分かれる・NUM が続かない・付けた Artifact が書き戻される）を確かめる。`--real` なら実機、無ければ `--csv` の行を流す |
+| `live` (default) | Instead of a real device, streams the rows of `--csv` into the receive path at 100 Hz: measure → Artifact → stop → play back the saved CSV (BLE is not touched). Verifies the saved CSV's mode and numbering (NUM) gaps, the Artifact row (299), that in the full-featured version's Standard mode the detector stops and a toast appears, and that Artifacts added during playback are written back by `Save Artifacts` (row 500) and `Disconnect` (row 600). **A real device (BLE) is used only when `--real` is given** (connects to the `--device` device and measures for `--seconds`; `--csv` is not needed) |
+| `replay` | Plays back a copy of `--csv` (in the full-featured version, waits for analysis to finish). Writes back Artifacts with `Save Artifacts` (row 299) and `Disconnect` (row 600). Compares detection counts with `--expect` (for golden `w-sit-jump-stairs`: `459,1169,1045,2837`) |
+| `zip` | Imports each zip in `--badzips` one at a time, and checks that only those starting with `good` pass, and that rejected ones leave the current contents unchanged and write nothing outside (`webview/tools/make_bad_zips.py`) |
+| `settings` | Captures the settings screen (including its form during measurement) |
+| `webcrash` | While measuring with the rows of `--csv` streaming in, and while playing back that CSV, crashes the graph view's process (DevTools `Page.crash`). Verifies that measurement and playback continue on the reloaded page |
+| `reconnect` | Disconnect during measurement → reconnect and verify that `Start Measurement` starts measuring, and that the CSV of the disconnected session is closed the same way as on stop (files are split, NUM does not continue, Artifacts added are written back). Uses a real device with `--real`, otherwise streams the rows of `--csv` |
 
-`--socket` はテストの間だけ TCP 出力をそのポートで有効にし、`live` の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
-（ARTIFACT 列を除いて）同じかを見ます。`--socket-stall` を足すと受け取る側が読まないままにし、送信が詰まっても計測が止まらない
-（詰まったクライアントが切られる）ことを見ます。
+`--socket` enables TCP output on that port only for the duration of the test; during `live` the test itself receives from it and checks that the header and rows received
+match the saved CSV (excluding the ARTIFACT column). Adding `--socket-stall` makes the receiving side stop reading, and verifies that measurement does not stop
+even when sending is blocked (the blocked client is disconnected).
 
-`--zip` は始める前に Display Engine と同じ経路で取り込み、終わったら同梱の標準版に戻します（もともと選んだ zip を使っていたら、
-退避しておいたそれに戻す。`zip` の組も同じ）。保存先はテストの間だけ `<出力フォルダ>\csv` になります。
-確かめたことが合わなければ `result.json` の `ok` が `false` になり、`error` に理由が入ります（Artifact の書き戻しの失敗も、
-テストの間はダイアログを出さずにここへ入る）。
+`--zip` is imported before starting through the same path as Display Engine, and afterward the bundled standard version is restored (if a chosen zip was in use originally,
+the one set aside is restored; the same goes for the `zip` suite). The save location is `<output folder>\csv` for the duration of the test.
+If what was checked does not match, `ok` in `result.json` becomes `false` and `error` holds the reason (Artifact write-back failures also go here
+without showing a dialog during the test).
 
-Mac から Parallels の Windows で回すときの注意:
+Notes when running from a Mac on Windows in Parallels:
 
-- VM から見える Mac のフォルダは `Z:\`（`\\Mac\Home`）の Desktop・Documents・Downloads だけ。テストに使うファイルはそこに置く。
-- **`prlctl exec` には `--current-user` を付ける**（ログイン中の利用者のセッションで動かす）。付けないと画面の無いセッションで
-  起動して WebView2 が立ち上がらず（`The graph view could not start. … (0x800705B4)`）、アプリが閉じずに残る。
-  `dotnet` もそのセッションでは見つからないことがあるので、`C:\Users\<利用者>\.dotnet\dotnet.exe` をフルパスで呼ぶ。
-- `prlctl exec` は引数の引用符を落とすので、アプリへ渡す引数は PowerShell スクリプトの中で組み立てる（ファイルから読むなど）。
-- `prlctl exec` に渡す PowerShell スクリプトは ASCII だけで書く（PowerShell 5.1 が BOM なしの UTF-8 を CP932 で読む）。
-- ビルドは VM のローカル（`C:\work\…`）へ `robocopy /MIR /XD bin obj` で写してから行う。
+- The only Mac folders visible from the VM are Desktop, Documents, and Downloads under `Z:\` (`\\Mac\Home`). Put the files used by the test there.
+- **Add `--current-user` to `prlctl exec`** (so it runs in the logged-in user's session). Without it, the app starts in a session with no screen
+  and WebView2 does not launch (`The graph view could not start. … (0x800705B4)`), and the app stays open without closing.
+  `dotnet` may also not be found in that session, so call it by full path: `C:\Users\<user>\.dotnet\dotnet.exe`.
+- `prlctl exec` drops quotation marks in arguments, so build the arguments passed to the app inside a PowerShell script (for example, by reading them from a file).
+- Write PowerShell scripts passed to `prlctl exec` in ASCII only (PowerShell 5.1 reads UTF-8 without a BOM as CP932).
+- Build by copying to the VM's local disk (`C:\work\…`) with `robocopy /MIR /XD bin obj` first.

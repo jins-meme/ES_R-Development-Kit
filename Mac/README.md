@@ -2,11 +2,11 @@
 
 ## Summary
 
-* "ES_R" means JINS MEME ES_R (previouslly called JINS MEME Academic pack)
+* "ES_R" means JINS MEME ES_R (previously called JINS MEME Academic pack)
 * sample code included
-* Checked runnning on MacOS 26 and Xcode 26
+* Checked running on MacOS 26 and Xcode 26
 * Dongle(BLE receiver) is NOT needed for Mac
-* To record the data, you need to write codes as needed.
+* `ES_R_DevKit_Mac` is the full-featured logger (graph view, CSV recording, File Replay, TCP output). `ES_R_DevKit_Mac_Simple` is a minimal sample: to record or process the data in your own way, you need to write code as needed.
 * `ES_R_DevKit_Mac` now ships with a **Mock mode** so you can develop and run the app without an actual JINS MEME ES_R device (see "Mock Mode" section below).
 
 ## Step
@@ -47,7 +47,7 @@ The MEME library has been abstracted behind a Swift protocol so that real and mo
 
 ```
               ┌────────────────────────┐
-              │     ViewController     │
+              │     MEMEViewModel      │
               └───────────┬────────────┘
                           │ uses
                           ▼
@@ -60,7 +60,7 @@ The MEME library has been abstracted behind a Swift protocol so that real and mo
   ┌──────────────────┐        ┌──────────────────────┐
   │ MEMELib_Academic │        │ MockMEMELib_Academic │
   │ (CoreBluetooth)  │        │ (in-app simulation,  │
-  │                  │        │  DEBUG only)         │
+  │                  │        │  `-mock` only)       │
   └──────────────────┘        └──────────────────────┘
             ▲                           ▲
             └───────────┬───────────────┘
@@ -124,11 +124,11 @@ State transitions are logged to the Xcode console with the prefix `[Mock]`, for 
 
 | File | Role |
 |------|------|
-| `MEME_Academic/MEMELibInterface.swift` | Protocol that defines the public surface used by `ViewController` |
-| `MEME_Academic/MEMELib_Academic.swift` | Real implementation backed by `CoreBluetooth` |
-| `MEME_Academic/MockMEMELib_Academic.swift` | Mock implementation (DEBUG only) |
-| `MEME_Academic/MEMELibFactory.swift` | Selects implementation based on `-mock` launch argument |
-| `MEME_Academic.xcodeproj/xcshareddata/xcschemes/MEME_Academic Mock.xcscheme` | Scheme that passes `-mock` |
+| `MEME_Academic/BLE/MEMELibInterface.swift` | Protocol that defines the public surface used by `MEMEViewModel` |
+| `MEME_Academic/BLE/MEMELib_Academic.swift` | Real implementation backed by `CoreBluetooth` |
+| `MEME_Academic/BLE/MockMEMELib_Academic.swift` | Mock implementation (selected only by the `-mock` launch argument; not guarded by `#if DEBUG`) |
+| `MEME_Academic/BLE/MEMELibFactory.swift` | Selects implementation based on `-mock` launch argument |
+| `MEME_Academic.xcodeproj/xcshareddata/xcschemes/MEME_Academic Mock.xcscheme` | Scheme that passes `-mock` (present in both `ES_R_DevKit_Mac` and `ES_R_DevKit_Mac_Simple`) |
 
 ### Extending the mock
 

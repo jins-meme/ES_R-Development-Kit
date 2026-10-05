@@ -225,6 +225,12 @@ public partial class MainForm : Form
         {
             RunOnUi(() =>
             {
+                // Scan を止めた・Connect を押した後に遅れて届いた端末は足さない(接続中に一覧と状態を動かさない)。
+                if (!isScanning)
+                {
+                    return;
+                }
+
                 cb_DeviceList.Items.Add(device);
                 if (cb_DeviceList.SelectedIndex < 0)
                 {
@@ -394,7 +400,8 @@ public partial class MainForm : Form
 
         bt_Scan.Text = isScanning ? "Stop Scan" : "Scan";
         bt_Scan.Enabled = !connected && !inReplaySession;
-        cb_DeviceList.Enabled = !connected && !isScanning && !inReplaySession;
+        // Scan 中も選べる(2 台以上見つかったら、探し終わるのを待たずに選んで Connect できる)。
+        cb_DeviceList.Enabled = !connected && !inReplaySession;
 
         // 再生中の Connect は「再生セッションを終える」ボタンとして働く(Mac 版と同じ)。
         // Shelf 移行中だけは、結果が出るまで押させない。
@@ -489,7 +496,10 @@ public partial class MainForm : Form
             return;
         }
 
+        // Scan 中に押された場合は、connectPeripheral が Scan も止める。
         isScanning = false;
+        bt_Scan.Text = "Scan";
+        cb_DeviceList.Enabled = false;
         lb_ConnectionState.Text = "State : Connecting...";
         bt_Connect.Enabled = false;
         memeLib.connectPeripheral(device);

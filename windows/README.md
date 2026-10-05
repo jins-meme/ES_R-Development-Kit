@@ -6,86 +6,85 @@
 * **Dongle (BLE receiver) is NOT needed** — the PC's own Bluetooth LE radio is used
 * Visual Studio is not required; everything builds from the command line with the .NET SDK
 
-このディレクトリには 2 つのプロジェクトがあります。Mac 版の
-`ES_R_DevKit_Mac` / `ES_R_DevKit_Mac_Simple` と同じ関係です。
+This directory contains two projects, in the same relationship as the Mac versions
+`ES_R_DevKit_Mac` / `ES_R_DevKit_Mac_Simple`.
 
-| プロジェクト | 位置づけ |
+| Project | Purpose |
 |---|---|
-| [`ES_R_DevKit_Windows`](ES_R_DevKit_Windows/README.md) | フル機能ロガー。リアルタイムチャート、通信統計などを備える |
-| [`ES_R_DevKit_Windows_Simple`](ES_R_DevKit_Windows_Simple/README.md) | 最小構成のサンプル。接続してセンサー値を表示・CSV 保存するだけ |
+| [`ES_R_DevKit_Windows`](ES_R_DevKit_Windows/README.md) | Full-featured logger. Real-time charts, communication statistics, and more |
+| [`ES_R_DevKit_Windows_Simple`](ES_R_DevKit_Windows_Simple/README.md) | Minimal sample. Just connects, shows sensor values, and saves CSV |
 
-BLE の接続処理とプロトコル(`MEMELib_Academic`)は両者で共通の構成です。
-まず動かして仕組みを読むなら Simple、計測に使うなら フル機能版 を選んでください。
+The BLE connection handling and protocol (`MEMELib_Academic`) are structured the same way in both.
+To get something running and read how it works, choose Simple; for actual measurements, choose the full-featured version.
 
-## 環境要件
+## Requirements
 
-| 項目 | 内容 |
+| Item | Details |
 |---|---|
-| OS | フル機能版: Windows 11 以降（グラフ画面に WebView2 ランタイムを使うため。Windows 11 には最初から入っている）/ Simple: Windows 10 バージョン 1809 以降 / Windows 11 |
-| ハードウェア | BLE 対応の Bluetooth アダプタ(内蔵で可) |
+| OS | Full-featured: Windows 11 or later (the graph view uses the WebView2 runtime, which is preinstalled on Windows 11) / Simple: Windows 10 version 1809 or later / Windows 11 |
+| Hardware | A Bluetooth adapter with BLE support (built-in is fine) |
 | SDK | .NET 10 SDK (`winget install Microsoft.DotNet.SDK.10`) |
-| IDE | 不要。VS Code + コマンドラインで完結する |
+| IDE | Not required. VS Code + the command line is enough |
 
-Windows SDK 本体のインストールは不要です。`net10.0-windows10.0.22621.0` を
-ターゲットにしているため、WinRT の射影(`Microsoft.Windows.SDK.NET.Ref`)は
-NuGet から自動で取得されます。**Visual Studio 2019 では .NET 10 を扱えません**。
-WinForms のビジュアルデザイナを使いたい場合のみ Visual Studio 2022 が要ります。
+You do not need to install the Windows SDK itself. The projects target `net10.0-windows10.0.22621.0`,
+so the WinRT projection (`Microsoft.Windows.SDK.NET.Ref`) is fetched automatically from NuGet.
+**Visual Studio 2019 cannot handle .NET 10.** Visual Studio 2022 is needed only if you want to use
+the WinForms visual designer.
 
-## ビルドと実行
+## Build and run
 
 ```
-cd windows/ES_R_DevKit_Windows          # または ES_R_DevKit_Windows_Simple
+cd windows/ES_R_DevKit_Windows          # or ES_R_DevKit_Windows_Simple
 dotnet build
 dotnet run --project MEME_Academic_Sample
 dotnet test
 ```
 
-成果物は `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`。
-プロジェクトのフォルダ名(`MEME_Academic_Sample`)と実行ファイル名(`JINS_MEME_DataLogger.exe`)は
-別なので注意してください。exe 単体では動かないので、フォルダごと扱ってください。
+The output is `MEME_Academic_Sample/bin/Debug/net10.0-windows10.0.22621.0/JINS_MEME_DataLogger.exe`.
+Note that the project folder name (`MEME_Academic_Sample`) differs from the executable name
+(`JINS_MEME_DataLogger.exe`). The exe does not work on its own, so handle the whole folder.
 
-## 接続手順
+## How to connect
 
-1. ES_R の電源ボタンを 2 秒長押ししてペアリングモードにする。
-2. `Scan` を押す。見つかった端末が `ESRG2_0 (28A183055C47)` の形で一覧に出る。
-3. `Connect` を押す。接続されると ES_R のファームウェアバージョンが表示される。
-4. `Start Measurement` でセンサー値の取得と CSV 記録が始まる。
+1. Hold the ES_R power button for 2 seconds to enter pairing mode.
+2. Press `Scan`. Found devices appear in the list in the form `ESRG2_0 (28A183055C47)`.
+3. Press `Connect`. Once connected, the ES_R firmware version is shown.
+4. `Start Measurement` starts acquiring sensor values and recording CSV.
 
-CSV の書式(ヘッダ・列順・UTC 記録)は Mac 版・Android 版と共通です。
+The CSV format (header, column order, UTC timestamps) is shared with the Mac and Android versions.
 
-## プロトコル
+## Protocol
 
-| 項目 | 値 |
+| Item | Value |
 |---|---|
 | Service | `D6F25BD1-5B54-4360-96D8-7AA62E04C7EF` |
-| Notify (端末 → PC) | `D6F25BD4-5B54-4360-96D8-7AA62E04C7EF` |
-| Write (PC → 端末) | `D6F25BD2-5B54-4360-96D8-7AA62E04C7EF` |
-| パケット長 | 20 byte 固定 |
+| Notify (device → PC) | `D6F25BD4-5B54-4360-96D8-7AA62E04C7EF` |
+| Write (PC → device) | `D6F25BD2-5B54-4360-96D8-7AA62E04C7EF` |
+| Packet length | Fixed 20 bytes |
 
-接続後のハンドシェイクは
-`0xA1 GetDevInfo` → `0x81` → `0xA3 GetMode` → `0x83` → `0xA9 Get6AxisParams` → `0x89`
-の順で、`0x89` を受け取った時点で接続完了です。計測中は
-`0x99 (AUP_REPORT_ACADEMIA2)` が 100Hz で届きます。
+The handshake after connecting runs in the order
+`0xA1 GetDevInfo` → `0x81` → `0xA3 GetMode` → `0x83` → `0xA9 Get6AxisParams` → `0x89`,
+and the connection is complete when `0x89` is received. During measurement,
+`0x99 (AUP_REPORT_ACADEMIA2)` arrives at 100Hz.
 
-実装は Mac 版 `Mac/ES_R_DevKit_Mac_Simple/MEME_Academic/BLE/MEMELib_Academic.swift` と
-Android 版 `android/ES_R_DevKit_Android2/core/src/main/java/com/jins_jp/meme/core/ble/`
-に準拠しています。
+The implementation follows the Mac version `Mac/ES_R_DevKit_Mac_Simple/MEME_Academic/BLE/MEMELib_Academic.swift` and
+the Android version `android/ES_R_DevKit_Android2/core/src/main/java/com/jins_jp/meme/core/ble/`.
 
-## うまく動かないとき
+## Troubleshooting
 
-- **`Scan` で何も出ない**: ES_R がペアリングモード(電源ボタン 2 秒長押し)に
-  なっているか、Windows の Bluetooth が ON か確認してください。
-- **見つかるまで時間がかかる**: Windows のスキャンは受信している時間が短く(約 15%。アプリからは広げられない)、
-  ES_R の広告を拾うまで 10 秒以上かかることがあります。フル機能版・Simple とも 30 秒探します。
-  また、Windows は切断した後もしばらく接続を残すため、切断の直後は ES_R が再び見えるまで
-  20 秒ほどかかることがあります。
-- **他のアプリが掴んでいる**: ES_R は同時に 1 つのホストとしか繋がりません。
-  スマートフォンのアプリなどが接続中なら切ってください。
-- **接続はできるが値が来ない**: Windows の設定 > Bluetooth とデバイス から
-  ES_R を一度削除し、再度スキャンし直すと GATT のキャッシュが解消することがあります。
+- **Nothing appears on `Scan`**: Check that the ES_R is in pairing mode (hold the power button for 2 seconds)
+  and that Bluetooth is ON in Windows.
+- **It takes a long time to find the device**: Windows scanning listens only a small fraction of the time (about 15%, and the app cannot widen it),
+  so picking up the ES_R advertisement can take more than 10 seconds. Both the full-featured and Simple versions scan for 30 seconds.
+  Also, Windows keeps a connection alive for a while after disconnecting, so right after a disconnect
+  it can take about 20 seconds before the ES_R becomes visible again.
+- **Another app is holding it**: The ES_R can connect to only one host at a time.
+  If a smartphone app or similar is connected, disconnect it.
+- **Connects but no values arrive**: In Windows Settings > Bluetooth & devices, remove the ES_R once
+  and scan again; this can clear the GATT cache.
 
-## 旧サンプルについて
+## About the old sample
 
-USB BLE ドングル(仮想 COM ポート)を前提とした .NET Framework 4.5.2 の旧サンプルは
-削除しました。非公開の NuGet パッケージ `JINSMEME_ES_R` に依存しており、単体では
-ビルドできない状態だったためです。内容が必要な場合は Git の履歴を参照してください。
+The old .NET Framework 4.5.2 sample, which assumed a USB BLE dongle (virtual COM port), has been
+removed. It depended on the non-public NuGet package `JINSMEME_ES_R` and could not be built on its own.
+If you need its contents, see the Git history.
