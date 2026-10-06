@@ -4,8 +4,9 @@ The Mac / Windows / Android apps show their graphs with a web page in a WebView,
 [uPlot](https://github.com/leeoniya/uPlot). The page is packaged as a zip: the apps bundle `standard.zip`, and
 Display Engine lets you load other zips (for example one that runs your own signal processing).
 
-On Mac (1.5.0 build 37 and later), Display Engine is its own dialog, opened from the app menu (below Settings…) or the
-Display Engine button below Settings. It keeps several zips side by side and only one is active:
+On Mac (1.5.0 build 37 and later) and Windows, Display Engine is its own dialog: on Mac from the app menu (below
+Settings…) or the Display Engine button next to Settings, on Windows from `Display Engine (D)` next to `Setting (S)` in
+the menu bar. It keeps several zips side by side and only one is active:
 
 - **Standard** (the bundled zip) is the default and cannot be deleted.
 - **Add zip…** checks the zip and adds it to the list without activating it. Adding the same file again does nothing;
@@ -13,7 +14,7 @@ Display Engine button below Settings. It keeps several zips side by side and onl
 - Select a row to make it active (the graph view reloads). Deleting the active zip goes back to Standard.
 - Nothing can be changed during measurement or replay.
 
-Windows and Android still have a single choice under Settings → Display Engine (to be moved the same way).
+Android still has a single choice under Settings → Display Engine (to be moved the same way).
 
 ```text
 webview/
@@ -72,8 +73,8 @@ MEME_AUTOTEST_DIR=/tmp/autotest Mac/ES_R_DevKit_Mac/build/…/MEME_Academic.app/
 `-mock` is required; without it the app uses real Bluetooth and would connect to a nearby device.
 
 Add `MEME_AUTOTEST_ZIP=<zip>` to run the same check with another page (it is loaded the way Display Engine loads it,
-and the zips and the active one are restored afterwards). On Mac, `MEME_AUTOTEST_SUITE=engines` checks adding,
-activating, replacing and deleting zips (`-mock`). To check that bad zips are refused:
+and the zips and the active one are restored afterwards). `MEME_AUTOTEST_SUITE=engines` (Mac, `-mock`) and `--suite engines`
+(Windows) check adding, activating, replacing and deleting zips. To check that bad zips are refused:
 
 ```sh
 python3 webview/tools/make_bad_zips.py /tmp/badzips

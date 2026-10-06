@@ -425,7 +425,7 @@ public sealed class WebBridge : IDisposable
 
         var root = Path.GetFullPath(store.ActiveDir) + Path.DirectorySeparatorChar;
         var file = Path.GetFullPath(Path.Combine(root, parts.Length == 0 ? "index.html" : string.Join(Path.DirectorySeparatorChar, parts)));
-        if (!file.StartsWith(root, StringComparison.OrdinalIgnoreCase) || OpenRead(file) is not { } stream)
+        if (!file.StartsWith(root, StringComparison.OrdinalIgnoreCase) || ReadToMemory(file) is not { } stream)
         {
             e.Response = Fail(404);
             return;
@@ -451,8 +451,9 @@ public sealed class WebBridge : IDisposable
     }
 
     /// <summary>
-    /// 再生する CSV はメモリに読んでから渡す。WebView2 は読み終えたストリームを GC まで手放さないので、
-    /// FileStream のままだと再生中の Save Artifacts で元ファイルを置き換えられない(Access denied)。
+    /// ファイルはメモリに読んでから渡す。WebView2 は読み終えたストリームを GC まで手放さないので、FileStream のままだと
+    /// 再生中の Save Artifacts で元ファイルを置き換えられず、Display Engine で使っている zip のフォルダも置き換え・削除できない
+    /// (どちらも Access denied)。中身のファイルは zip の検査で 1 つ 50 MB までに抑えてある。
     /// </summary>
     private static MemoryStream? ReadToMemory(string path)
     {

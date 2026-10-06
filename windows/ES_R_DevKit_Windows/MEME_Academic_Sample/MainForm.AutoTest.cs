@@ -14,7 +14,7 @@ namespace MEME_Academic_Sample;
 /// Windows を動かすときなど)から、グラフ画面が動いていることを確かめる。結果(result.json)とスナップショット(PNG)を
 /// 渡したフォルダに書いて、アプリを閉じる。
 ///
-///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|settings|webcrash|reconnect] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
+///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|engines|settings|webcrash|reconnect] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
 ///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;] [--probe-live &lt;同&gt;]
 ///                              [--expect &lt;瞬目,EMR,EML[,歩のイベント]&gt;] [--real [--device &lt;アドレスか名前の末尾&gt;]]
 ///                              [--socket &lt;ポート&gt; [--socket-stall]] [--outputs]
@@ -30,6 +30,11 @@ namespace MEME_Academic_Sample;
 ///   --expect を付けると判定数(高機能版)をその値と比べる(golden w-sit-jump-stairs なら 459,1169,1045,2837)。
 /// - zip: --badzips の中の zip を 1 つずつ読み込み、名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、
 ///   展開先の外に何も書かれないことを見る(悪い zip は webview/tools/make_bad_zips.py が作る)。
+/// - engines: Display Engine ダイアログの操作(WebContentStore の Add / Activate / Remove)を通しで見る(Mac 版の engines と同じ):
+///   標準版は先頭で消せない・取り込んでも有効にはならない・同じファイルは重ならない・使うのは 1 つだけ(ページが読む manifest もそれ)・
+///   同じ name は置き換え(位置も使っているかもそのまま)・使っているものを消すと標準版に戻る・起動し直しても(Prepare)選んだものが残る・
+///   無い ID なら標準版・以前の版の custom\ が zips\ の 1 つに移り、使っていたならそれを使う。試す zip は同梱の標準版の中身から作る。
+/// - settings: 設定画面と Display Engine ダイアログ(計測中の形も)を撮る。
 /// - webcrash: --csv の行を流して計測している最中と、その CSV を再生している最中に、グラフ画面のプロセスを落とす
 ///   (DevTools の Page.crash)。読み込み直したページで計測・再生が続いているか(start / openReplay を送り直したか)を見る。
 /// - reconnect: 計測中に切断 → 繋ぎ直して Start Measurement で計測が始まるか、切断した回の CSV が停止と同じく締められるか
@@ -41,8 +46,8 @@ namespace MEME_Academic_Sample;
 /// 通知が使えたか(Windows App Runtime が無ければ、案内のダイアログを出そうとしたこと)を outputs に書く(Android の autotest_outputs と同じ)。
 /// --socket はテストの間だけ TCP 出力をそのポートで有効にし、live の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
 /// 同じかを見る。--socket-stall を足すと受け取る側が読まないままにし、送信が詰まっても受信(計測)が止まらないことを見る。
-/// --zip は始める前に設定の Display Engine と同じ経路(WebContentStore.ImportZip)で読み込み、終わったら元に戻す
-/// (もともと選んだ zip を使っていたら、それを退避しておいて戻す。zip の組も同じ)。
+/// --zip は始める前に Display Engine ダイアログと同じ経路(WebContentStore.Add → Activate)で取り込んで使い、終わったら元に戻す
+/// (取り込んである zip の一覧と使っている 1 つは、退避しておいて戻す。同じ name の zip は置き換えになるため。zip の組・engines も同じ)。
 /// 確かめたことが合わなければ result.json の ok が false になり、error に理由が入る。
 /// 保存先はテスト用のフォルダ(&lt;dir&gt;\csv)に切り替え、終わったら戻す。
 /// </summary>
@@ -82,9 +87,10 @@ public partial class MainForm
         var csvDir = Path.Combine(dir, "csv");
         Directory.CreateDirectory(csvDir);
         setting.SaveFilePath = csvDir;   // Save はしない(利用者の設定ファイルを書き換えない)
-        var wasCustom = webContent.Source == WebContentStore.ContentSource.Custom;
-        var usesZips = Arg(args, "--zip") is not null || Arg(args, "--suite") == "zip";
-        var kept = usesZips && wasCustom ? webContent.CopyCustomAside() : null;   // 取り込みで上書きされる前に、選んでいた zip を退避
+        var usesZips = Arg(args, "--zip") is not null || Arg(args, "--suite") is "zip" or "engines";
+        var startIds = webContent.Entries.Select(e => e.Id).ToHashSet();
+        var startActive = webContent.ActiveId;
+        var kept = usesZips ? webContent.CopyImportedAside() : null;   // 取り込みで置き換わる前に、取り込んである zip を退避
         var savedSocket = (setting.ExternalOutputSocket, setting.LocalPort);
         if (Arg(args, "--socket") is { } port)
         {
@@ -104,7 +110,7 @@ public partial class MainForm
 
             if (Arg(args, "--zip") is { } zip)
             {
-                result["zip"] = webContent.ImportZip(zip).DisplayName;
+                result["zip"] = webContent.ImportAndActivate(zip).DisplayName;
                 web.Load();
             }
 
@@ -113,17 +119,32 @@ public partial class MainForm
                 case "zip":
                     await RunZipSuite(Arg(args, "--badzips") ?? "", result);
                     break;
+                case "engines":
+                    await RunEnginesSuite(dir, result);
+                    break;
                 case "settings":
-                    // 設定画面の見た目(Display Engine の欄)を撮る。計測中の形(zip の切り替え不可)も撮る
-                    foreach (var (name, can) in new[] { ("settings", true), ("settings-busy", false) })
+                    // 設定画面と Display Engine ダイアログの見た目を撮る。ダイアログは計測中の形(切り替え不可)も撮る
+                    foreach (var (name, make) in new (string, Func<Form>)[]
+                             {
+                                 ("settings", () => new SettingsForm(setting)),
+                                 ("display-engine", () => new DisplayEngineForm(webContent, busy: false)),
+                                 ("display-engine-busy", () => new DisplayEngineForm(webContent, busy: true)),
+                             })
                     {
-                        using var form = new SettingsForm(setting, webContent, can);
+                        using var form = make();
                         form.Show(this);
                         await Sleep(1);
                         using var bmp = new Bitmap(form.Width, form.Height);
                         form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
                         bmp.Save(Path.Combine(dir, name + ".png"));
                         form.Close();
+                    }
+
+                    // メニューバー(Setting の隣の Display Engine)も撮る。グラフ画面(WebView2)は DrawToBitmap に写らない
+                    using (var main = new Bitmap(Width, Height))
+                    {
+                        DrawToBitmap(main, new Rectangle(0, 0, Width, Height));
+                        main.Save(Path.Combine(dir, "main.png"));
                     }
 
                     break;
@@ -168,14 +189,20 @@ public partial class MainForm
         }
         if (usesZips)
         {
-            // 読み込んだ zip を残さない。もともと選んだ zip を使っていたらそれに戻す
-            if (kept is not null)
+            // 取り込んだ zip を残さない。もともと使っていたものに戻す
+            if (kept is { } k)
             {
-                webContent.RestoreCustom(kept);
+                webContent.RestoreImported(k);
             }
             else
             {
-                webContent.UseBundled();
+                // 退避できなかったときは、増えた分だけ消す(置き換えた分は戻せない)
+                foreach (var e in webContent.Entries.Where(e => !startIds.Contains(e.Id)).ToArray())
+                {
+                    try { webContent.Remove(e.Id); } catch (IOException) { }
+                }
+
+                webContent.Activate(startActive);
             }
         }
 
@@ -1039,6 +1066,171 @@ public partial class MainForm
 
     #endregion
 
+    #region Display Engine(複数の zip を持ち、1 つだけ使う)
+
+    private async Task RunEnginesSuite(string dir, JsonObject result)
+    {
+        var store = webContent;
+        var work = Path.Combine(dir, "engines");
+        if (Directory.Exists(work))
+        {
+            Directory.Delete(work, recursive: true);
+        }
+
+        Directory.CreateDirectory(work);
+        const string builtIn = WebContentStore.BuiltInId;
+        var std = store.Entries.FirstOrDefault(e => e.IsBuiltIn) ?? throw new TestTimeout("no built-in entry");
+        var bundled = Path.Combine(store.Root, "bundled");
+
+        static void CopyDir(string from, string to)
+        {
+            Directory.CreateDirectory(to);
+            foreach (var f in Directory.GetFiles(from))
+            {
+                File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
+            }
+
+            foreach (var d in Directory.GetDirectories(from))
+            {
+                CopyDir(d, Path.Combine(to, Path.GetFileName(d)));
+            }
+        }
+
+        // 同梱の標準版の中身を写し、manifest の name・title・version だけ変える
+        string MakeTree(string name, string version)
+        {
+            var src = Path.Combine(work, $"{name}-{version}");
+            CopyDir(bundled, src);
+            var mPath = Path.Combine(src, "manifest.json");
+            var m = JsonNode.Parse(File.ReadAllText(mPath))!.AsObject();
+            m["name"] = name;
+            m["title"] = name.ToUpperInvariant();
+            m["version"] = version;
+            File.WriteAllText(mPath, m.ToJsonString());
+            return src;
+        }
+
+        string MakeZip(string name, string version)
+        {
+            var src = MakeTree(name, version);
+            var zip = src + ".zip";
+            System.IO.Compression.ZipFile.CreateFromDirectory(src, zip);
+            return zip;
+        }
+
+        // ページ(WebBridge.Origin)が読んでいる manifest の name
+        async Task<string> ServedName()
+        {
+            var readies = web.ReadyCount;
+            web.Load();
+            await Wait("page ready", 30, () => web.ReadyCount > readies && web.IsReady);
+            var raw = await Eval("(() => { const x = new XMLHttpRequest(); x.open('GET', 'manifest.json', false); x.send(); return JSON.parse(x.responseText).name; })()");
+            return JsonSerializer.Deserialize<string>(raw) ?? "";
+        }
+
+        var problems = new List<string>();
+        var steps = new JsonArray();
+        void Check(string what, bool ok, object? detail = null)
+        {
+            steps.Add(new JsonObject { ["step"] = what, ["ok"] = ok, ["detail"] = detail?.ToString() ?? "" });
+            if (!ok)
+            {
+                problems.Add(what);
+            }
+        }
+
+        string Names() => string.Join(",", store.Entries.Select(e => e.IsBuiltIn ? "*" + e.Manifest.Name : e.Manifest.Name));
+        var stdName = "*" + std.Manifest.Name;
+
+        // 始めは取り込んだものを持たない状態にする(元のものは呼び出し側が退避して戻す)
+        foreach (var e in store.Entries.Where(e => !e.IsBuiltIn).ToArray())
+        {
+            store.Remove(e.Id);
+        }
+
+        store.Activate(builtIn);
+        Check("built-in only, first and active", Names() == stdName && store.ActiveId == builtIn, Names());
+        Check("built-in cannot be removed", !store.Remove(builtIn) && store.Entries[0].IsBuiltIn);
+        Check("page serves built-in", await ServedName() == std.Manifest.Name);
+
+        var zipA1 = MakeZip("enginea", "1.0.0");
+        var (a, aOutcome, aActive) = store.Add(zipA1);
+        var (b, _, _) = store.Add(MakeZip("engineb", "1.0.0"));
+        Check("add keeps active, appends in order", aOutcome == WebContentStore.AddOutcome.Added && !aActive &&
+              store.ActiveId == builtIn && Names() == $"{stdName},enginea,engineb", Names());
+
+        // 同じファイルをもう一度(別の場所に写したものでも)取り込んでも重ならない
+        var copyA1 = Path.Combine(work, "copy-of-enginea.zip");
+        File.Copy(zipA1, copyA1);
+        var (same1, o1, _) = store.Add(zipA1);
+        var (same2, o2, _) = store.Add(copyA1);
+        Check("same file is not added twice", o1 == WebContentStore.AddOutcome.AlreadyAdded &&
+              o2 == WebContentStore.AddOutcome.AlreadyAdded && same1.Id == a.Id && same2.Id == a.Id &&
+              Names() == $"{stdName},enginea,engineb", Names());
+
+        store.Activate(a.Id);
+        Check("activate one", store.ActiveId == a.Id && setting.WebContentActive == a.Id &&
+              store.Manifest?.Name == "enginea" && Path.GetFileName(store.ActiveDir) == a.Id);
+        Check("page serves the active one", await ServedName() == "enginea");
+
+        var (a2, a2Outcome, replacedActive) = store.Add(MakeZip("enginea", "2.0.0"));
+        Check("same name replaces (same id, still active, new version)", a2.Id == a.Id &&
+              a2Outcome == WebContentStore.AddOutcome.Replaced && replacedActive && store.Entries.Count == 3 &&
+              store.ActiveId == a.Id && store.Manifest?.Version == "2.0.0", Names());
+        Check("replacing keeps the position in the list", Names() == $"{stdName},enginea,engineb", Names());
+
+        var (_, _, replacedB) = store.Add(MakeZip("engineb", "2.0.0"));
+        Check("replacing an inactive one does not touch the active one", !replacedB && store.ActiveId == a.Id);
+
+        Check("remove active falls back to built-in", store.Remove(a.Id) && store.ActiveId == builtIn &&
+              setting.WebContentActive == builtIn && Names() == $"{stdName},engineb", Names());
+        Check("removed folder is gone", !Directory.Exists(Path.Combine(store.Root, "zips", a.Id)) &&
+              !File.Exists(Path.Combine(store.Root, "zips", a.Id + ".sha256")));
+        var (readd, readdOutcome, _) = store.Add(zipA1);
+        Check("a removed zip can be added again", readdOutcome == WebContentStore.AddOutcome.Added && readd.Id != a.Id, Names());
+        store.Remove(readd.Id);
+        Check("page serves built-in after remove", await ServedName() == std.Manifest.Name);
+
+        store.Activate(b.Id);
+        store.Prepare();
+        Check("active survives restart", store.ActiveId == b.Id && store.Manifest?.Name == "engineb");
+
+        setting.WebContentActive = "no-such-id";
+        store.Prepare();
+        Check("unknown active id falls back to built-in", store.ActiveId == builtIn && setting.WebContentActive == builtIn);
+
+        var refused = false;
+        try
+        {
+            store.Add(Path.Combine(work, "enginea-1.0.0", "manifest.json"));
+        }
+        catch (InvalidDataException)
+        {
+            refused = true;
+        }
+
+        Check("bad file refused, nothing changes", refused && Names() == $"{stdName},engineb", Names());
+
+        // 以前の版の形: custom\ に 1 つだけ、WebContentSource = "custom"
+        var legacySrc = MakeTree("legacy", "0.9.0");
+        CopyDir(legacySrc, Path.Combine(store.Root, "custom"));   // 作業フォルダ(Z: など)から別のドライブへは Move できない
+        setting.WebContentSource = "custom";
+        setting.WebContentActive = builtIn;
+        store.Prepare();
+        Check("legacy custom migrated and active", store.Manifest?.Name == "legacy" && Names().Contains("legacy") &&
+              Names().Contains("engineb") && !Directory.Exists(Path.Combine(store.Root, "custom")) &&
+              setting.WebContentSource is null && setting.WebContentActive == store.ActiveId, Names());
+        Check("page serves migrated one", await ServedName() == "legacy");
+
+        result["engines"] = steps;
+        if (problems.Count > 0)
+        {
+            throw new CheckFailed(problems);
+        }
+    }
+
+    #endregion
+
     #region zip の検査(悪い zip を断るか)
 
     private async Task RunZipSuite(string badDir, JsonObject result)
@@ -1055,7 +1247,7 @@ public partial class MainForm
         var watch = new[] { Path.GetDirectoryName(webContent.Root)!, webContent.Root, badDir };
         HashSet<string> Listing() => watch
             .SelectMany(d => Directory.Exists(d) ? Directory.EnumerateFileSystemEntries(d) : [])
-            .Where(p => !p.Contains(@"\tmp-") && !p.Contains(@"\old-") && !p.EndsWith(@"\custom", StringComparison.Ordinal) &&
+            .Where(p => !p.Contains(@"\tmp-") && !p.Contains(@"\old-") && !p.EndsWith(@"\zips", StringComparison.Ordinal) &&
                         !p.EndsWith("webview-debug.log", StringComparison.Ordinal))
             .ToHashSet();
 
@@ -1064,20 +1256,20 @@ public partial class MainForm
         foreach (var zip in zips)
         {
             var name = Path.GetFileName(zip);
-            var before = (webContent.Source, webContent.Manifest);
+            var before = (webContent.ActiveId, string.Join("|", webContent.Entries));
             var beforeFiles = Listing();
             var sw = Stopwatch.StartNew();
             var row = new JsonObject { ["zip"] = name };
             var accepted = false;
             try
             {
-                row["accepted"] = webContent.ImportZip(zip).DisplayName;
+                row["accepted"] = webContent.ImportAndActivate(zip).DisplayName;
                 accepted = true;
             }
             catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException)
             {
                 row["refused"] = e.Message;
-                row["unchanged"] = before == (webContent.Source, webContent.Manifest);
+                row["unchanged"] = before == (webContent.ActiveId, string.Join("|", webContent.Entries));
             }
 
             row["ms"] = sw.ElapsedMilliseconds;

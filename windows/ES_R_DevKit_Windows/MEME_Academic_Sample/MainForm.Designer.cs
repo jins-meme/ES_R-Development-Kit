@@ -19,6 +19,7 @@ namespace MEME_Academic_Sample
         {
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.settingToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.displayEngineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.quitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.versionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.leftPanel = new System.Windows.Forms.Panel();
@@ -79,6 +80,7 @@ namespace MEME_Academic_Sample
             //
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.settingToolStripMenuItem,
+            this.displayEngineToolStripMenuItem,
             this.quitToolStripMenuItem,
             this.versionToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
@@ -92,6 +94,13 @@ namespace MEME_Academic_Sample
             this.settingToolStripMenuItem.Size = new System.Drawing.Size(70, 20);
             this.settingToolStripMenuItem.Text = "Setting (&S)";
             this.settingToolStripMenuItem.Click += new System.EventHandler(this.settingToolStripMenuItem_Click);
+            //
+            // displayEngineToolStripMenuItem
+            //
+            this.displayEngineToolStripMenuItem.Name = "displayEngineToolStripMenuItem";
+            this.displayEngineToolStripMenuItem.Size = new System.Drawing.Size(120, 20);
+            this.displayEngineToolStripMenuItem.Text = "Display Engine (&D)";
+            this.displayEngineToolStripMenuItem.Click += new System.EventHandler(this.displayEngineToolStripMenuItem_Click);
             //
             // quitToolStripMenuItem
             //
@@ -526,6 +535,7 @@ namespace MEME_Academic_Sample
 
         private System.Windows.Forms.MenuStrip menuStrip1;
         private System.Windows.Forms.ToolStripMenuItem settingToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem displayEngineToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem quitToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem versionToolStripMenuItem;
         private System.Windows.Forms.Panel leftPanel;

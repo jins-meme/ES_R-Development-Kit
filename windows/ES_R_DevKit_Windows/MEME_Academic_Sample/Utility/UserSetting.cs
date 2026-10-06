@@ -53,8 +53,15 @@ public sealed class UserSetting
     /// <summary>待ち受けポート。Mac 版の既定値に合わせて 88。</summary>
     public string LocalPort { get; set; } = "88";
 
-    /// <summary>グラフ画面の中身。"bundled"(同梱の標準版)か "custom"(設定で選んだ zip)。</summary>
-    public string WebContentSource { get; set; } = "bundled";
+    /// <summary>グラフ画面で有効な中身の ID。"standard"(同梱の標準版、既定)か、取り込んだ zip の ID。WebContentStore 参照。</summary>
+    public string WebContentActive { get; set; } = "standard";
+
+    /// <summary>
+    /// 旧形式(以前の版): "bundled" / "custom"(選んだ zip を 1 つだけ持てた)。WebContentStore が新形式へ移すときだけ読み、
+    /// 移したら null にして settings.json から消す。
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WebContentSource { get; set; }
 
     public static string DefaultSaveDirectory() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "JINS", "MEME_Academic");

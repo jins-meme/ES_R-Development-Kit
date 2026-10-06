@@ -146,7 +146,21 @@ and restored on the next launch.
 | Time Display | Show graph times in local time (recording is always UTC) |
 | TCP Output | Stream measurement data to the outside over TCP |
 | Local Port | Listening port. Defaults to 88 |
-| Display Engine | Contents of the graph view. `Choose zip…` inspects the chosen zip on the spot and imports it (if it fails, the reason is shown in red and nothing changes); `Use Built-in` returns to the bundled standard version. Cannot be switched during measurement or playback. Extracted to `%LOCALAPPDATA%\JINS\MEME_Academic\WebContent` |
+
+## Display Engine
+
+Open it from `Display Engine (D)` in the menu bar, next to `Setting (S)`. It lists the zips that can draw the graph view;
+you can keep several, but only one is active.
+
+- **Standard** (the bundled zip) is the default and cannot be deleted.
+- `Add zip…` inspects the chosen zip on the spot and adds it to the list without activating it (if it fails, the reason
+  is shown in red and nothing changes). Adding the same file again does nothing; a zip whose manifest `name` is already
+  in the list replaces that entry (it stays active if it was).
+- Select a row to make it active (the graph view reloads). `Delete` removes a zip; deleting the active one goes back to Standard.
+- Nothing can be changed during measurement or playback.
+
+Zips are extracted to `%LOCALAPPDATA%\JINS\MEME_Academic\WebContent\zips`. A zip chosen in an earlier version
+(the single `custom` choice) is moved into the list on the first launch and stays active.
 
 ## TCP output
 
@@ -215,7 +229,7 @@ An entry point for verifying that the graph view works from environments where t
 It writes the result (`result.json`) and snapshots (PNG) to the specified folder, and the app closes itself. It is not included in Release builds.
 
 ```
-JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
+JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|engines|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
                          [--mode full|standard] [--seconds 20] [--badzips <folder>] [--probe <JS expression | @file>]
                          [--probe-live <same>] [--expect <blinks,EMR,EML[,step events]>] [--real [--device <address or name suffix>]]
                          [--socket <port> [--socket-stall]]
@@ -228,7 +242,8 @@ JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|set
 | `live` (default) | Instead of a real device, streams the rows of `--csv` into the receive path at 100 Hz: measure → Artifact → stop → play back the saved CSV (BLE is not touched). Verifies the saved CSV's mode and numbering (NUM) gaps, the Artifact row (299), that in the full-featured version's Standard mode the detector stops and a toast appears, and that Artifacts added during playback are written back by `Save Artifacts` (row 500) and `Disconnect` (row 600). **A real device (BLE) is used only when `--real` is given** (connects to the `--device` device and measures for `--seconds`; `--csv` is not needed) |
 | `replay` | Plays back a copy of `--csv` (in the full-featured version, waits for analysis to finish). Writes back Artifacts with `Save Artifacts` (row 299) and `Disconnect` (row 600). Compares detection counts with `--expect` (for golden `w-sit-jump-stairs`: `459,1169,1045,2837`) |
 | `zip` | Imports each zip in `--badzips` one at a time, and checks that only those starting with `good` pass, and that rejected ones leave the current contents unchanged and write nothing outside (`webview/tools/make_bad_zips.py`) |
-| `settings` | Captures the settings screen (including its form during measurement) |
+| `engines` | Goes through the Display Engine operations: Standard first and undeletable, adding does not activate, the same file is not added twice, only one is active (and it is what the page reads), the same `name` replaces in place, deleting the active one returns to Standard, the choice survives a restart, and a `custom` zip from an earlier version is migrated |
+| `settings` | Captures the settings screen and the Display Engine dialog (including its form during measurement) |
 | `webcrash` | While measuring with the rows of `--csv` streaming in, and while playing back that CSV, crashes the graph view's process (DevTools `Page.crash`). Verifies that measurement and playback continue on the reloaded page |
 | `reconnect` | Disconnect during measurement → reconnect and verify that `Start Measurement` starts measuring, and that the CSV of the disconnected session is closed the same way as on stop (files are split, NUM does not continue, Artifacts added are written back). Uses a real device with `--real`, otherwise streams the rows of `--csv` |
 
@@ -236,8 +251,8 @@ JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|set
 match the saved CSV (excluding the ARTIFACT column). Adding `--socket-stall` makes the receiving side stop reading, and verifies that measurement does not stop
 even when sending is blocked (the blocked client is disconnected).
 
-`--zip` is imported before starting through the same path as Display Engine, and afterward the bundled standard version is restored (if a chosen zip was in use originally,
-the one set aside is restored; the same goes for the `zip` suite). The save location is `<output folder>\csv` for the duration of the test.
+`--zip` is added and activated before starting through the same path as Display Engine; the zips in the list and the active one are set aside
+first and restored afterward (the same goes for the `zip` and `engines` suites). The save location is `<output folder>\csv` for the duration of the test.
 If what was checked does not match, `ok` in `result.json` becomes `false` and `error` holds the reason (Artifact write-back failures also go here
 without showing a dialog during the test).
 

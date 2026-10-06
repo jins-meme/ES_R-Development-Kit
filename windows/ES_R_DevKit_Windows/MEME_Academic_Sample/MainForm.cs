@@ -8,7 +8,7 @@ namespace MEME_Academic_Sample;
 
 /// <summary>
 /// フル機能ロガーのメイン画面。Mac 版 ContentView / MEMEViewModel に対応する。
-/// グラフは WebView2(webview/ の標準版 zip、または設定で選んだ zip)が描く。受信したサンプルは
+/// グラフは WebView2(webview/ の標準版 zip、または Display Engine で有効にした zip)が描く。受信したサンプルは
 /// <see cref="WebBridge"/> で流し、CSV 再生もページが受け持つ(アプリはファイルを仮想ホストに出すだけ)。
 /// アーティファクトはページで入力され、<see cref="WebBridge.Artifact"/> で届く。CSV への書き戻しは従来どおり停止時。
 /// </summary>
@@ -422,6 +422,7 @@ public partial class MainForm : Form
         bt_SaveArtifacts.Visible = inReplaySession;
 
         settingToolStripMenuItem.Enabled = !measuring;
+        displayEngineToolStripMenuItem.Enabled = !measuring;
         cb_SelectMode.Enabled = !inputDisabled;
         cb_TransSpeed.Enabled = !inputDisabled;
         cb_AccelRange.Enabled = !inputDisabled;
@@ -716,19 +717,21 @@ public partial class MainForm : Form
 
     private void settingToolStripMenuItem_Click(object sender, EventArgs e)
     {
-        // 計測中・再生中は Display Engine の zip を切り替えさせない(Mac・Android と同じ)
-        var before = (webContent.Source, webContent.Manifest);
-        using var form = new SettingsForm(setting, webContent, canSwitchEngine: phase is not (Phase.Measuring or Phase.Replaying));
-        var ok = form.ShowDialog(this) == DialogResult.OK;
-        if (before != (webContent.Source, webContent.Manifest))
-        {
-            // 中身が切り替わったら読み込み直す(zip の取り込みは設定画面の中で済んでいる)
-            web.Load();
-        }
-
-        if (ok)
+        using var form = new SettingsForm(setting);
+        if (form.ShowDialog(this) == DialogResult.OK)
         {
             ApplySettings();
+        }
+    }
+
+    /// <summary>グラフ画面の中身(zip)の一覧・有効化・追加・削除。計測中・再生中は中で切り替えさせない(Mac・Android と同じ)。</summary>
+    private void displayEngineToolStripMenuItem_Click(object sender, EventArgs e)
+    {
+        using var form = new DisplayEngineForm(webContent, busy: phase is Phase.Measuring or Phase.Replaying);
+        form.ShowDialog(this);
+        if (form.EngineChanged)
+        {
+            web.Load();   // 使う中身が変わったら読み込み直す(取り込み・切り替えはダイアログの中で済んでいる)
         }
     }
 
