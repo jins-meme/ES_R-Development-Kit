@@ -8,14 +8,22 @@ import java.security.MessageDigest
 import java.util.UUID
 
 /**
- * グラフ画面（WebView）の中身の置き場。中身は zip で、アプリに同梱した標準版（assets/webview/standard.zip）か、
- * 設定で選んだ zip（高機能版など）を展開して使う。仕様は DevKit の webview/README.md・BRIDGE.md。Mac の
- * WebContentStore.swift と同じ作り。
+ * グラフ画面（WebView）の中身（Display Engine）の置き場。中身は zip で、アプリに同梱した標準版（assets/webview/standard.zip）と、
+ * Display Engine ダイアログで取り込んだ zip（高機能版など、いくつでも）を展開して持っておき、そのうち 1 つだけを使う。
+ * 仕様は DevKit の webview/README.md・BRIDGE.md。Mac の WebContentStore.swift と同じ作り。
  *
- *  - 展開先: filesDir/webcontent/{bundled,custom}/
+ *  - 展開先: filesDir/webcontent/
+ *      bundled/          同梱の標準版。消せない（ID は "standard"）
+ *      zips/<ID>/        取り込んだ zip。ID は取り込んだときに振る UUID
+ *      zips/<ID>.sha256  取り込んだ zip ファイルの SHA-256（同じファイルを 2 度取り込まないため）
+ *      zips/<ID>.order   一覧の並び（取り込んだ時刻。ファイルの作成時刻は取れないため）
+ *    使っている 1 つの ID は SharedPreferences "webcontent" の active。
  *  - 同梱の標準版は、zip の中身が変わったとき（SHA-256 で見る）だけ展開し直す。
- *  - 選んだ zip は [ZipExtractor] で検査しながら一時フォルダへ展開し、manifest.json・bridgeApi・入口を確かめてから
- *    差し替える。通らなければ元のまま。前の中身は新しいものを置けてから消す。
+ *  - 取り込む zip は [ZipExtractor] で検査しながら一時フォルダへ展開し、manifest.json・bridgeApi・入口を確かめてから置く。
+ *    通らなければ何も変わらない。前の中身は新しいものを置けてから消す。
+ *  - 同じファイル（SHA-256 が同じ）をもう一度取り込んでも何もしない（一覧に重ならない）。
+ *  - manifest の name が同じ zip を取り込んだら、新しい版として置き換える（ID・一覧での位置・使っているかどうかはそのまま）。
+ *  - 以前の版の custom/（選んだ zip を 1 つだけ持てた）は、起動時に zips/ の 1 つへ移す。
  */
 class WebContentStore(private val context: Context) {
 
@@ -25,34 +33,96 @@ class WebContentStore(private val context: Context) {
         val displayName: String get() = "${title ?: name} $version"
     }
 
-    enum class Source { Bundled, Custom }
+    /** 持っている中身 1 つ（Display Engine ダイアログの 1 行） */
+    data class Entry(val id: String, val manifest: Manifest) {
+        val isBuiltIn: Boolean get() = id == BUILT_IN_ID
+    }
+
+    enum class AddOutcome { Added, Replaced, AlreadyAdded }
+
+    /** [add] の結果。[replacedActive] が true なら、使っている中身が変わったのでグラフ画面を読み込み直すこと */
+    data class AddResult(val entry: Entry, val outcome: AddOutcome, val replacedActive: Boolean)
 
     private val prefs = context.getSharedPreferences("webcontent", Context.MODE_PRIVATE)
     val root = File(context.filesDir, "webcontent").apply { mkdirs() }
     private val bundledDir get() = File(root, "bundled")
-    private val customDir get() = File(root, "custom")
+    private val zipsDir get() = File(root, "zips")
+    /** 以前の版の「選んだ zip」の置き場（移したら無くなる） */
+    private val legacyCustomDir get() = File(root, "custom")
 
-    var source = Source.Bundled
+    private fun dirOf(id: String) = if (id == BUILT_IN_ID) bundledDir else File(zipsDir, id)
+    private fun hashFileOf(id: String) = File(zipsDir, "$id.sha256")
+    private fun orderFileOf(id: String) = File(zipsDir, "$id.order")
+
+    /** 持っている中身。先頭が同梱の標準版、あとは取り込んだ順 */
+    @Volatile var entries: List<Entry> = emptyList()
         private set
-    var manifest: Manifest? = null
+    /** 使っている中身の ID */
+    @Volatile var activeId: String = BUILT_IN_ID
         private set
+
+    /** 今使う中身の manifest */
+    val manifest: Manifest? get() = entries.firstOrNull { it.id == activeId }?.manifest
 
     /** 今使う中身のフォルダ（仮想ホストの根） */
-    val activeDir: File get() = if (source == Source.Custom) customDir else bundledDir
+    val activeDir: File get() = dirOf(activeId)
 
     init { prepare() }
 
+    /** 起動時: 同梱の標準版を必要なら展開し、持っている中身を読み、設定で有効になっている 1 つを使う。 */
+    @Synchronized
     fun prepare() {
+        zipsDir.mkdirs()
         runCatching { extractBundledIfNeeded() }.onFailure { android.util.Log.w(TAG, "bundled: $it") }
-        val wanted = prefs.getString(KEY_SOURCE, Source.Bundled.name)
-        val custom = if (wanted == Source.Custom.name) runCatching { readManifest(customDir) }.getOrNull() else null
-        if (custom != null) { source = Source.Custom; manifest = custom }
-        else { source = Source.Bundled; manifest = runCatching { readManifest(bundledDir) }.getOrNull() }
+        dropLeftovers()
+        migrateLegacyCustom()
+        reloadEntries()
+        val wanted = prefs.getString(KEY_ACTIVE, BUILT_IN_ID)
+        activeId = if (entries.any { it.id == wanted }) wanted!! else BUILT_IN_ID
+        if (activeId != wanted) prefs.edit().putString(KEY_ACTIVE, activeId).apply()
+    }
+
+    /** 途中で止まった取り込み・置き換えの残り（tmp-* / old-*）を消す。起動時は何も取り込んでいないので、残っていれば全部ゴミ。 */
+    private fun dropLeftovers() {
+        root.listFiles { f -> f.name.startsWith("tmp-") || f.name.startsWith("old-") }?.forEach { it.deleteRecursively() }
+    }
+
+    /** zips/ の中を読み直す。manifest を読めないフォルダ（途中で止まった取り込みの残りなど）は消す。 */
+    private fun reloadEntries() {
+        val list = mutableListOf<Entry>()
+        runCatching { readManifest(bundledDir) }.getOrNull()?.let { list += Entry(BUILT_IN_ID, it) }
+        val imported = mutableListOf<Pair<Long, Entry>>()
+        for (d in zipsDir.listFiles { f -> f.isDirectory } ?: emptyArray()) {
+            val m = runCatching { readManifest(d) }.getOrNull()
+            if (m == null) {
+                android.util.Log.w(TAG, "drop unreadable ${d.name}")
+                d.deleteRecursively(); hashFileOf(d.name).delete(); orderFileOf(d.name).delete()
+                continue
+            }
+            val order = runCatching { orderFileOf(d.name).readText().trim().toLong() }.getOrDefault(d.lastModified())
+            imported += order to Entry(d.name, m)
+        }
+        list += imported.sortedBy { it.first }.map { it.second }
+        entries = list
+    }
+
+    /** 以前の版の custom/ を zips/ の 1 つへ移す。使っていたなら、移した先を使う設定にする。 */
+    private fun migrateLegacyCustom() {
+        val legacy = prefs.getString(KEY_LEGACY_SOURCE, null)
+        if (legacy != null) prefs.edit().remove(KEY_LEGACY_SOURCE).apply()
+        if (!legacyCustomDir.exists()) return
+        val id = UUID.randomUUID().toString()
+        if (legacyCustomDir.renameTo(dirOf(id))) {
+            orderFileOf(id).writeText(System.currentTimeMillis().toString())
+            if (legacy == "Custom") prefs.edit().putString(KEY_ACTIVE, id).apply()
+        } else {
+            android.util.Log.w(TAG, "migrate custom: rename failed")
+        }
     }
 
     private fun extractBundledIfNeeded() {
         val data = context.assets.open(BUNDLED_ASSET).use { it.readBytes() }
-        val hash = MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
+        val hash = sha256(data)
         val mark = File(root, "bundled.sha256")
         if (mark.exists() && mark.readText() == hash && bundledDir.exists()) return
         val zip = File(context.cacheDir, "standard-${UUID.randomUUID()}.zip")
@@ -66,8 +136,10 @@ class WebContentStore(private val context: Context) {
         }
     }
 
-    /** SAF で選んだ zip を取り込む（上限を超えたらコピーの途中でやめる）。 */
-    fun importZip(uri: Uri): Manifest {
+    // ---- 取り込み・有効化・削除（Display Engine ダイアログ） ----
+
+    /** SAF で選んだ zip を取り込む（上限を超えたらコピーの途中でやめる）。有効にはしない。 */
+    fun add(uri: Uri): AddResult {
         val zip = File(context.cacheDir, "import-${UUID.randomUUID()}.zip")
         try {
             val limit = ZipExtractor.Limits().maxZipBytes
@@ -83,29 +155,94 @@ class WebContentStore(private val context: Context) {
                     }
                 }
             } ?: throw ZipExtractor.Failure("The file could not be opened.")
-            return importZip(zip)
+            return add(zip)
         } finally {
             zip.delete()
         }
     }
 
-    /** zip を取り込んで「選んだ zip」に切り替える。検査に通らなければ投げ、今の中身はそのまま。 */
-    fun importZip(zip: File): Manifest {
+    /**
+     * zip を検査して取り込み、一覧に足す（有効にはしない）。検査に通らなければ投げ、何も変わらない。
+     *  - 同じファイルを既に取り込んでいれば何もしない（[AddOutcome.AlreadyAdded]。一覧に重ならない）。
+     *  - manifest の name が同じものを持っていれば、それを置き換える（[AddOutcome.Replaced]。ID・位置・使っているかどうかはそのまま）。
+     */
+    @Synchronized
+    fun add(zip: File): AddResult {
+        val hash = sha256(zip)
+        entries.firstOrNull { !it.isBuiltIn && runCatching { hashFileOf(it.id).readText() }.getOrNull() == hash }
+            ?.let { return AddResult(it, AddOutcome.AlreadyAdded, false) }
         val tmp = extractAndValidate(zip)
-        replace(customDir, tmp)
-        val m = readManifest(customDir)
-        source = Source.Custom; manifest = m
-        prefs.edit().putString(KEY_SOURCE, Source.Custom.name).apply()
-        return m
+        val m = readManifest(tmp)
+        val existing = entries.firstOrNull { !it.isBuiltIn && it.manifest.name == m.name }?.id
+        val id = existing ?: UUID.randomUUID().toString()
+        replace(dirOf(id), tmp)
+        hashFileOf(id).writeText(hash)
+        // 一覧は取り込んだ順。置き換えても並びが変わらないよう、前の時刻のままにする
+        if (existing == null || !orderFileOf(id).exists()) orderFileOf(id).writeText(System.currentTimeMillis().toString())
+        reloadEntries()
+        val entry = entries.firstOrNull { it.id == id } ?: throw ZipExtractor.Failure("manifest.json was not found at the top of the zip.")
+        return AddResult(entry, if (existing == null) AddOutcome.Added else AddOutcome.Replaced, existing != null && id == activeId)
     }
 
-    /** 同梱の標準版に戻す（取り込んだ zip のフォルダは消す）。 */
-    fun useBundled() {
-        customDir.deleteRecursively()
-        source = Source.Bundled
-        manifest = runCatching { readManifest(bundledDir) }.getOrNull()
-        prefs.edit().putString(KEY_SOURCE, Source.Bundled.name).apply()
+    /** 使う中身を切り替える（1 つだけ）。呼んだ側でグラフ画面を読み込み直すこと。 */
+    @Synchronized
+    fun activate(id: String) {
+        if (entries.none { it.id == id }) return
+        activeId = id
+        prefs.edit().putString(KEY_ACTIVE, id).apply()
     }
+
+    /** 取り込んだ zip を消す。同梱の標準版は消せない。使っていたものを消したら標準版に戻す（戻り値 true。グラフ画面を読み込み直すこと）。 */
+    @Synchronized
+    fun remove(id: String): Boolean {
+        if (id == BUILT_IN_ID || entries.none { it.id == id }) return false
+        val wasActive = id == activeId
+        if (wasActive) activate(BUILT_IN_ID)
+        if (!dirOf(id).deleteRecursively()) android.util.Log.w(TAG, "could not delete all of $id")
+        hashFileOf(id).delete(); orderFileOf(id).delete()
+        reloadEntries()
+        return wasActive
+    }
+
+    /** 取り込んで、すぐ使う（自己テスト用の近道） */
+    fun addAndActivate(zip: File): Manifest {
+        val r = add(zip)
+        activate(r.entry.id)
+        return r.entry.manifest
+    }
+
+    // ---- 自己テスト用（DebugAutoTest） ----
+
+    /** 取り込んだ zip 全部と使っている ID を、ほかの場所へ写す（自己テストが取り込む前に。同じ name だと置き換えるため）。写せなければ null */
+    internal fun copyImportedAside(): Pair<File, String>? {
+        val dst = File(context.cacheDir, "autotest-zips-${UUID.randomUUID()}")
+        return if (runCatching { zipsDir.copyRecursively(dst) }.getOrDefault(false)) dst to activeId
+        else { dst.deleteRecursively(); null }
+    }
+
+    /** [copyImportedAside] で写したものを zips/ へ戻し、使っていた ID に戻す */
+    @Synchronized
+    internal fun restoreImported(kept: Pair<File, String>) {
+        zipsDir.deleteRecursively()
+        if (!kept.first.renameTo(zipsDir)) {
+            runCatching { kept.first.copyRecursively(zipsDir, overwrite = true) }
+            kept.first.deleteRecursively()
+        }
+        prefs.edit().putString(KEY_ACTIVE, kept.second).apply()
+        prepare()
+    }
+
+    /** 自己テスト用: 以前の版の形（custom/ と source = "Custom"）を作る。dir の中身を custom/ へ写す */
+    internal fun plantLegacyCustom(dir: File) {
+        dir.copyRecursively(legacyCustomDir, overwrite = true)
+        prefs.edit().putString(KEY_LEGACY_SOURCE, "Custom").remove(KEY_ACTIVE).apply()
+    }
+
+    internal fun legacyLeft(): Boolean = legacyCustomDir.exists() || prefs.contains(KEY_LEGACY_SOURCE)
+
+    internal fun setActiveForTest(id: String) = prefs.edit().putString(KEY_ACTIVE, id).apply()
+
+    internal val bundledDirForTest: File get() = bundledDir
 
     private fun extractAndValidate(zip: File): File {
         val tmp = File(root, "tmp-${UUID.randomUUID()}")
@@ -126,7 +263,10 @@ class WebContentStore(private val context: Context) {
     private fun replace(dest: File, tmp: File) {
         val old = File(root, "old-${UUID.randomUUID()}")
         val hadOld = dest.exists()
-        if (hadOld && !dest.renameTo(old)) throw ZipExtractor.Failure("Could not replace the current page.")
+        if (hadOld && !dest.renameTo(old)) {
+            tmp.deleteRecursively()   // 前の中身をどけられなければ、展開したものも残さない
+            throw ZipExtractor.Failure("Could not replace the current page.")
+        }
         if (!tmp.renameTo(dest)) {
             if (hadOld) old.renameTo(dest)
             tmp.deleteRecursively()
@@ -139,7 +279,23 @@ class WebContentStore(private val context: Context) {
         private const val TAG = "WebContentStore"
         const val BRIDGE_API = 1
         const val BUNDLED_ASSET = "webview/standard.zip"
-        private const val KEY_SOURCE = "source"
+        /** 同梱の標準版の ID（規定。消せない） */
+        const val BUILT_IN_ID = "standard"
+        private const val KEY_ACTIVE = "active"
+        /** 以前の版の "Bundled" / "Custom"。新しい形へ移したら消す */
+        private const val KEY_LEGACY_SOURCE = "source"
+
+        private fun sha256(data: ByteArray): String =
+            MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
+
+        private fun sha256(file: File): String {
+            val md = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { ins ->
+                val buf = ByteArray(1 shl 16)
+                while (true) { val k = ins.read(buf); if (k < 0) break; md.update(buf, 0, k) }
+            }
+            return md.digest().joinToString("") { "%02x".format(it) }
+        }
 
         fun readManifest(dir: File): Manifest {
             val f = File(dir, "manifest.json")

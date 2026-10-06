@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Monitor
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -53,6 +54,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
+    var showDisplayEngine by remember { mutableStateOf(false) }
     // Play button: pick a logged CSV; the graph page replays it (Disconnect ends the replay).
     val playbackCsvPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -85,6 +87,14 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                         } else {
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         },
+                    )
+                }
+                // 表示(Display Engine): グラフ画面の中身(zip)の一覧・有効化・追加・削除。設定ボタンの横に置く
+                IconButton(onClick = { showDisplayEngine = true }) {
+                    Icon(
+                        Icons.Filled.Monitor,
+                        contentDescription = stringResource(R.string.text_label_display_engine),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
                 IconButton(onClick = { showSettings = true }) {
@@ -142,6 +152,9 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
 
     if (showSettings) {
         SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
+    }
+    if (showDisplayEngine) {
+        DisplayEngineDialog(ui = ui, vm = vm, onDismiss = { showDisplayEngine = false })
     }
 }
 

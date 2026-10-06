@@ -87,10 +87,12 @@ data class MainUiState(
     // 計測完了時に「その他のアプリと共有」を自動で開くか。
     val openSharingOnComplete: Boolean = false,
     val shareRequest: ShareRequest? = null,
-    // 設定の Display Engine: 今のグラフ画面(zip)の名前と、取り込みに失敗したときの理由
-    val graphContent: String = "",
-    val graphIsCustom: Boolean = false,
+    // Display Engine ダイアログ: 持っているグラフ画面の zip の一覧(先頭が同梱の標準版)、使っている 1 つの ID、
+    // 一覧の下に出す知らせ(取り込みに失敗した理由は赤 = graphMessageIsError、同じファイルだった・置き換えたは灰)
+    val graphEngines: List<WebContentStore.Entry> = emptyList(),
+    val graphActiveId: String = WebContentStore.BUILT_IN_ID,
     val graphMessage: String? = null,
+    val graphMessageIsError: Boolean = false,
     // 計測中、大まかな現在地を ARTIFACT 列へ残すか（既定 OFF）。
     val locationLogging: Boolean = false,
     // 本体データCSVを gz 圧縮して保存するか（既定 ON）。形式は計測開始時に確定する。
@@ -125,7 +127,7 @@ class MainViewModel(
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
 
-    // グラフ画面(WebView)。中身は zip(同梱の標準版か、設定で選んだもの)。描画・再生の操作・アーティファクトの入力は
+    // グラフ画面(WebView)。中身は zip(同梱の標準版か、Display Engine で有効にしたもの)。描画・再生の操作・アーティファクトの入力は
     // ページ側で、アプリは計測の値を push し、ページで付けたアーティファクトを CSV へ書き戻す(DevKit webview/BRIDGE.md)。
     private val webStore = WebContentStore(application)
     val web = WebBridge(application, webStore)
@@ -210,31 +212,67 @@ class MainViewModel(
 
     // ---- グラフ画面(WebView)の中身 ----
 
-    private fun refreshGraphContent(message: String? = null) {
-        val name = webStore.manifest?.displayName ?: "(none)"
-        val custom = webStore.source == WebContentStore.Source.Custom
+    private fun refreshGraphContent(message: String? = null, isError: Boolean = false) {
         _ui.update {
-            it.copy(graphContent = if (custom) "$name (zip)" else "$name (built-in)", graphIsCustom = custom, graphMessage = message)
+            it.copy(graphEngines = webStore.entries, graphActiveId = webStore.activeId,
+                graphMessage = message, graphMessageIsError = isError)
         }
     }
 
-    /** 設定の Display Engine「Choose zip…」。検査に通らなければ今の中身のまま、理由を出す */
-    fun chooseGraphZip(uri: Uri?) {
-        if (uri == null) return
+    /** Display Engine を開いたとき: 前の知らせを消して一覧を出し直す */
+    fun openDisplayEngine() = refreshGraphContent()
+
+    /** 計測中・再生中は切り替えさせない(グラフ画面を読み込み直すと表示中のものが消えるため。Mac・Windows と同じ) */
+    private val canChangeGraph: Boolean get() = !ui.value.isMeasuring && !ui.value.isReplaying
+
+    /**
+     * Display Engine「Add zip…」。一覧に足すだけで有効にはしない。検査に通らなければ何も変えず、理由を出す。
+     * 同じファイルなら何もしない。同じ name のものを使っていて置き換えたときは、グラフ画面を読み込み直す。
+     */
+    fun addGraphZip(uri: Uri?) {
+        if (uri == null || !canChangeGraph) return
         viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) { runCatching { webStore.importZip(uri) } }
-            r.onSuccess { web.load(); refreshGraphContent() }
-                .onFailure { e -> refreshGraphContent(e.message ?: e.toString()) }
+            val r = withContext(Dispatchers.IO) { runCatching { webStore.add(uri) } }
+            r.onSuccess { (entry, outcome, replacedActive) ->
+                if (replacedActive) web.load()
+                refreshGraphContent(when (outcome) {
+                    WebContentStore.AddOutcome.AlreadyAdded -> "${entry.manifest.displayName} is already in the list."
+                    WebContentStore.AddOutcome.Replaced ->
+                        "Replaced the zip named \"${entry.manifest.name}\" with ${entry.manifest.displayName}."
+                    WebContentStore.AddOutcome.Added -> null
+                })
+            }.onFailure { e -> refreshGraphContent(e.message ?: e.toString(), isError = true) }
         }
     }
 
-    /** 取り込み(自己テスト用。ファイルから)。結果の manifest か、断られた理由を返す */
+    /** Display Engine で 1 つを選ぶ(使う中身を切り替えて、グラフ画面を読み込み直す) */
+    fun activateGraph(id: String) {
+        if (!canChangeGraph || id == webStore.activeId) return
+        webStore.activate(id)
+        web.load()
+        refreshGraphContent()
+    }
+
+    /** Display Engine「Delete」。同梱の標準版は消せない。使っていたものを消したら標準版に戻して読み込み直す */
+    fun removeGraph(id: String) {
+        if (!canChangeGraph) return
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { runCatching { webStore.remove(id) } }
+            r.onSuccess { wasActive -> if (wasActive) web.load(); refreshGraphContent() }
+                .onFailure { e -> refreshGraphContent(e.message ?: e.toString(), isError = true) }
+        }
+    }
+
+    /** 取り込んですぐ使う(自己テスト用。ファイルから)。結果の manifest か、断られた理由を返す */
     internal suspend fun importGraphZipFile(file: java.io.File): Result<WebContentStore.Manifest> {
-        val r = withContext(Dispatchers.IO) { runCatching { webStore.importZip(file) } }
+        val r = withContext(Dispatchers.IO) { runCatching { webStore.addAndActivate(file) } }
         if (r.isSuccess) web.load()
-        refreshGraphContent(r.exceptionOrNull()?.message)
+        refreshGraphContent(r.exceptionOrNull()?.message, isError = r.isFailure)
         return r
     }
+
+    /** 自己テストで store を直接いじったあと、画面の一覧を合わせる */
+    internal fun graphStoreChanged() = refreshGraphContent()
 
     internal val graphStore: WebContentStore get() = webStore
 
@@ -261,8 +299,9 @@ class MainViewModel(
     internal var suppressShareForAutotest = false
 
     /** 設定の Display Engine「Use Built-in」 */
+    /** 同梱の標準版を使う(自己テストの autotest_builtin。取り込んだ zip は消さない) */
     fun useBuiltInGraph() {
-        webStore.useBundled()
+        webStore.activate(WebContentStore.BUILT_IN_ID)
         web.load()
         refreshGraphContent()
     }

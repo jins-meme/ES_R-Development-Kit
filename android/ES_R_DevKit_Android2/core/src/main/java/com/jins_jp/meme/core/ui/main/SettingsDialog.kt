@@ -21,12 +21,9 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,8 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.text.style.TextOverflow
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.data.AccRange
@@ -56,11 +51,8 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
     val canEditSettings = !ui.isMeasuring
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
-    // グラフ画面の zip は計測中・再生中は切り替えない
-    val canChangeGraph = !ui.isMeasuring && !ui.isReplaying
-    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> vm.chooseGraphZip(uri) }
-
-    // 既定の幅(プラットフォームのダイアログ幅)だと Display Engine のボタンが折り返して崩れるので、画面幅の 95% まで広げ、
+    // グラフ画面の中身(zip)の切り替えは、設定ボタンの横の Display Engine から(DisplayEngineDialog)。
+    // 既定の幅(プラットフォームのダイアログ幅)だとボタンが折り返して崩れるので、画面幅の 95% まで広げ、
     // 中身は縦にスクロールさせる(項目が増えて画面に収まらないと、下の項目が押しつぶされて重なっていた)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -194,35 +186,6 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                     )
                 }
 
-                // Display Engine: グラフ画面(WebView)の中身の zip。同梱の標準版か、選んだ zip(高機能版など)。
-                // チェックボックスの下に区切って置き、ボタンは横に等分して 1 行に収める
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Display Engine", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        Text(ui.graphContent, style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = { zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
-                            enabled = canChangeGraph,
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Choose zip…", maxLines = 1) }
-                        OutlinedButton(
-                            onClick = { vm.useBuiltInGraph() },
-                            enabled = canChangeGraph && ui.graphIsCustom,
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Use Built-in", maxLines = 1) }
-                    }
-                    // 取り込みに失敗したときだけ理由を出す
-                    ui.graphMessage?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
-                }
             }
         },
         confirmButton = {

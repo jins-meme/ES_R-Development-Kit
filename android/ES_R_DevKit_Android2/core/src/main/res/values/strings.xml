@@ -11,6 +11,7 @@
     <string name="text_label_set_acceleration">Accelerometer range</string>
     <string name="text_label_set_gyroacope">Gyroscope range</string>
     <string name="text_label_settings">Settings</string>
+    <string name="text_label_display_engine">Display Engine</string>
     <string name="button_playback">Playback (replay logged CSV)</string>
     <string name="text_label_auto_connect">Auto-connect when discovered</string>
     <string name="text_label_reconnect">Reconnect and restart when BLE disconnected</string>

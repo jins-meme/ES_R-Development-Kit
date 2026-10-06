@@ -13,7 +13,9 @@ import com.jins_jp.meme.core.data.GyroRange
 import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
 import com.jins_jp.meme.core.data.decompressIfGzip
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -29,9 +31,14 @@ import java.io.File
  * グラフ画面の zip の取り込み・悪い zip の検査・CSV 再生を回すため。ファイルはアプリ専用の外部フォルダ
  * （/sdcard/Android/data/<パッケージ>/files/。adb push で置ける）から読み、結果は同じ場所の autotest/<名前>.json に書く。
  *
- *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_zip advanced.zip        # 設定の Display Engine と同じ取り込み
+ *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_zip advanced.zip        # Display Engine と同じ取り込みをして、それを使う
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_badzips badzips         # 名前が good で始まるものだけ通るか
- *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_builtin true            # 同梱の標準版に戻す
+ *       # (取り込んである zip の一覧と使っている 1 つは退避しておき、終わったら戻す)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_builtin true            # 同梱の標準版を使う(取り込んだ zip は消さない)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_engines true            # Display Engine の操作を通しで見る(Mac・Windows の engines と同じ)
+ *       # 標準版は先頭で消せない・取り込んでも有効にならない・同じファイルは重ならない・使うのは 1 つだけ(ページが読む manifest もそれ)・
+ *       # 同じ name は置き換え(位置も使っているかもそのまま)・使っているものを消すと標準版に戻る・起動し直しても(prepare)残る・
+ *       # 無い ID なら標準版・以前の版の custom/ が zips/ の 1 つへ移る。試す zip は同梱の標準版の中身から作る。終わったら元に戻す
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_replay <CSV>            # 再生を始める
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_end true                # 再生を終える(書き戻し)
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_crash true              # グラフ画面のレンダラを落とす
@@ -75,7 +82,15 @@ object DebugAutoTest {
         }
         intent.getStringExtra("autotest_badzips")?.let { dir ->
             intent.removeExtra("autotest_badzips")
-            scope.launch { write(out, "badzips", badZips(vm, File(base, dir))) }
+            scope.launch { write(out, "badzips", keepingEngines(vm) { badZips(vm, File(base, dir)) }) }
+        }
+        if (intent.getBooleanExtra("autotest_engines", false)) {
+            intent.removeExtra("autotest_engines")
+            scope.launch {
+                write(out, "engines", keepingEngines(vm) {
+                    runCatching { engines(context, vm) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) }
+                })
+            }
         }
         if (intent.getBooleanExtra("autotest_builtin", false)) {
             intent.removeExtra("autotest_builtin")
@@ -135,17 +150,17 @@ object DebugAutoTest {
         val zips = dir.listFiles { f -> f.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList()
         val watch = listOf(store.root.parentFile!!, store.root, dir)
         fun listing() = watch.flatMap { d -> d.list()?.map { "${d.path}/$it" } ?: emptyList() }
-            .filter { !it.contains("/tmp-") && !it.contains("/old-") && !it.endsWith("/custom") }.toSet()
+            .filter { !it.contains("/tmp-") && !it.contains("/old-") && !it.endsWith("/zips") }.toSet()
         val rows = JSONArray()
         var allOk = zips.isNotEmpty()
         for (zip in zips) {
-            val before = store.source to store.manifest
+            val before = store.activeId to store.entries
             val beforeFiles = listing()
             val t0 = System.currentTimeMillis()
             val r = vm.importGraphZipFile(zip)
             val row = JSONObject().put("zip", zip.name).put("ms", System.currentTimeMillis() - t0)
             r.onSuccess { row.put("accepted", it.displayName) }
-            r.onFailure { row.put("refused", it.message); row.put("unchanged", before == (store.source to store.manifest)) }
+            r.onFailure { row.put("refused", it.message); row.put("unchanged", before == (store.activeId to store.entries)) }
             val extra = listing() - beforeFiles
             if (extra.isNotEmpty()) row.put("writtenOutside", JSONArray(extra.sorted()))
             val left = store.root.list()?.filter { it.startsWith("tmp-") } ?: emptyList()
@@ -157,11 +172,136 @@ object DebugAutoTest {
             allOk = allOk && ok
             rows.put(row)
         }
-        vm.useBuiltInGraph()
         // どれか 1 つでも NG なら、組全体も ok にしない(ほかのテストの json と同じく ok を見れば足りるように)
         val failed = (0 until rows.length()).map { rows.getJSONObject(it) }.filter { !it.optBoolean("ok") }.map { "zip " + it.optString("zip") }
         return JSONObject().put("ok", failed.isEmpty()).put("allOk", allOk).put("zips", rows)
             .apply { if (failed.isNotEmpty()) put("error", "check failed: " + failed.joinToString("; ")) }
+    }
+
+    /** 取り込んである zip の一覧と使っている 1 つを退避して block を回し、終わったら戻す(テストで取り込んだ zip を残さない) */
+    private suspend fun keepingEngines(vm: MainViewModel, block: suspend () -> JSONObject): JSONObject {
+        val store = vm.graphStore
+        val kept = withContext(Dispatchers.IO) { store.copyImportedAside() }
+            ?: return JSONObject().put("ok", false).put("error", "could not set the imported zips aside")
+        return try {
+            block()
+        } finally {
+            withContext(Dispatchers.IO) { store.restoreImported(kept) }
+            vm.web.load()
+            vm.graphStoreChanged()
+        }
+    }
+
+    // ---- Display Engine(複数の zip を持ち、1 つだけ使う) ----
+
+    private suspend fun engines(context: Context, vm: MainViewModel): JSONObject {
+        val store = vm.graphStore
+        val builtIn = WebContentStore.BUILT_IN_ID
+        val work = File(context.cacheDir, "autotest-engines").apply { deleteRecursively(); mkdirs() }
+        val std = store.entries.firstOrNull { it.isBuiltIn } ?: throw IllegalStateException("no built-in entry")
+
+        // 同梱の標準版の中身を写し、manifest の name・title・version だけ変える
+        fun makeTree(name: String, version: String): File {
+            val src = File(work, "$name-$version")
+            store.bundledDirForTest.copyRecursively(src, overwrite = true)
+            val mf = File(src, "manifest.json")
+            mf.writeText(JSONObject(mf.readText()).put("name", name).put("title", name.uppercase()).put("version", version).toString())
+            return src
+        }
+        fun makeZip(name: String, version: String): File {
+            val src = makeTree(name, version)
+            val zip = File(work, "$name-$version.zip")
+            java.util.zip.ZipOutputStream(zip.outputStream()).use { zos ->
+                src.walkTopDown().filter { it.isFile }.forEach { f ->
+                    zos.putNextEntry(java.util.zip.ZipEntry(f.relativeTo(src).invariantSeparatorsPath))
+                    f.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+            return zip
+        }
+        // ページ(読み込み直したもの)が読んでいる manifest の name
+        suspend fun servedName(): String {
+            vm.web.load()
+            delay(300)
+            waitFor("page ready", 30_000) { vm.web.isReady }
+            val r = page(vm, "(() => { const x = new XMLHttpRequest(); x.open('GET', 'manifest.json', false); x.send(); return JSON.parse(x.responseText).name; })()")
+            return runCatching { JSONArray("[$r]").getString(0) }.getOrDefault(r)
+        }
+
+        val steps = JSONArray()
+        val problems = mutableListOf<String>()
+        fun check(what: String, ok: Boolean, detail: Any? = "") {
+            steps.put(JSONObject().put("step", what).put("ok", ok).put("detail", detail.toString()))
+            if (!ok) problems += what
+        }
+        fun names() = store.entries.joinToString(",") { if (it.isBuiltIn) "*" + it.manifest.name else it.manifest.name }
+        val stdName = "*" + std.manifest.name
+        suspend fun <T> io(f: () -> T): T = withContext(Dispatchers.IO) { f() }
+
+        // 始めは取り込んだものを持たない状態にする(元のものは keepingEngines が退避して戻す)
+        io { store.entries.filter { !it.isBuiltIn }.forEach { store.remove(it.id) }; store.activate(builtIn) }
+        check("built-in only, first and active", names() == stdName && store.activeId == builtIn, names())
+        check("built-in cannot be removed", !io { store.remove(builtIn) } && store.entries.first().isBuiltIn)
+        check("page serves built-in", servedName() == std.manifest.name)
+
+        val zipA1 = io { makeZip("enginea", "1.0.0") }
+        val a = io { store.add(zipA1) }
+        val b = io { store.add(makeZip("engineb", "1.0.0")) }
+        check("add keeps active, appends in order", a.outcome == WebContentStore.AddOutcome.Added && !a.replacedActive &&
+            store.activeId == builtIn && names() == "$stdName,enginea,engineb", names())
+
+        // 同じファイルをもう一度(別の場所に写したものでも)取り込んでも重ならない
+        val copyA1 = File(work, "copy-of-enginea.zip").also { zipA1.copyTo(it, overwrite = true) }
+        val same1 = io { store.add(zipA1) }
+        val same2 = io { store.add(copyA1) }
+        check("same file is not added twice", same1.outcome == WebContentStore.AddOutcome.AlreadyAdded &&
+            same2.outcome == WebContentStore.AddOutcome.AlreadyAdded && same1.entry.id == a.entry.id &&
+            same2.entry.id == a.entry.id && names() == "$stdName,enginea,engineb", names())
+
+        store.activate(a.entry.id)
+        check("activate one", store.activeId == a.entry.id && store.manifest?.name == "enginea" &&
+            store.activeDir.name == a.entry.id)
+        check("page serves the active one", servedName() == "enginea")
+
+        val a2 = io { store.add(makeZip("enginea", "2.0.0")) }
+        check("same name replaces (same id, still active, new version)", a2.entry.id == a.entry.id &&
+            a2.outcome == WebContentStore.AddOutcome.Replaced && a2.replacedActive && store.entries.size == 3 &&
+            store.activeId == a.entry.id && store.manifest?.version == "2.0.0", names())
+        check("replacing keeps the position in the list", names() == "$stdName,enginea,engineb", names())
+
+        val b2 = io { store.add(makeZip("engineb", "2.0.0")) }
+        check("replacing an inactive one does not touch the active one", !b2.replacedActive && store.activeId == a.entry.id)
+
+        check("remove active falls back to built-in", io { store.remove(a.entry.id) } && store.activeId == builtIn &&
+            names() == "$stdName,engineb", names())
+        check("removed folder is gone", !File(store.root, "zips/${a.entry.id}").exists() &&
+            !File(store.root, "zips/${a.entry.id}.sha256").exists())
+        val readd = io { store.add(zipA1) }
+        check("a removed zip can be added again", readd.outcome == WebContentStore.AddOutcome.Added && readd.entry.id != a.entry.id, names())
+        io { store.remove(readd.entry.id) }
+        check("page serves built-in after remove", servedName() == std.manifest.name)
+
+        store.activate(b.entry.id)
+        io { store.prepare() }
+        check("active survives restart", store.activeId == b.entry.id && store.manifest?.name == "engineb")
+
+        store.setActiveForTest("no-such-id")
+        io { store.prepare() }
+        check("unknown active id falls back to built-in", store.activeId == builtIn)
+
+        val refused = io { runCatching { store.add(File(work, "enginea-1.0.0/manifest.json")) }.isFailure }
+        check("bad file refused, nothing changes", refused && names() == "$stdName,engineb", names())
+
+        // 以前の版の形: custom/ に 1 つだけ、source = "Custom"
+        io { store.plantLegacyCustom(makeTree("legacy", "0.9.0")); store.prepare() }
+        check("legacy custom migrated and active", store.manifest?.name == "legacy" && names().contains("legacy") &&
+            names().contains("engineb") && !store.legacyLeft(), names())
+        check("page serves migrated one", servedName() == "legacy")
+
+        work.deleteRecursively()
+        return JSONObject().put("ok", problems.isEmpty()).put("engines", steps)
+            .apply { if (problems.isNotEmpty()) put("error", "check failed: " + problems.joinToString("; ")) }
     }
 
     private suspend fun waitFor(what: String, ms: Long, cond: () -> Boolean) {
