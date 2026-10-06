@@ -105,11 +105,19 @@ final class WebContentStore {
     /// 起動時: 同梱の標準版を必要なら展開し、持っている中身を読み、設定で有効になっている 1 つを使う。
     func prepare() {
         do { try extractBundledIfNeeded() } catch { NSLog("[WebContent] bundled: %@", error.localizedDescription) }
+        dropLeftovers()
         migrateLegacyCustom()
         reloadEntries()
         let wanted = UserSetting.getWebContentActive() ?? Self.builtInId
         activeId = entries.contains { $0.id == wanted } ? wanted : Self.builtInId
         if activeId != wanted { UserSetting.setWebContentActive(activeId) }
+    }
+
+    /// 途中で止まった取り込み・置き換えの残り(tmp-* / old-*)を消す。起動時は何も取り込んでいないので、残っていれば全部ゴミ。
+    private func dropLeftovers() {
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix("tmp-") || name.hasPrefix("old-") {
+            try? fm.removeItem(at: root.appendingPathComponent(name))
+        }
     }
 
     /// zips/ の中を読み直す。manifest を読めないフォルダ(途中で止まった取り込みの残りなど)は消す。
@@ -264,7 +272,12 @@ final class WebContentStore {
     private func replace(_ dest: URL, with tmp: URL) throws {
         let old = root.appendingPathComponent("old-\(UUID().uuidString)", isDirectory: true)
         let hadOld = fm.fileExists(atPath: dest.path)
-        if hadOld { try fm.moveItem(at: dest, to: old) }
+        if hadOld {
+            do { try fm.moveItem(at: dest, to: old) } catch {
+                try? fm.removeItem(at: tmp)   // 前の中身をどけられなければ、展開したものも残さない
+                throw error
+            }
+        }
         do {
             try fm.moveItem(at: tmp, to: dest)
         } catch {
