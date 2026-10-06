@@ -28,7 +28,7 @@ android {
         applicationId = "com.jins_jp.meme.academic"
         minSdk = 31
         targetSdk = 37
-        versionCode = 26
+        versionCode = 29
         versionName = "3.1.0"
     }
 

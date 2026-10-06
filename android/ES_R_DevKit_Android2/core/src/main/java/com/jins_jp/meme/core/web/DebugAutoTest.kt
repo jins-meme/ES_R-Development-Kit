@@ -41,7 +41,11 @@ import java.io.File
  *       # 無い ID なら標準版・以前の版の custom/ が zips/ の 1 つへ移る。試す zip は同梱の標準版の中身から作る。終わったら元に戻す
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_replay <CSV>            # 再生を始める
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_end true                # 再生を終える(書き戻し)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_native_crash true       # アプリごとネイティブで落とす(SIGSEGV)
+ *       # 取り込んだ zip を使っている間にこれで落とすと、次の起動で標準版へ戻り、知らせが出る(WebContentStore.fallBackToBuiltIn)。
+ *       # 戻ったかは autotest/fallback.json(次の起動で書く)
  *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_crash true              # グラフ画面のレンダラを落とす
+ *       # 取り込んだ zip を使っている間に 60 秒以内に 2 回落とすと、標準版へ戻る
  *       # 作り直したページで、計測中なら計測(端末のアドレス)、再生中なら再生(ファイル名)が続いているかを crash.json に書く
  *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_live full --ei autotest_seconds 20 --es autotest_device 6E:AD
  *       # **実機(メガネ)を使う**: 条件を full|standard・100Hz・±8g・±1000dps にし、autotest_device(アドレスの末尾。省略時は
@@ -138,6 +142,19 @@ object DebugAutoTest {
             scope.launch {
                 write(out, "crash", runCatching { crashPage(vm) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
+        }
+        if (intent.getBooleanExtra("autotest_native_crash", false)) {
+            intent.removeExtra("autotest_native_crash")
+            write(out, "native-crash", JSONObject().put("activeBefore", vm.graphStore.manifest?.displayName))
+            android.system.Os.kill(android.system.Os.getpid(), android.system.OsConstants.SIGSEGV)
+        }
+        // 起動したときの Display Engine の状態(autotest_native_crash で落としたあと、標準版へ戻ったか)
+        if (intent.getBooleanExtra("autotest_fallback_state", false)) {
+            intent.removeExtra("autotest_fallback_state")
+            val ui = vm.ui.value
+            write(out, "fallback", JSONObject().put("active", vm.graphStore.activeId)
+                .put("activeName", vm.graphStore.manifest?.displayName)
+                .put("message", ui.graphMessage).put("toast", ui.toast))
         }
         if (intent.getBooleanExtra("autotest_end", false)) {
             intent.removeExtra("autotest_end")

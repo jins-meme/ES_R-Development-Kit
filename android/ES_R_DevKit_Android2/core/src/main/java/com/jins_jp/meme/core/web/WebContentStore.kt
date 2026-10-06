@@ -24,6 +24,10 @@ import java.util.UUID
  *  - 同じファイル（SHA-256 が同じ）をもう一度取り込んでも何もしない（一覧に重ならない）。
  *  - manifest の name が同じ zip を取り込んだら、新しい版として置き換える（ID・一覧での位置・使っているかどうかはそのまま）。
  *  - 以前の版の custom/（選んだ zip を 1 つだけ持てた）は、起動時に zips/ の 1 つへ移す。
+ *  - 取り込んだ zip が落ちる場合の保護（[fallBackToBuiltIn]）: zip のページは GPU ドライバの不具合などでアプリごと落とすことがある
+ *    （Android の WebView は GPU の処理をアプリのプロセスの中で動かす）。使う中身は保存されるので、そのままだと起動のたびに落ちて
+ *    Display Engine を開いて戻すこともできない。前回の終わり方がネイティブのクラッシュで、その時に取り込んだ zip を使っていたら、
+ *    起動時に標準版へ戻して知らせる（[takeFallbackNotice]）。グラフ画面のプロセスだけが続けて落ちたときは WebBridge が戻す。
  */
 class WebContentStore(private val context: Context) {
 
@@ -67,7 +71,12 @@ class WebContentStore(private val context: Context) {
     /** 今使う中身のフォルダ（仮想ホストの根） */
     val activeDir: File get() = dirOf(activeId)
 
-    init { prepare() }
+    /** 標準版へ戻したときの知らせ([takeFallbackNotice])。init で入れるので init より前に置く */
+    @Volatile private var fallbackNotice: String? = null
+
+    // 前回の終わり方を見るのはプロセスが始まったときの 1 回だけ(prepare は自己テストの片付けでも呼ばれ、
+    // その時は「読み込み中」の印が残っていても落ちたわけではない)
+    init { prepare(); checkLastExit() }
 
     /** 起動時: 同梱の標準版を必要なら展開し、持っている中身を読み、設定で有効になっている 1 つを使う。 */
     @Synchronized
@@ -80,6 +89,66 @@ class WebContentStore(private val context: Context) {
         val wanted = prefs.getString(KEY_ACTIVE, BUILT_IN_ID)
         activeId = if (entries.any { it.id == wanted }) wanted!! else BUILT_IN_ID
         if (activeId != wanted) prefs.edit().putString(KEY_ACTIVE, activeId).apply()
+    }
+
+    // ---- 取り込んだ zip が落ちる場合の保護 ----
+
+    /** 標準版へ戻したときの知らせ(1 度だけ返す)。ViewModel が画面に出す */
+    fun takeFallbackNotice(): String? = fallbackNotice.also { fallbackNotice = null }
+
+    /**
+     * 使っている取り込んだ zip をやめて標準版へ戻す(落ちる zip から抜けるため)。戻したら true。
+     * [why] は知らせの文の後半(例: "crashed the app")。
+     */
+    @Synchronized
+    fun fallBackToBuiltIn(why: String): Boolean {
+        if (activeId == BUILT_IN_ID) return false
+        val name = manifest?.displayName ?: activeId
+        activate(BUILT_IN_ID)
+        fallbackNotice = "$name $why, so the built-in Standard is used now. You can choose it again in Display Engine."
+        android.util.Log.w(TAG, "fall back to built-in: $name $why")
+        return true
+    }
+
+    /**
+     * 取り込んだ zip のページを読み込み始めた(WebBridge.load)。[markEngineStable] まで「読み込み中」の印を残す。
+     * 落ちた直後に OS がアプリをすぐ開き直すと、落ちたプロセスの終わり方(ApplicationExitInfo)がまだ記録されていないことがあるので、
+     * その場合はこの印で落ちたと見る([checkLastExit])。
+     */
+    fun markEngineLoading() {
+        if (activeId != BUILT_IN_ID) prefs.edit().putLong(KEY_LOADING_SINCE, System.currentTimeMillis()).commit()
+    }
+
+    /** ページが読み込めてしばらく落ちなかった(WebBridge が ready の後に呼ぶ)。印を消す */
+    fun markEngineStable() {
+        if (prefs.contains(KEY_LOADING_SINCE)) prefs.edit().remove(KEY_LOADING_SINCE).apply()
+    }
+
+    /**
+     * 前回このアプリのプロセスがネイティブのクラッシュで終わっていて、その時に取り込んだ zip を使っていたら標準版へ戻す。
+     *  - その zip を有効にした時刻より後の終わり方だけを見る(前に別の理由で落ちたものを、新しく選んだ zip のせいにしない)。
+     *    同じ終わり方は 1 度だけ見る。Java の例外で落ちたものはアプリの不具合なので見ない。
+     *  - 終わり方の記録がまだ無く、ページを読み込み中の印が残っていたら、落ちてすぐ OS に開き直されたと見て戻す
+     *    (Pixel 10 Pro XL で、落ちた直後の自動の開き直しでは記録が間に合わず、同じ zip でもう 1 度落ちていた)。
+     *    ユーザーが閉じた・OS が止めたときは記録が残るので、こちらには来ない。
+     */
+    private fun checkLastExit() {
+        val loadingSince = prefs.getLong(KEY_LOADING_SINCE, 0L)
+        prefs.edit().remove(KEY_LOADING_SINCE).apply()
+        if (activeId == BUILT_IN_ID) return
+        val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return
+        val last = runCatching { am.getHistoricalProcessExitReasons(context.packageName, 0, 5) }.getOrNull()
+            ?.firstOrNull { it.processName == context.packageName }
+        val handled = prefs.getLong(KEY_HANDLED_EXIT, 0L)
+        val activatedAt = prefs.getLong(KEY_ACTIVATED_AT, 0L)
+        if (last != null && last.timestamp > handled) {
+            prefs.edit().putLong(KEY_HANDLED_EXIT, last.timestamp).apply()
+            if (last.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE && last.timestamp > activatedAt) {
+                fallBackToBuiltIn("crashed the app")
+            }
+            return
+        }
+        if (loadingSince > 0L && loadingSince >= activatedAt) fallBackToBuiltIn("crashed the app")
     }
 
     /** 途中で止まった取り込み・置き換えの残り（tmp-* / old-*）を消す。起動時は何も取り込んでいないので、残っていれば全部ゴミ。 */
@@ -189,7 +258,8 @@ class WebContentStore(private val context: Context) {
     fun activate(id: String) {
         if (entries.none { it.id == id }) return
         activeId = id
-        prefs.edit().putString(KEY_ACTIVE, id).apply()
+        // 有効にした時刻(これより前の落ち方を、この zip のせいにしないため。checkLastExit)
+        prefs.edit().putString(KEY_ACTIVE, id).putLong(KEY_ACTIVATED_AT, System.currentTimeMillis()).apply()
     }
 
     /** 取り込んだ zip を消す。同梱の標準版は消せない。使っていたものを消したら標準版に戻す（戻り値 true。グラフ画面を読み込み直すこと）。 */
@@ -282,6 +352,9 @@ class WebContentStore(private val context: Context) {
         /** 同梱の標準版の ID（規定。消せない） */
         const val BUILT_IN_ID = "standard"
         private const val KEY_ACTIVE = "active"
+        private const val KEY_ACTIVATED_AT = "activatedAt"
+        private const val KEY_HANDLED_EXIT = "handledExit"
+        private const val KEY_LOADING_SINCE = "engineLoadingSince"
         /** 以前の版の "Bundled" / "Custom"。新しい形へ移したら消す */
         private const val KEY_LEGACY_SOURCE = "source"
 

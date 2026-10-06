@@ -67,6 +67,15 @@ public sealed class WebBridge : IDisposable
     /// <summary>再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)</summary>
     public event Action<JsonElement>? ReplayInfo;
 
+    /// <summary>落ち続ける取り込んだ zip をやめて標準版へ戻したとき(知らせの文)</summary>
+    public event Action<string>? EngineFallback;
+
+    /// <summary>取り込んだ zip のページがこの間に 2 回落ちたら標準版へ戻す</summary>
+    public static readonly TimeSpan CrashWindow = TimeSpan.FromSeconds(60);
+
+    /// <summary>直前にページのプロセスが落ちた時刻(続けて落ちるかを見る)</summary>
+    private DateTime? lastProcessFailedAt;
+
     /// <summary>判定器の通知・演算結果の表(kind = notify / table / records)と、メッセージの長さ。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める</summary>
     public event Action<JsonElement, int>? Output;
 
@@ -167,7 +176,20 @@ public sealed class WebBridge : IDisposable
                 or CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
                 or CoreWebView2ProcessFailedKind.BrowserProcessExited)
             {
-                owner.BeginInvoke(Load);
+                owner.BeginInvoke(() =>
+                {
+                    // 取り込んだ zip のページで続けて(前回から 60 秒以内に)落ちたら、標準版へ戻してから読み込み直す
+                    // (落ちるたびに読み込み直すので、そのままだと落ち続ける)
+                    var now = DateTime.UtcNow;
+                    var again = lastProcessFailedAt is { } last && now - last < CrashWindow;
+                    lastProcessFailedAt = now;
+                    var notice = again ? store.FallBackToBuiltIn("kept crashing the graph view") : null;
+                    Load();
+                    if (notice is not null)
+                    {
+                        EngineFallback?.Invoke(notice);
+                    }
+                });
             }
         };
         Load();

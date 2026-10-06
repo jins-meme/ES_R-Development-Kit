@@ -64,7 +64,9 @@ public sealed class DisplayEngineForm : Form
         Controls.AddRange([heading, detail, list, message, separator, add, done]);
         AcceptButton = done;
         CancelButton = done;
-        Rebuild();
+        // 落ちる zip をやめて標準版へ戻したばかりなら、その知らせを出す
+        var fallback = store.TakeFallbackNotice();
+        Rebuild(fallback, isError: fallback is not null);
     }
 
     /// <summary>使う中身が変わったか(取り込みで使っているものが置き換わった・有効化・使っているものを消した)</summary>

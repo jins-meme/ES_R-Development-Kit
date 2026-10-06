@@ -79,6 +79,13 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     var onArtifact: ((Long, String) -> Unit)? = null
     /** 再生する CSV をページが読み終えた */
     var onReplayInfo: ((JSONObject) -> Unit)? = null
+    /** 落ち続ける取り込んだ zip をやめて標準版へ戻したとき(知らせは store.takeFallbackNotice()) */
+    var onEngineFallback: (() -> Unit)? = null
+
+    /** 直前にグラフ画面のプロセスが落ちた時刻(続けて落ちるかを見る) */
+    private var lastRendererGoneAt = 0L
+    /** load の回数(ready の後の「安定した」印が、前の読み込みのものでないかを見る) */
+    private var loadGeneration = 0
     /** 判定器の通知・演算結果の表(kind = notify / table / records)。ライブの間だけ受けるかは受け手([DetectorOutputs])が決める */
     var onOutput: ((JSONObject) -> Unit)? = null
 
@@ -133,7 +140,16 @@ class WebBridge(private val context: Context, private val store: WebContentStore
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Log.w(TAG, "render process gone (crash=${detail.didCrash()}); recreating")
-                main.post { recreate() }
+                // 取り込んだ zip のページで続けて(前回から 60 秒以内に)落ちたら、標準版へ戻してから作り直す
+                // (落ちるたびに作り直して読み込み直すので、そのままだと落ち続ける)
+                val now = android.os.SystemClock.elapsedRealtime()
+                val again = lastRendererGoneAt != 0L && now - lastRendererGoneAt < RENDERER_CRASH_WINDOW_MS
+                lastRendererGoneAt = now
+                val fellBack = again && store.fallBackToBuiltIn("kept crashing the graph view")
+                main.post {
+                    recreate()
+                    if (fellBack) onEngineFallback?.invoke()
+                }
                 return true
             }
         }
@@ -180,6 +196,8 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         pending.clear()
         rows.setLength(0)
         keepRunning = store.manifest?.runInBackground == true
+        store.markEngineLoading()   // 取り込んだ zip なら、落ちずに安定するまで印を残す(WebContentStore.checkLastExit)
+        loadGeneration++
         val entry = store.manifest?.entry ?: "index.html"
         _webView.value.loadUrl("$ORIGIN/$entry")
         resumeSession()
@@ -298,6 +316,9 @@ class WebBridge(private val context: Context, private val store: WebContentStore
                     return
                 }
                 isReady = true
+                // ready の後しばらく落ちなければ、取り込んだ zip の「読み込み中」の印を消す(同じ読み込みのままのときだけ)
+                val gen = loadGeneration
+                main.postDelayed({ if (gen == loadGeneration) store.markEngineStable() }, ENGINE_STABLE_MS)
                 val queued = pending.toList(); pending.clear()
                 for (js in queued) _webView.value.evaluateJavascript("$js;0", null)
             }
@@ -350,6 +371,10 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     }
 
     companion object {
+        /** 取り込んだ zip のページがこの間に 2 回落ちたら標準版へ戻す */
+        private const val RENDERER_CRASH_WINDOW_MS = 60_000L
+        /** ready の後、これだけ落ちなければ「読み込み中」の印を消す(garden は読み込んで 3〜9 秒で落ちていた) */
+        private const val ENGINE_STABLE_MS = 20_000L
         private const val TAG = "WebBridge"
         const val HOST = "appassets.androidplatform.net"
         const val ORIGIN = "https://$HOST"

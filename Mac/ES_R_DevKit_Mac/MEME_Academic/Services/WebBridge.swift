@@ -41,6 +41,12 @@ final class WebBridge: NSObject {
     var onArtifact: ((Int, String) -> Void)?
     /// 再生する CSV をページが読み終えた(mode / cps / accRange / gyroRange / rows / warning)
     var onReplayInfo: (([String: Any]) -> Void)?
+    /// 落ち続ける取り込んだ zip をやめて標準版へ戻したとき(知らせの文)
+    var onEngineFallback: ((String) -> Void)?
+    /// 直前にページのプロセスが落ちた時刻(続けて落ちるかを見る)
+    private var lastTerminatedAt: Date?
+    /// 取り込んだ zip のページがこの間に 2 回落ちたら標準版へ戻す
+    static let crashWindow: TimeInterval = 60
     /// 判定器の通知・演算結果の表(kind = notify / table / records)。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める
     var onOutput: (([String: Any]) -> Void)?
 
@@ -215,7 +221,14 @@ extension WebBridge: WKNavigationDelegate {
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         NSLog("[WebBridge] web content process terminated; reloading")
+        // 取り込んだ zip のページで続けて(前回から 60 秒以内に)落ちたら、標準版へ戻してから読み込み直す
+        // (落ちるたびに読み込み直すので、そのままだと落ち続ける)
+        let now = Date()
+        let again = lastTerminatedAt.map { now.timeIntervalSince($0) < Self.crashWindow } ?? false
+        lastTerminatedAt = now
+        let notice = again ? WebContentStore.shared.fallBackToBuiltIn("kept crashing the graph view") : nil
         load()
+        if let notice { onEngineFallback?(notice) }
     }
 }
 

@@ -72,6 +72,8 @@ final class MEMEViewModel: NSObject {
     var showingSettings: Bool = false
     /// Display Engine ダイアログ(グラフ画面の中身 zip の一覧・有効化・追加・削除)
     var showingDisplayEngine: Bool = false
+    /// 落ち続ける取り込んだ zip をやめて標準版へ戻したときの知らせ(メイン画面のアラート)
+    var engineFallbackNotice: String?
 
     // Shelf mode（Disconnect 長押しで開く確認ダイアログ）
     var showingShelfDialog: Bool = false
@@ -133,6 +135,7 @@ final class MEMEViewModel: NSObject {
 
         web.onArtifact = { [weak self] i, text in self?.receiveArtifact(i: i, text: text) }
         web.onReplayInfo = { [weak self] info in self?.applyReplayInfo(info) }
+        web.onEngineFallback = { [weak self] notice in self?.engineFallbackNotice = notice }
         web.onOutput = { [weak self] body in self?.outputs.receive(body) }
 
         showAppVersion()

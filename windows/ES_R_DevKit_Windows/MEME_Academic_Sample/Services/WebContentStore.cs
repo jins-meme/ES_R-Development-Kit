@@ -33,6 +33,8 @@ public sealed record WebContentEntry(string Id, WebContentManifest Manifest)
 /// - 同じファイル(SHA-256 が同じ)をもう一度取り込んでも何もしない(一覧に重ならない)。
 /// - manifest の name が同じ zip を取り込んだら、新しい版として置き換える(ID・一覧での位置・使っているかどうかはそのまま)。
 /// - 以前の版の custom\(選んだ zip を 1 つだけ持てた)は、起動時に zips\ の 1 つへ移す。
+/// - 取り込んだ zip のページが続けて落ちる場合の保護(<see cref="FallBackToBuiltIn"/>): ページのプロセスが落ちると WebBridge が
+///   読み込み直すので、落ちる zip だとそれを繰り返す。続けて落ちたら標準版へ戻して知らせる(Mac・Android と同じ)。
 /// </summary>
 public sealed class WebContentStore
 {
@@ -201,6 +203,35 @@ public sealed class WebContentStore
         Replace(BundledDir, tmp);
         File.WriteAllText(mark, hash);
     }
+
+    #region 落ちる zip から抜ける
+
+    /// <summary>標準版へ戻したときの知らせ。Display Engine ダイアログを次に開いたときにも出す(<see cref="TakeFallbackNotice"/> で 1 度だけ)</summary>
+    private string? fallbackNotice;
+
+    public string? TakeFallbackNotice()
+    {
+        var notice = fallbackNotice;
+        fallbackNotice = null;
+        return notice;
+    }
+
+    /// <summary>使っている取り込んだ zip をやめて標準版へ戻す。戻したら知らせの文を返す(why は文の後半。例 "kept crashing the graph view")</summary>
+    public string? FallBackToBuiltIn(string why)
+    {
+        if (ActiveId == BuiltInId)
+        {
+            return null;
+        }
+
+        var name = Manifest?.DisplayName ?? ActiveId;
+        Activate(BuiltInId);
+        fallbackNotice = $"{name} {why}, so the built-in Standard is used now. You can choose it again in Display Engine.";
+        Log($"fall back to built-in: {name} {why}");
+        return fallbackNotice;
+    }
+
+    #endregion
 
     #region 取り込み・有効化・削除(Display Engine ダイアログ)
 

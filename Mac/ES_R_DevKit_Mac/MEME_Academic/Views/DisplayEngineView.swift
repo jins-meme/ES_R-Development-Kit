@@ -66,7 +66,7 @@ struct DisplayEngineView: View {
         }
         .padding(24)
         .frame(width: 560)
-        .onAppear { refresh() }
+        .onAppear { appear() }
         .confirmationDialog("Delete \(removing?.manifest.displayName ?? "")?",
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             presenting: removing) { entry in
@@ -108,6 +108,15 @@ struct DisplayEngineView: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture { activate(entry) }
+    }
+
+    /// 開いたとき: 落ちる zip をやめて標準版へ戻したばかりなら、その知らせを出す
+    private func appear() {
+        refresh()
+        if let notice = WebContentStore.shared.takeFallbackNotice() {
+            message = notice
+            messageIsError = true
+        }
     }
 
     private func refresh() {

@@ -158,6 +158,7 @@ you can keep several, but only one is active.
   in the list replaces that entry (it stays active if it was).
 - Select a row to make it active (the graph view reloads). `Delete` removes a zip; deleting the active one goes back to Standard.
 - Nothing can be changed during measurement or playback.
+- If an added zip crashes the graph view twice within 60 seconds, the app goes back to Standard and shows a message.
 
 Zips are extracted to `%LOCALAPPDATA%\JINS\MEME_Academic\WebContent\zips`. A zip chosen in an earlier version
 (the single `custom` choice) is moved into the list on the first launch and stays active.

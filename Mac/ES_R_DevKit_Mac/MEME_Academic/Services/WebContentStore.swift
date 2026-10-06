@@ -17,6 +17,8 @@
 //  - 同じファイル(SHA-256 が同じ)をもう一度取り込んでも何もしない(一覧に重ならない)。
 //  - manifest の name が同じ zip を取り込んだら、新しい版として置き換える(ID・一覧での位置・使っているかどうかはそのまま)。
 //  - 1.5.0 build 35 までの custom/(選んだ zip を 1 つだけ持てた)は、起動時に zips/ の 1 つへ移す。
+//  - 取り込んだ zip のページが続けて落ちる場合の保護(fallBackToBuiltIn): ページのプロセスが落ちると WebBridge が読み込み直すので、
+//    落ちる zip だとそれを繰り返す。続けて落ちたら標準版へ戻して知らせる(Android・Windows と同じ)。
 //
 
 import Foundation
@@ -174,6 +176,27 @@ final class WebContentStore {
         let tmp = try extractAndValidate(zip)
         try replace(bundledDir, with: tmp)
         try hash.write(to: mark, atomically: true, encoding: .utf8)
+    }
+
+    // MARK: - 落ちる zip から抜ける
+
+    /// 標準版へ戻したときの知らせ。Display Engine ダイアログを次に開いたときにも出す(takeFallbackNotice で 1 度だけ)
+    private var fallbackNotice: String?
+
+    func takeFallbackNotice() -> String? {
+        defer { fallbackNotice = nil }
+        return fallbackNotice
+    }
+
+    /// 使っている取り込んだ zip をやめて標準版へ戻す。戻したら知らせの文を返す(why は文の後半。例 "kept crashing the graph view")
+    func fallBackToBuiltIn(_ why: String) -> String? {
+        guard activeId != Self.builtInId else { return nil }
+        let name = manifest?.displayName ?? activeId
+        activate(Self.builtInId)
+        let notice = "\(name) \(why), so the built-in Standard is used now. You can choose it again in Display Engine."
+        fallbackNotice = notice
+        NSLog("[WebContent] fall back to built-in: %@ %@", name, why)
+        return notice
     }
 
     // MARK: - 取り込み・有効化・削除(Display Engine ダイアログ)

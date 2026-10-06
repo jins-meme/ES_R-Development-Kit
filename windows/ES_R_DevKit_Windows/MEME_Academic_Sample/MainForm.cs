@@ -86,6 +86,7 @@ public partial class MainForm : Form
         web = new WebBridge(webContent, webHost);
         web.Artifact += ReceiveArtifact;
         web.ReplayInfo += ApplyReplayInfo;
+        web.EngineFallback += ShowEngineFallback;
         outputs = new DetectorOutputs(this);
         web.Output += outputs.Receive;
         DetectorNotifications.Attach(this);
@@ -723,6 +724,22 @@ public partial class MainForm : Form
             ApplySettings();
         }
     }
+
+    /// <summary>落ち続ける取り込んだ zip をやめて標準版へ戻したことを知らせる(自己テストの間はダイアログを出さず控えるだけ)</summary>
+    private void ShowEngineFallback(string notice)
+    {
+        lastEngineFallback = notice;
+#if DEBUG
+        if (autoTestErrors is not null)
+        {
+            return;
+        }
+#endif
+        MessageBox.Show(this, notice, "Display Engine", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
+    /// <summary>直近に標準版へ戻したときの知らせ(自己テスト用。Form のプロパティにするとデザイナーの直列化の対象になるのでフィールド)</summary>
+    internal string? lastEngineFallback;
 
     /// <summary>グラフ画面の中身(zip)の一覧・有効化・追加・削除。計測中・再生中は中で切り替えさせない(Mac・Android と同じ)。</summary>
     private void displayEngineToolStripMenuItem_Click(object sender, EventArgs e)

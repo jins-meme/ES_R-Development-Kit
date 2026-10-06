@@ -46,7 +46,8 @@
 //  MEME_AUTOTEST_SUITE=engines は(-mock のみ)、Display Engine ダイアログの操作(WebContentStore の add / activate / remove)を通しで見る:
 //  標準版は先頭で消せない・取り込んでも有効にはならない・使うのは 1 つだけ(ページが読む manifest もそれ)・同じ name は置き換え
 //  (使っていればそのまま新しい版)・使っているものを消すと標準版に戻る・起動し直しても(prepare)選んだものが残る・無い ID なら標準版・
-//  1.5.0 build 35 までの custom/ が zips/ の 1 つに移り、使っていたならそれを使う。試す zip は同梱の標準版の中身から作る。終わったら元に戻す。
+//  1.5.0 build 35 までの custom/ が zips/ の 1 つに移り、使っていたならそれを使う・取り込んだ zip のページが 60 秒以内に 2 回落ちたら
+//  標準版へ戻って知らせる(1 回では戻らない)。試す zip は同梱の標準版の中身から作る。終わったら元に戻す。
 //
 //  リリースビルドには入らない(#if DEBUG)。
 //
@@ -692,6 +693,19 @@ enum DebugAutoTest {
               && UserDefaults.standard.string(forKey: kConst_WebContentSource) == nil
               && UserSetting.getWebContentActive() == store.activeId, names())
         check("page serves migrated one", try await servedName() == "legacy")
+
+        // 取り込んだ zip のページが 1 回落ちただけでは戻さず、60 秒以内に 2 回落ちたら標準版へ戻して知らせる
+        let legacyId = store.activeId
+        _ = store.takeFallbackNotice()
+        vm.engineFallbackNotice = nil
+        try await killPage(vm, "engine crash 1")
+        check("one page crash keeps the zip", store.activeId == legacyId && vm.engineFallbackNotice == nil)
+        try await killPage(vm, "engine crash 2")
+        check("second page crash falls back to built-in", store.activeId == builtIn
+              && vm.engineFallbackNotice?.contains("0.9.0") == true && store.takeFallbackNotice() != nil,
+              vm.engineFallbackNotice ?? "")
+        check("page serves built-in after fallback", try await servedName() == std.manifest.name)
+        vm.engineFallbackNotice = nil
 
         result["engines"] = steps
         if !problems.isEmpty { throw CheckFailed(problems: problems) }

@@ -34,6 +34,13 @@ struct ContentView: View {
             DisplayEngineView()
                 .environment(viewModel)
         }
+        // 落ち続ける取り込んだ zip をやめて標準版へ戻したとき(WebBridge.webViewWebContentProcessDidTerminate)
+        .alert("Display Engine", isPresented: Binding(get: { viewModel.engineFallbackNotice != nil },
+                                                      set: { if !$0 { viewModel.engineFallbackNotice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.engineFallbackNotice ?? "")
+        }
         .alert("Do you want to enter shelf mode?", isPresented: $vm.showingShelfDialog) {
             Button("Yes") { viewModel.confirmShelfMode() }
             Button("Cancel", role: .cancel) { viewModel.cancelShelfMode() }

@@ -196,6 +196,9 @@ class MainViewModel(
         send = ::sendEncoded,
     )
 
+    /** 標準版へ戻した知らせを、次に Display Engine を開いたときにも出す(トーストは消えるので)。init より前に置く(後ろだと init で入れた値を初期化で消す) */
+    private var fallbackForDialog: String? = null
+
     init {
         viewModelScope.launch { collectScanning() }
         viewModelScope.launch { collectDevices() }
@@ -207,7 +210,17 @@ class MainViewModel(
         web.onReplayInfo = { info ->
             _ui.update { it.copy(toast = "再生データを読み込みました（${info.optLong("rows")} 行）") }
         }
+        web.onEngineFallback = ::showEngineFallback
         refreshGraphContent()
+        showEngineFallback()   // 前回、取り込んだ zip のせいでアプリごと落ちていたら、起動時に標準版へ戻してある
+    }
+
+    /** 落ちる zip をやめて標準版へ戻したことを知らせる(トーストと、Display Engine の一覧の下) */
+    private fun showEngineFallback() {
+        val notice = webStore.takeFallbackNotice() ?: return
+        fallbackForDialog = notice
+        _ui.update { it.copy(toast = notice) }
+        refreshGraphContent(notice, isError = true)
     }
 
     // ---- グラフ画面(WebView)の中身 ----
@@ -219,8 +232,11 @@ class MainViewModel(
         }
     }
 
-    /** Display Engine を開いたとき: 前の知らせを消して一覧を出し直す */
-    fun openDisplayEngine() = refreshGraphContent()
+    /** Display Engine を開いたとき: 前の知らせを消して一覧を出し直す(標準版へ戻したばかりなら、その知らせは出す) */
+    fun openDisplayEngine() {
+        refreshGraphContent(fallbackForDialog, isError = fallbackForDialog != null)
+        fallbackForDialog = null
+    }
 
     /** 計測中・再生中は切り替えさせない(グラフ画面を読み込み直すと表示中のものが消えるため。Mac・Windows と同じ) */
     private val canChangeGraph: Boolean get() = !ui.value.isMeasuring && !ui.value.isReplaying

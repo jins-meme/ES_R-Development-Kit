@@ -14,6 +14,10 @@ side by side and only one is active:
   a zip whose manifest `name` is already in the list replaces that entry (it stays active if it was).
 - Select a row to make it active (the graph view reloads). Deleting the active zip goes back to Standard.
 - Nothing can be changed during measurement or replay.
+- If an added zip keeps crashing, the app goes back to Standard and says so: on every OS when the graph view's
+  process dies twice within 60 seconds, and on Android also when the zip crashed the whole app (the WebView runs its
+  GPU work inside the app, so a GPU driver crash takes the app down) — checked on the next launch. Choose the zip again
+  in Display Engine to retry it.
 
 ```text
 webview/

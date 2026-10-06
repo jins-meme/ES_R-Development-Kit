@@ -33,7 +33,8 @@ namespace MEME_Academic_Sample;
 /// - engines: Display Engine ダイアログの操作(WebContentStore の Add / Activate / Remove)を通しで見る(Mac 版の engines と同じ):
 ///   標準版は先頭で消せない・取り込んでも有効にはならない・同じファイルは重ならない・使うのは 1 つだけ(ページが読む manifest もそれ)・
 ///   同じ name は置き換え(位置も使っているかもそのまま)・使っているものを消すと標準版に戻る・起動し直しても(Prepare)選んだものが残る・
-///   無い ID なら標準版・以前の版の custom\ が zips\ の 1 つに移り、使っていたならそれを使う。試す zip は同梱の標準版の中身から作る。
+///   無い ID なら標準版・以前の版の custom\ が zips\ の 1 つに移り、使っていたならそれを使う・取り込んだ zip のページが 60 秒以内に
+///   2 回落ちたら標準版へ戻って知らせる(1 回では戻らない)。試す zip は同梱の標準版の中身から作る。
 /// - settings: 設定画面と Display Engine ダイアログ(計測中の形も)を撮る。
 /// - webcrash: --csv の行を流して計測している最中と、その CSV を再生している最中に、グラフ画面のプロセスを落とす
 ///   (DevTools の Page.crash)。読み込み直したページで計測・再生が続いているか(start / openReplay を送り直したか)を見る。
@@ -1221,6 +1222,17 @@ public partial class MainForm
               Names().Contains("engineb") && !Directory.Exists(Path.Combine(store.Root, "custom")) &&
               setting.WebContentSource is null && setting.WebContentActive == store.ActiveId, Names());
         Check("page serves migrated one", await ServedName() == "legacy");
+
+        // 取り込んだ zip のページが 1 回落ちただけでは戻さず、60 秒以内に 2 回落ちたら標準版へ戻して知らせる
+        var legacyId = store.ActiveId;
+        store.TakeFallbackNotice();
+        lastEngineFallback = null;
+        await CrashPage("engine crash 1");
+        Check("one page crash keeps the zip", store.ActiveId == legacyId && lastEngineFallback is null);
+        await CrashPage("engine crash 2");
+        Check("second page crash falls back to built-in", store.ActiveId == builtIn &&
+              lastEngineFallback?.Contains("0.9.0") == true && store.TakeFallbackNotice() is not null, lastEngineFallback);
+        Check("page serves built-in after fallback", await ServedName() == std.Manifest.Name);
 
         result["engines"] = steps;
         if (problems.Count > 0)
