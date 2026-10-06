@@ -145,11 +145,17 @@ class UserSetting: NSObject {
         return UserDefaults.standard.object(forKey: kConst_LocalPort) as? String ?? ""
     }
 
-    /// グラフ画面(WebView)の中身。"bundled"(同梱の標準版、既定)か "custom"(設定で選んだ zip)。
-    class func setWebContentSource(_ value: String) {
-        UserDefaults.standard.set(value, forKey: kConst_WebContentSource)
+    /// グラフ画面(WebView)で有効な中身の ID。"standard"(同梱の標準版、既定)か、取り込んだ zip の ID。WebContentStore 参照。
+    class func setWebContentActive(_ value: String) {
+        UserDefaults.standard.set(value, forKey: kConst_WebContentActive)
     }
-    class func getWebContentSource() -> String {
-        return UserDefaults.standard.string(forKey: kConst_WebContentSource) ?? "bundled"
+    class func getWebContentActive() -> String? {
+        return UserDefaults.standard.string(forKey: kConst_WebContentActive)
+    }
+
+    /// 旧形式(1.5.0 build 35 まで): "bundled" / "custom"(選んだ zip を 1 つだけ持てた)。WebContentStore が新形式へ移すときだけ読む。
+    class func takeLegacyWebContentSource() -> String? {
+        defer { UserDefaults.standard.removeObject(forKey: kConst_WebContentSource) }
+        return UserDefaults.standard.string(forKey: kConst_WebContentSource)
     }
 }

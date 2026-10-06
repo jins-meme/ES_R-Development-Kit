@@ -20,9 +20,9 @@
 //  端末のアドレスを確かめ、違えば切ってスキャンし直す(4 回まで)。それ以外は広告名の末尾(例 ESRG2_5)。省略時は最初に見つかったもの)、MEME_AUTOTEST_MODE=full|standard で計測モード(既定 full。100Hz・±8G・±1000dps)、
 //  MEME_AUTOTEST_SECONDS で計測の長さ(既定 8 秒)。保存した CSV のモード・番号の抜け・アーティファクトの行も result.json に書く。
 //
-//  MEME_AUTOTEST_ZIP=<zip> を足すと、始める前に設定の Display Engine と同じ経路(WebContentStore.importZip)でその zip を読み込み、
+//  MEME_AUTOTEST_ZIP=<zip> を足すと、始める前に Display Engine ダイアログと同じ経路(WebContentStore.add → activate)でその zip を取り込んで使い、
 //  終わったら元の中身に戻す(高機能版 advanced.zip の確かめ用。ページに検出器があれば、その状態も result.json に書く)。
-//  もともと選んだ zip を使っていたら、それを退避しておいて戻す(zip の組も同じ)。
+//  取り込んである zip の一覧と使っている 1 つは、退避しておいて戻す(同じ name の zip は置き換えになるため。zip の組も同じ)。
 //
 //  MEME_AUTOTEST_OUTPUTS=1 を足すと(MEME_AUTOTEST_ZIP で高機能版を読み込んだとき)、計測の前に高機能版の設定の Notify(立ち座り)・
 //  CSV(高さ・速度)をオンにして読み込み直し、判定器の表の CSV(データ CSV と同じベース名 + _hve・同じ圧縮)ができたこと・行数が 0 でないこと・
@@ -42,6 +42,11 @@
 //  MEME_AUTOTEST_SUITE=zip MEME_AUTOTEST_BADZIPS=<フォルダ> は、フォルダの中の zip を 1 つずつ読み込み、
 //  名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、展開先の外に何も書かれないことを見る
 //  (zip slip・zip 爆弾などの検査。悪い zip は webview/tools/make_bad_zips.py が作る)。
+//
+//  MEME_AUTOTEST_SUITE=engines は(-mock のみ)、Display Engine ダイアログの操作(WebContentStore の add / activate / remove)を通しで見る:
+//  標準版は先頭で消せない・取り込んでも有効にはならない・使うのは 1 つだけ(ページが読む manifest もそれ)・同じ name は置き換え
+//  (使っていればそのまま新しい版)・使っているものを消すと標準版に戻る・起動し直しても(prepare)選んだものが残る・無い ID なら標準版・
+//  1.5.0 build 35 までの custom/ が zips/ の 1 つに移り、使っていたならそれを使う。試す zip は同梱の標準版の中身から作る。終わったら元に戻す。
 //
 //  リリースビルドには入らない(#if DEBUG)。
 //
@@ -73,17 +78,20 @@ enum DebugAutoTest {
                 vm.settingsDidApply()
             }
             let store = WebContentStore.shared
-            let wasCustom = store.source == .custom
             let env = ProcessInfo.processInfo.environment
-            let usesZips = env["MEME_AUTOTEST_ZIP"] != nil || env["MEME_AUTOTEST_SUITE"] == "zip"
-            let kept = usesZips && wasCustom ? store.copyCustomAside() : nil   // 取り込みで上書きされる前に、選んでいた zip を退避
+            let usesZips = env["MEME_AUTOTEST_ZIP"] != nil || ["zip", "engines"].contains(env["MEME_AUTOTEST_SUITE"] ?? "")
+            let startIds = Set(store.entries.map(\.id)), startActive = store.activeId
+            let kept = usesZips ? store.copyImportedAside() : nil   // 取り込みで置き換わる前に、取り込んである zip を退避
             do {
                 if let zip = env["MEME_AUTOTEST_ZIP"] {
-                    let m = try store.importZip(URL(fileURLWithPath: zip))
+                    let m = try store.importAndActivate(URL(fileURLWithPath: zip))
                     result["zip"] = m.displayName
                     vm.reloadGraph()
                 }
-                if env["MEME_AUTOTEST_SUITE"] == "zip" {
+                if env["MEME_AUTOTEST_SUITE"] == "engines" {
+                    guard MEMELibFactory.isMock else { throw Timeout(what: "refused: engines suite needs -mock") }
+                    try await runEngines(vm, out: out, result: &result)
+                } else if env["MEME_AUTOTEST_SUITE"] == "zip" {
                     try await runZip(vm, dir: URL(fileURLWithPath: env["MEME_AUTOTEST_BADZIPS"] ?? ""), result: &result)
                 } else if env["MEME_AUTOTEST_SUITE"] == "webcrash" {
                     guard MEMELibFactory.isMock else { throw Timeout(what: "refused: webcrash suite needs -mock") }
@@ -117,8 +125,13 @@ enum DebugAutoTest {
                 UserSetting.setExtermalOutputSocket(savedSocket.0)
                 UserSetting.setLocalPort(savedSocket.1)
             }
-            if usesZips {                             // 読み込んだ zip を残さない。もともと選んだ zip を使っていたらそれに戻す
-                if let kept { store.restoreCustom(from: kept) } else { store.useBundled() }
+            if usesZips {                             // 取り込んだ zip を残さない。もともと使っていたものに戻す
+                if let kept {
+                    store.restoreImported(from: kept)
+                } else {                              // 退避できなかったときは、増えた分だけ消す(置き換えた分は戻せない)
+                    for e in store.entries where !startIds.contains(e.id) { try? store.remove(e.id) }
+                    store.activate(startActive)
+                }
             }
             NSApp.terminate(nil)
         }
@@ -531,21 +544,21 @@ enum DebugAutoTest {
         let watch = [store.root.deletingLastPathComponent(), store.root, dir]
         func listing() -> Set<String> {
             Set(watch.flatMap { d in ((try? fm.contentsOfDirectory(atPath: d.path)) ?? []).map { d.path + "/" + $0 } })
-                .filter { !$0.contains("/tmp-") && !$0.contains("/old-") && !$0.hasSuffix("/custom") }   // custom = 受け入れた zip の置き場
+                .filter { !$0.contains("/tmp-") && !$0.contains("/old-") && !$0.hasSuffix("/zips") }   // zips = 受け入れた zip の置き場
         }
         var rows: [[String: Any]] = []
         for zip in zips {
             let name = zip.lastPathComponent
-            let before = (store.source, store.manifest)
+            let before = (store.activeId, store.entries)
             let beforeFiles = listing()
             let t0 = Date()
             var row: [String: Any] = ["zip": name]
             do {
-                let m = try store.importZip(zip)
+                let m = try store.importAndActivate(zip)
                 row["accepted"] = m.displayName
             } catch {
                 row["refused"] = error.localizedDescription
-                row["unchanged"] = before.0 == store.source && before.1 == store.manifest
+                row["unchanged"] = before.0 == store.activeId && before.1 == store.entries
             }
             row["ms"] = Int(Date().timeIntervalSince(t0) * 1000)
             let extra = listing().subtracting(beforeFiles)
@@ -562,6 +575,126 @@ enum DebugAutoTest {
         vm.reloadGraph()
         let failed = rows.filter { $0["ok"] as? Bool != true }.map { "zip \($0["zip"] ?? "")" }
         if !failed.isEmpty { throw CheckFailed(problems: failed) }   // どれか 1 つでも NG なら、組全体も ok にしない
+    }
+
+    // MARK: - Display Engine(複数の zip を持ち、1 つだけ使う)
+
+    private static func runEngines(_ vm: MEMEViewModel, out: URL, result: inout [String: Any]) async throws {
+        let store = WebContentStore.shared
+        let fm = FileManager.default
+        let work = out.appendingPathComponent("engines", isDirectory: true)
+        try? fm.removeItem(at: work)
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+        let builtIn = WebContentStore.builtInId
+        guard let std = store.entries.first(where: { $0.isBuiltIn }) else { throw Timeout(what: "no built-in entry") }
+        // 同梱の標準版の中身を写し、manifest の name・title・version だけ変えて zip にする
+        func makeZip(_ name: String, _ version: String) throws -> URL {
+            let src = work.appendingPathComponent("\(name)-\(version)", isDirectory: true)
+            try fm.copyItem(at: store.root.appendingPathComponent("bundled", isDirectory: true), to: src)
+            let mURL = src.appendingPathComponent("manifest.json")
+            var m = try JSONSerialization.jsonObject(with: Data(contentsOf: mURL)) as! [String: Any]
+            m["name"] = name; m["title"] = name.uppercased(); m["version"] = version
+            try JSONSerialization.data(withJSONObject: m).write(to: mURL)
+            let zip = work.appendingPathComponent("\(name)-\(version).zip")
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            p.arguments = ["-c", "-k", src.path, zip.path]
+            try p.run(); p.waitUntilExit()
+            guard p.terminationStatus == 0 else { throw Timeout(what: "ditto \(name)") }
+            return zip
+        }
+        /// ページ(memeview://app/)が読んでいる manifest の name
+        func servedName() async throws -> String {
+            vm.reloadGraph()
+            try await wait("page ready", 20) { vm.web.isReady }
+            let v = try await vm.web.webView.callAsyncJavaScript(
+                "return (await (await fetch('manifest.json', {cache: 'no-store'})).json()).name", contentWorld: .page)
+            return v as? String ?? ""
+        }
+        var problems: [String] = []
+        var steps: [[String: Any]] = []
+        func check(_ what: String, _ ok: Bool, _ detail: Any = "") {
+            steps.append(["step": what, "ok": ok, "detail": "\(detail)"])
+            if !ok { problems.append(what) }
+        }
+        func names() -> [String] { store.entries.map { $0.isBuiltIn ? "*" + $0.manifest.name : $0.manifest.name } }
+
+        // 始めは取り込んだものを持たない状態にする(元のものは呼び出し側が退避して戻す)
+        for e in store.entries where !e.isBuiltIn { try store.remove(e.id) }
+        store.activate(builtIn)
+        check("built-in only, first and active", store.entries.count == 1 && store.entries.first?.isBuiltIn == true
+              && store.activeId == builtIn, names())
+        check("built-in cannot be removed", (try? store.remove(builtIn)) == false && store.entries.first?.isBuiltIn == true)
+        check("page serves built-in", try await servedName() == std.manifest.name)
+
+        let zipA1 = try makeZip("enginea", "1.0.0")
+        let (a, aOutcome, aActive) = try store.add(zipA1)
+        let (b, _, _) = try store.add(makeZip("engineb", "1.0.0"))
+        check("add keeps active, appends in order", aOutcome == .added && !aActive && store.activeId == builtIn
+              && names() == ["*" + std.manifest.name, "enginea", "engineb"], names())
+
+        // 同じファイルをもう一度(別の場所に写したものでも)取り込んでも重ならない
+        let copyA1 = work.appendingPathComponent("copy-of-enginea.zip")
+        try fm.copyItem(at: zipA1, to: copyA1)
+        let (same1, o1, _) = try store.add(zipA1)
+        let (same2, o2, _) = try store.add(copyA1)
+        check("same file is not added twice", o1 == .alreadyAdded && o2 == .alreadyAdded && same1.id == a.id
+              && same2.id == a.id && names() == ["*" + std.manifest.name, "enginea", "engineb"], names())
+
+        store.activate(a.id)
+        check("activate one", store.activeId == a.id && UserSetting.getWebContentActive() == a.id
+              && store.manifest?.name == "enginea" && store.activeDir.lastPathComponent == a.id)
+        check("page serves the active one", try await servedName() == "enginea")
+
+        let (a2, a2Outcome, replacedActive) = try store.add(makeZip("enginea", "2.0.0"))
+        check("same name replaces (same id, still active, new version)",
+              a2.id == a.id && a2Outcome == .replaced && replacedActive && store.entries.count == 3 && store.activeId == a.id
+              && store.manifest?.version == "2.0.0", names())
+        check("replacing keeps the position in the list", names() == ["*" + std.manifest.name, "enginea", "engineb"], names())
+
+        let (_, _, replacedB) = try store.add(makeZip("engineb", "2.0.0"))
+        check("replacing an inactive one does not touch the active one", !replacedB && store.activeId == a.id)
+
+        check("remove active falls back to built-in", (try store.remove(a.id)) && store.activeId == builtIn
+              && UserSetting.getWebContentActive() == builtIn && names() == ["*" + std.manifest.name, "engineb"], names())
+        check("removed folder is gone", !fm.fileExists(atPath: store.root.appendingPathComponent("zips/\(a.id)").path)
+              && !fm.fileExists(atPath: store.root.appendingPathComponent("zips/\(a.id).sha256").path))
+        let (readd, readdOutcome, _) = try store.add(zipA1)
+        check("a removed zip can be added again", readdOutcome == .added && readd.id != a.id, names())
+        try store.remove(readd.id)
+        check("page serves built-in after remove", try await servedName() == std.manifest.name)
+
+        store.activate(b.id)
+        store.prepare()
+        check("active survives restart", store.activeId == b.id && store.manifest?.name == "engineb")
+
+        UserSetting.setWebContentActive("no-such-id")
+        store.prepare()
+        check("unknown active id falls back to built-in", store.activeId == builtIn && UserSetting.getWebContentActive() == builtIn)
+
+        let refused = (try? store.add(work.appendingPathComponent("enginea-1.0.0/manifest.json"))) == nil
+        check("bad file refused, nothing changes", refused && names() == ["*" + std.manifest.name, "engineb"], names())
+
+        // 1.5.0 build 35 までの形: custom/ に 1 つだけ、WebContentSource = "custom"
+        let legacySrc = work.appendingPathComponent("legacy-src", isDirectory: true)
+        try fm.copyItem(at: store.root.appendingPathComponent("bundled", isDirectory: true), to: legacySrc)
+        let lm = legacySrc.appendingPathComponent("manifest.json")
+        var m = try JSONSerialization.jsonObject(with: Data(contentsOf: lm)) as! [String: Any]
+        m["name"] = "legacy"; m["version"] = "0.9.0"
+        try JSONSerialization.data(withJSONObject: m).write(to: lm)
+        try fm.moveItem(at: legacySrc, to: store.root.appendingPathComponent("custom", isDirectory: true))
+        UserDefaults.standard.set("custom", forKey: kConst_WebContentSource)
+        UserDefaults.standard.removeObject(forKey: kConst_WebContentActive)
+        store.prepare()
+        check("legacy custom migrated and active",
+              store.manifest?.name == "legacy" && names().contains("legacy") && names().contains("engineb")
+              && !fm.fileExists(atPath: store.root.appendingPathComponent("custom").path)
+              && UserDefaults.standard.string(forKey: kConst_WebContentSource) == nil
+              && UserSetting.getWebContentActive() == store.activeId, names())
+        check("page serves migrated one", try await servedName() == "legacy")
+
+        result["engines"] = steps
+        if !problems.isEmpty { throw CheckFailed(problems: problems) }
     }
 
     // MARK: - 計測条件の切り替え(実機)

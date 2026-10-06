@@ -56,5 +56,15 @@ struct MEME_AcademicApp: App {
                 #endif
         }
         .windowResizability(.contentSize)
+        .commands {
+            // アプリのメニューの Settings… と、その下の Display Engine…(左の列のボタンと同じシートを開く)
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { viewModel.openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+                    .disabled(viewModel.isInputDisabled)
+                Button("Display Engine…") { viewModel.openDisplayEngine() }
+                    .disabled(viewModel.isInputDisabled)
+            }
+        }
     }
 }

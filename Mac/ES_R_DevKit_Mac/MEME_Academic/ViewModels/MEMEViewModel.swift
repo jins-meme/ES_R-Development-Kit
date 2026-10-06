@@ -5,7 +5,7 @@
 //  SwiftUI 用 ViewModel。
 //  状態管理・アクション・delegate 振り分けに専念し、
 //  CSV 保存／通信統計は専用サービスへ委譲する。
-//  グラフは WebView(webview/ の標準版 zip、または設定で選んだ zip)が描く。受信したサンプルは
+//  グラフは WebView(webview/ の標準版 zip、または Display Engine で有効にした zip)が描く。受信したサンプルは
 //  WebBridge で流し、CSV 再生もページが受け持つ(アプリはファイルを仮想ホストに出すだけ)。
 //  アーティファクトはページで入力され、WebBridge.onArtifact で届く。CSV への書き戻しは従来どおり停止時。
 //
@@ -70,13 +70,15 @@ final class MEMEViewModel: NSObject {
 
     // Settings sheet presentation
     var showingSettings: Bool = false
+    /// Display Engine ダイアログ(グラフ画面の中身 zip の一覧・有効化・追加・削除)
+    var showingDisplayEngine: Bool = false
 
     // Shelf mode（Disconnect 長押しで開く確認ダイアログ）
     var showingShelfDialog: Bool = false
     /// Shelf 移行コマンドの送信中。完了は端末側からの切断で判断する。
     var isEnteringShelf: Bool = false
 
-    /// グラフ画面(WebView)。中身の切り替えは設定から(WebContentStore)。
+    /// グラフ画面(WebView)。中身の切り替えは Display Engine ダイアログから(WebContentStore)。
     let web = WebBridge()
 
     // MARK: - Private state
@@ -530,7 +532,13 @@ final class MEMEViewModel: NSObject {
     // MARK: - Settings sheet
 
     func openSettings() {
+        guard !showingDisplayEngine else { return }   // シートは 1 つずつ(メニューからも開けるため)
         showingSettings = true
+    }
+
+    func openDisplayEngine() {
+        guard !showingSettings else { return }
+        showingDisplayEngine = true
     }
 
     func settingsDidApply() {

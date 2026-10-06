@@ -7,14 +7,11 @@
 
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(MEMEViewModel.self) private var viewModel
-    /// 計測中・再生中は Display Engine の zip を切り替えられない
-    private var graphBusy: Bool { viewModel.isInputDisabled }
 
     @State private var saveFilePath: String = ""
     @State private var xAxis: String = "0"
@@ -25,9 +22,6 @@ struct SettingsView: View {
     @State private var convertToLocalTime: Bool = true
     @State private var extermalOutputSocket: Bool = false
     @State private var localPort: String = ""
-    @State private var graphContent: String = ""
-    @State private var graphMessage: String = ""
-    @State private var graphIsCustom: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -84,28 +78,6 @@ struct SettingsView: View {
                 }
 
                 GridRow {
-                    Text("Display Engine")
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Text(graphContent).monospacedDigit()
-                            Spacer()
-                            // 計測中・再生中は切り替えない(グラフ画面を読み込み直すと表示中のものが消えるため。Android と同じ)
-                            Button("Choose zip…") { chooseGraphZip() }
-                                .disabled(graphBusy)
-                            Button("Use Built-in") { useBuiltInGraph() }
-                                .disabled(!graphIsCustom || graphBusy)
-                        }
-                        // 取り込みに失敗したときだけ理由を出す(Android と同じ)
-                        if !graphMessage.isEmpty {
-                            Text(graphMessage)
-                                .font(.callout)
-                                .foregroundStyle(Color.red)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-
-                GridRow {
                     Text("Local Port")
                     HStack(spacing: 12) {
                         TextField("", text: $localPort)
@@ -152,41 +124,6 @@ struct SettingsView: View {
         convertToLocalTime = UserSetting.getConvertToLocalTime()
         extermalOutputSocket = UserSetting.getExtermalOutputSocket()
         localPort = UserSetting.getLocalPort()
-        refreshGraphContent()
-    }
-
-    private func refreshGraphContent() {
-        let store = WebContentStore.shared
-        graphIsCustom = store.source == .custom
-        let name = store.manifest?.displayName ?? "(none)"
-        graphContent = graphIsCustom ? "\(name) (zip)" : "\(name) (built-in)"
-    }
-
-    /// zip を選んで取り込み、グラフ画面を読み込み直す。検査に通らなければ今の中身のまま、理由を出す。
-    private func chooseGraphZip() {
-        guard !graphBusy else { return }
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.zip]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try WebContentStore.shared.importZip(url)
-            graphMessage = ""
-            viewModel.reloadGraph()
-        } catch {
-            graphMessage = error.localizedDescription
-        }
-        refreshGraphContent()
-    }
-
-    private func useBuiltInGraph() {
-        guard !graphBusy else { return }
-        WebContentStore.shared.useBundled()
-        graphMessage = ""
-        viewModel.reloadGraph()
-        refreshGraphContent()
     }
 
     private func apply() {

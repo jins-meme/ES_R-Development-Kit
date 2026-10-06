@@ -2,13 +2,21 @@
 //  WebContentStore.swift
 //  MEME_Academic
 //
-//  グラフ画面(WebView)の中身の置き場。中身は zip で、アプリに同梱した標準版(standard.zip)か、
-//  設定で選んだ zip(高機能版など)を展開して使う。仕様は webview/README.md。
+//  グラフ画面(WebView)の中身(Display Engine)の置き場。中身は zip で、アプリに同梱した標準版(standard.zip)と、
+//  Display Engine ダイアログで取り込んだ zip(高機能版など、いくつでも)を展開して持っておき、そのうち 1 つだけを使う。
+//  仕様は webview/README.md。
 //
-//  - 展開先: ~/Library/Application Support/<bundle id>/WebContent/{bundled,custom}/
+//  - 展開先: ~/Library/Application Support/<bundle id>/WebContent/
+//      bundled/        同梱の標準版。消せない(ID は "standard")
+//      zips/<ID>/      取り込んだ zip。ID は取り込んだときに振る UUID
+//    使っている 1 つの ID は UserSetting.webContentActive。
 //  - 同梱の標準版は、アプリに入っている zip の中身が変わったとき(SHA-256 で見る)だけ展開し直す。
-//  - 選んだ zip は ZipExtractor で検査しながら一時フォルダへ展開し(zip slip・zip 爆弾・リンクなど。展開する前に目次で弾く)、
-//    manifest.json・bridgeApi・入口を確かめてから差し替える。通らなければ元のまま。規則は webview/BRIDGE.md の Limits。
+//  - 取り込む zip は ZipExtractor で検査しながら一時フォルダへ展開し(zip slip・zip 爆弾・リンクなど。展開する前に目次で弾く)、
+//    manifest.json・bridgeApi・入口を確かめてから置く。通らなければ何も変わらない。規則は webview/BRIDGE.md の Limits。
+//      zips/<ID>.sha256  取り込んだ zip ファイルの SHA-256(同じファイルを 2 度取り込まないため)
+//  - 同じファイル(SHA-256 が同じ)をもう一度取り込んでも何もしない(一覧に重ならない)。
+//  - manifest の name が同じ zip を取り込んだら、新しい版として置き換える(ID・一覧での位置・使っているかどうかはそのまま)。
+//  - 1.5.0 build 35 までの custom/(選んだ zip を 1 つだけ持てた)は、起動時に zips/ の 1 つへ移す。
 //
 
 import Foundation
@@ -44,6 +52,13 @@ enum WebContentError: LocalizedError {
     }
 }
 
+/// 持っている中身 1 つ(Display Engine ダイアログの 1 行)
+struct WebContentEntry: Identifiable, Equatable {
+    let id: String
+    let manifest: WebContentManifest
+    var isBuiltIn: Bool { id == WebContentStore.builtInId }
+}
+
 @MainActor
 final class WebContentStore {
 
@@ -51,13 +66,15 @@ final class WebContentStore {
 
     /// このアプリが話せるブリッジの版(webview/BRIDGE.md)。zip の manifest.json の bridgeApi と一致しないものは読まない。
     nonisolated static let bridgeApi = 1
-
-    enum Source: String { case bundled, custom }
+    /// 同梱の標準版の ID(規定。消せない)
+    nonisolated static let builtInId = "standard"
 
     private let fm = FileManager.default
     private(set) var root: URL
-    private(set) var manifest: WebContentManifest?
-    private(set) var source: Source = .bundled
+    /// 持っている中身。先頭が同梱の標準版、あとは取り込んだ順
+    private(set) var entries: [WebContentEntry] = []
+    /// 使っている中身の ID
+    private(set) var activeId: String = WebContentStore.builtInId
 
     private init() {
         let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
@@ -66,24 +83,67 @@ final class WebContentStore {
         let dir = base.appendingPathComponent(Bundle.main.bundleIdentifier ?? "MEME_Academic", isDirectory: true)
             .appendingPathComponent("WebContent", isDirectory: true)
         root = dir
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: dir.appendingPathComponent("zips", isDirectory: true), withIntermediateDirectories: true)
         prepare()
     }
 
     private var bundledDir: URL { root.appendingPathComponent("bundled", isDirectory: true) }
-    private var customDir: URL { root.appendingPathComponent("custom", isDirectory: true) }
+    private var zipsDir: URL { root.appendingPathComponent("zips", isDirectory: true) }
+    /// 1.5.0 build 35 までの「選んだ zip」の置き場(移したら無くなる)
+    private var legacyCustomDir: URL { root.appendingPathComponent("custom", isDirectory: true) }
+
+    private func dir(of id: String) -> URL {
+        id == Self.builtInId ? bundledDir : zipsDir.appendingPathComponent(id, isDirectory: true)
+    }
+    private func hashFile(of id: String) -> URL { zipsDir.appendingPathComponent("\(id).sha256") }
 
     /// 今使う中身のフォルダ(仮想ホストの根)
-    var activeDir: URL { source == .custom ? customDir : bundledDir }
+    var activeDir: URL { dir(of: activeId) }
+    /// 今使う中身の manifest
+    var manifest: WebContentManifest? { entries.first { $0.id == activeId }?.manifest }
 
-    /// 起動時: 同梱の標準版を必要なら展開し、設定で選ばれている方を読む。
+    /// 起動時: 同梱の標準版を必要なら展開し、持っている中身を読み、設定で有効になっている 1 つを使う。
     func prepare() {
         do { try extractBundledIfNeeded() } catch { NSLog("[WebContent] bundled: %@", error.localizedDescription) }
-        let wanted = Source(rawValue: UserSetting.getWebContentSource()) ?? .bundled
-        if wanted == .custom, let m = try? Self.readManifest(in: customDir) {
-            source = .custom; manifest = m
-        } else {
-            source = .bundled; manifest = try? Self.readManifest(in: bundledDir)
+        migrateLegacyCustom()
+        reloadEntries()
+        let wanted = UserSetting.getWebContentActive() ?? Self.builtInId
+        activeId = entries.contains { $0.id == wanted } ? wanted : Self.builtInId
+        if activeId != wanted { UserSetting.setWebContentActive(activeId) }
+    }
+
+    /// zips/ の中を読み直す。manifest を読めないフォルダ(途中で止まった取り込みの残りなど)は消す。
+    private func reloadEntries() {
+        var list: [WebContentEntry] = []
+        if let m = try? Self.readManifest(in: bundledDir) { list.append(.init(id: Self.builtInId, manifest: m)) }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .creationDateKey]
+        let dirs = (try? fm.contentsOfDirectory(at: zipsDir, includingPropertiesForKeys: keys)) ?? []
+        var imported: [(Date, WebContentEntry)] = []
+        for d in dirs {
+            let v = try? d.resourceValues(forKeys: Set(keys))
+            guard v?.isDirectory == true else { continue }
+            guard let m = try? Self.readManifest(in: d) else {
+                NSLog("[WebContent] drop unreadable %@", d.lastPathComponent)
+                try? fm.removeItem(at: d)
+                try? fm.removeItem(at: hashFile(of: d.lastPathComponent))
+                continue
+            }
+            imported.append((v?.creationDate ?? .distantPast, .init(id: d.lastPathComponent, manifest: m)))
+        }
+        list += imported.sorted { $0.0 < $1.0 }.map(\.1)
+        entries = list
+    }
+
+    /// 1.5.0 build 35 までの custom/ を zips/ の 1 つへ移す。使っていたなら、移した先を使う設定にする。
+    private func migrateLegacyCustom() {
+        let legacy = UserSetting.takeLegacyWebContentSource()
+        guard fm.fileExists(atPath: legacyCustomDir.path) else { return }
+        let id = UUID().uuidString
+        do {
+            try fm.moveItem(at: legacyCustomDir, to: dir(of: id))
+            if legacy == "custom" { UserSetting.setWebContentActive(id) }
+        } catch {
+            NSLog("[WebContent] migrate custom: %@", error.localizedDescription)
         }
     }
 
@@ -94,10 +154,13 @@ final class WebContentStore {
             ?? Bundle.main.url(forResource: "standard", withExtension: "zip", subdirectory: "WebContent")
     }
 
+    private static func sha256(of file: URL) throws -> String {
+        SHA256.hash(data: try Data(contentsOf: file, options: .mappedIfSafe)).map { String(format: "%02x", $0) }.joined()
+    }
+
     private func extractBundledIfNeeded() throws {
         guard let zip = Self.bundledZipURL else { throw WebContentError.unzipFailed("standard.zip is not in the app bundle.") }
-        let data = try Data(contentsOf: zip)
-        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let hash = try Self.sha256(of: zip)
         let mark = root.appendingPathComponent("bundled.sha256")
         if (try? String(contentsOf: mark, encoding: .utf8)) == hash, fm.fileExists(atPath: bundledDir.path) { return }
         let tmp = try extractAndValidate(zip)
@@ -105,25 +168,62 @@ final class WebContentStore {
         try hash.write(to: mark, atomically: true, encoding: .utf8)
     }
 
-    // MARK: - 設定で選んだ zip
+    // MARK: - 取り込み・有効化・削除(Display Engine ダイアログ)
 
-    /// zip を取り込んで「選んだ zip」に切り替える。検査に通らなければ投げ、今の中身はそのまま。
+    enum AddOutcome { case added, replaced, alreadyAdded }
+
+    /// zip を検査して取り込み、一覧に足す(有効にはしない)。検査に通らなければ投げ、何も変わらない。
+    /// - 同じファイルを既に取り込んでいれば何もしない(.alreadyAdded。一覧に重ならない)。
+    /// - manifest の name が同じものを持っていれば、それを置き換える(.replaced。ID・位置・使っているかどうかはそのまま)。
+    /// 戻り値の `replacedActive` が true なら、使っている中身が変わったのでグラフ画面を読み込み直すこと。
     @discardableResult
-    func importZip(_ zip: URL) throws -> WebContentManifest {
+    func add(_ zip: URL) throws -> (entry: WebContentEntry, outcome: AddOutcome, replacedActive: Bool) {
+        let hash: String
+        do { hash = try Self.sha256(of: zip) } catch { throw WebContentError.unzipFailed(error.localizedDescription) }
+        if let same = entries.first(where: {
+            !$0.isBuiltIn && (try? String(contentsOf: hashFile(of: $0.id), encoding: .utf8)) == hash
+        }) {
+            return (same, .alreadyAdded, false)
+        }
         let tmp = try extractAndValidate(zip)
-        try replace(customDir, with: tmp)
-        let m = try Self.readManifest(in: customDir)
-        source = .custom; manifest = m
-        UserSetting.setWebContentSource(Source.custom.rawValue)
-        return m
+        let m = try Self.readManifest(in: tmp)
+        let existing = entries.first { !$0.isBuiltIn && $0.manifest.name == m.name }?.id
+        let id = existing ?? UUID().uuidString
+        // 一覧は取り込んだ順(フォルダの作成日時)。置き換えても並びが変わらないよう、前の作成日時を引き継ぐ
+        let created = (try? fm.attributesOfItem(atPath: dir(of: id).path))?[.creationDate]
+        try replace(dir(of: id), with: tmp)
+        if let created { try? fm.setAttributes([.creationDate: created], ofItemAtPath: dir(of: id).path) }
+        try? hash.write(to: hashFile(of: id), atomically: true, encoding: .utf8)
+        reloadEntries()
+        guard let entry = entries.first(where: { $0.id == id }) else { throw WebContentError.noManifest }
+        return (entry, existing == nil ? .added : .replaced, existing != nil && id == activeId)
     }
 
-    /// 同梱の標準版に戻す(取り込んだ zip のフォルダは消す)。
-    func useBundled() {
-        try? fm.removeItem(at: customDir)
-        source = .bundled
-        manifest = try? Self.readManifest(in: bundledDir)
-        UserSetting.setWebContentSource(Source.bundled.rawValue)
+    /// 使う中身を切り替える(1 つだけ)。呼んだ側でグラフ画面を読み込み直すこと。
+    func activate(_ id: String) {
+        guard entries.contains(where: { $0.id == id }) else { return }
+        activeId = id
+        UserSetting.setWebContentActive(id)
+    }
+
+    /// 取り込んだ zip を消す。同梱の標準版は消せない。使っていたものを消したら標準版に戻す(戻り値 true。グラフ画面を読み込み直すこと)。
+    @discardableResult
+    func remove(_ id: String) throws -> Bool {
+        guard id != Self.builtInId, entries.contains(where: { $0.id == id }) else { return false }
+        try fm.removeItem(at: dir(of: id))
+        try? fm.removeItem(at: hashFile(of: id))
+        let wasActive = id == activeId
+        if wasActive { activate(Self.builtInId) }
+        reloadEntries()
+        return wasActive
+    }
+
+    /// 取り込んで、すぐ使う(自己テスト用の近道)
+    @discardableResult
+    func importAndActivate(_ zip: URL) throws -> WebContentManifest {
+        let (entry, _, _) = try add(zip)
+        activate(entry.id)
+        return entry.manifest
     }
 
     // MARK: - 展開と検査
@@ -196,21 +296,22 @@ final class WebContentStore {
 // MARK: - 自己テスト用(DebugAutoTest)
 
 extension WebContentStore {
-    /// 選んだ zip の展開先を一時フォルダへ写す(自己テストが zip を取り込んで上書きする前に)
-    func copyCustomAside() -> URL? {
-        let dst = fm.temporaryDirectory.appendingPathComponent("autotest-custom-\(UUID().uuidString)", isDirectory: true)
-        do { try fm.copyItem(at: customDir, to: dst); return dst } catch {
-            NSLog("[WebContent] copy custom aside: %@", error.localizedDescription); return nil
+    /// 取り込んだ zip 全部と、使っている ID を一時フォルダへ写す(自己テストが zip を取り込む前に。同じ name だと置き換えるため)
+    func copyImportedAside() -> (dir: URL, activeId: String)? {
+        let dst = fm.temporaryDirectory.appendingPathComponent("autotest-zips-\(UUID().uuidString)", isDirectory: true)
+        do { try fm.copyItem(at: zipsDir, to: dst); return (dst, activeId) } catch {
+            NSLog("[WebContent] copy zips aside: %@", error.localizedDescription); return nil
         }
     }
 
-    /// copyCustomAside で写したものを戻し、選んだ zip を使う設定に戻す
-    func restoreCustom(from kept: URL) {
-        try? fm.removeItem(at: customDir)
-        do { try fm.moveItem(at: kept, to: customDir) } catch {
-            NSLog("[WebContent] restore custom: %@", error.localizedDescription)
+    /// copyImportedAside で写したものを戻し、使っていた ID に戻す
+    func restoreImported(from kept: (dir: URL, activeId: String)) {
+        try? fm.removeItem(at: zipsDir)
+        do { try fm.moveItem(at: kept.dir, to: zipsDir) } catch {
+            NSLog("[WebContent] restore zips: %@", error.localizedDescription)
+            try? fm.createDirectory(at: zipsDir, withIntermediateDirectories: true)
         }
-        UserSetting.setWebContentSource(Source.custom.rawValue)
+        UserSetting.setWebContentActive(kept.activeId)
         prepare()
     }
 }

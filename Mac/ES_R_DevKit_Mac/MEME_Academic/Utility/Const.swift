@@ -18,5 +18,7 @@ let kConst_ExtermalOutputSocket = "ExtermalOutputSocket"
 let kConst_LocalPort = "LocalPort"
 let kConst_ConvertToLocalTime = "ConvertToLocalTime"
 let kConst_CompressSaveFile = "CompressSaveFile"
-/// グラフ画面(WebView)の中身: "bundled"(同梱の標準版)/ "custom"(設定で選んだ zip)。WebContentStore 参照。
+/// グラフ画面(WebView)で有効な中身の ID: "standard"(同梱の標準版)/ 取り込んだ zip の ID。WebContentStore 参照。
+let kConst_WebContentActive = "WebContentActive"
+/// 旧形式(1.5.0 build 35 まで)の "bundled" / "custom"。新形式へ移したら消す。
 let kConst_WebContentSource = "WebContentSource"

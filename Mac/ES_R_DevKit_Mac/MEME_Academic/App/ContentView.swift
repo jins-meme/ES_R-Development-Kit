@@ -30,6 +30,10 @@ struct ContentView: View {
             SettingsView()
                 .environment(viewModel)
         }
+        .sheet(isPresented: $vm.showingDisplayEngine) {
+            DisplayEngineView()
+                .environment(viewModel)
+        }
         .alert("Do you want to enter shelf mode?", isPresented: $vm.showingShelfDialog) {
             Button("Yes") { viewModel.confirmShelfMode() }
             Button("Cancel", role: .cancel) { viewModel.cancelShelfMode() }
@@ -49,8 +53,11 @@ private struct LeftColumnView: View {
         @Bindable var vm = viewModel
 
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
+            HStack(spacing: 8) {
                 Button("Settings") { viewModel.openSettings() }
+                    .disabled(viewModel.isInputDisabled)
+                // グラフ画面の中身(zip)の一覧・切り替え。メニューの Settings… の下からも開ける
+                Button("Display Engine") { viewModel.openDisplayEngine() }
                     .disabled(viewModel.isInputDisabled)
                 Spacer()
             }
