@@ -444,11 +444,11 @@ class MainViewModel(
                     stopCommTicker()
                     location.stop()
                     // なぜ計測が止まったかを後から切り分けられるよう、切断の時刻と
-                    // GATT ステータスを "<base>_disconnect.csv" へ残す。csv.stop() が
-                    // サイドカーのベース名も畳むので、必ずその前に書く。
+                    // GATT ステータスと電池残量を "<base>_disconnect.csv" へ残す。csv.stop() が
+                    // サイドカーのベース名も畳むので、必ずその前に書く（電池残量は下で -1 に戻す前に読む）。
                     val status = repo.lastDisconnectStatus
                     val reason = gattDisconnectReason(status)
-                    csv.writeDisconnect(System.currentTimeMillis(), status, reason)
+                    csv.writeDisconnect(System.currentTimeMillis(), status, reason, _ui.value.batteryLevel)
                     // 起動直後は connection(StateFlow) の初期値 Disconnected がそのまま
                     // 流れてくる。接続した形跡がない（status 未設定かつ非計測）なら
                     // 実際の切断ではないのでログに残さない。

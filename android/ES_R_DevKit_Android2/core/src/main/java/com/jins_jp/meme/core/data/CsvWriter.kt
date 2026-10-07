@@ -82,12 +82,14 @@ class CsvWriter(private val context: Context) {
      * 途中で止まった時に「メガネ側が落ちた(電池切れ・電源断)」のか「電波が
      * 切れた」のかを後から切り分けるための計装で、[stop] がベース名を畳む前
      * ＝切断検知時の [stop] 直前に呼ぶ。[timeGmtMillis] は本体CSVの DATE 列と
-     * 同じ GMT 壁時計、[status] は GATT の切断ステータス、[reason] はその名前。
+     * 同じ GMT 壁時計、[status] は GATT の切断ステータス、[reason] はその名前、
+     * [battery] は切断直前に受けたパケットの電池残量（0〜5、未受信なら -1）。
+     * 切断の直前に残量が 0〜1 なら電池切れ、と見分けるために残す。
      *
      * ここで本体データを [flush] して切断時点まで確定させ、1 行も受信していない
      * セッションではサイドカーも作らない（本体CSVの無い孤児ファイルを残さない）。
      */
-    fun writeDisconnect(timeGmtMillis: Long, status: Int, reason: String) {
+    fun writeDisconnect(timeGmtMillis: Long, status: Int, reason: String, battery: Int) {
         val base = dataBaseName ?: return
         flush()
         // flush 後も本体CSVが無い＝データ 0 行のセッション。記録する対象がない。
@@ -101,9 +103,9 @@ class CsvWriter(private val context: Context) {
                     if (isNew) {
                         w.write("// Disconnect log for ${dataFileName(base, compressData)}")
                         w.write("\r\n")
-                        w.write("// DATE,STATUS,REASON"); w.write("\r\n")
+                        w.write("// DATE,STATUS,REASON,BATTERY"); w.write("\r\n")
                     }
-                    w.write("${formatGmtDate(timeGmtMillis)},$status,$reason"); w.write("\r\n")
+                    w.write("${formatGmtDate(timeGmtMillis)},$status,$reason,$battery"); w.write("\r\n")
                 }
             }
         }
