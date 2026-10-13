@@ -27,6 +27,10 @@
     <WindowsAppSdkIncludeVersionInfo>true</WindowsAppSdkIncludeVersionInfo>
     <!-- Windows App SDK(の WinUI)は WebView2 を WinRT の投影で参照させ、WinForms 用の WebView2 が参照から外れる。WinUI は使わないので戻す -->
     <WebView2EnableCsWinRTProjection>false</WebView2EnableCsWinRTProjection>
+    <!-- CET(シャドウスタック)を切る。.NET 9 以降は既定で有効だが、ファイル選択ダイアログが読み込むシェル拡張に
+         .NET Framework 製のもの(clr.dll)があると、その例外処理で ntdll が 0xc0000409(FAST_FAIL_SET_CONTEXT_DENIED)で
+         プロセスごと落とす。Display Engine の zip を選ぶダイアログで再現した(2026-10-13)。 -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
 
   <ItemGroup>
