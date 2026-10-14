@@ -222,8 +222,8 @@ public sealed class DisplayEngineForm : Form
     }
 
     /// <summary>
-    /// zip を選んで取り込み、一覧に足す(有効にはしない)。検査に通らなければ何も変えず、理由を出す。
-    /// 同じファイルなら何もしない。同じ name のものを使っていて置き換えたときは、グラフ画面を読み込み直す。
+    /// zip を選んで取り込み、一覧に足して、それを使う。検査に通らなければ何も変えず、理由を出す。
+    /// 同じファイルなら取り込み直さず、そのまま使う。使う中身が変わったらグラフ画面を読み込み直す。
     /// </summary>
     private void AddZip()
     {
@@ -242,7 +242,13 @@ public sealed class DisplayEngineForm : Form
         {
             Cursor = Cursors.WaitCursor;
             var (entry, outcome, replacedActive) = store.Add(dialog.FileName);
-            EngineChanged |= replacedActive;
+            var switched = entry.Id != store.ActiveId;
+            if (switched)
+            {
+                store.Activate(entry.Id);
+            }
+
+            EngineChanged |= switched || replacedActive;
             Rebuild(outcome switch
             {
                 WebContentStore.AddOutcome.AlreadyAdded => $"{entry.Manifest.DisplayName} is already in the list.",

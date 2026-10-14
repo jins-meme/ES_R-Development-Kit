@@ -44,7 +44,7 @@
 //  (zip slip・zip 爆弾などの検査。悪い zip は webview/tools/make_bad_zips.py が作る)。
 //
 //  MEME_AUTOTEST_SUITE=engines は(-mock のみ)、Display Engine ダイアログの操作(WebContentStore の add / activate / remove)を通しで見る:
-//  標準版は先頭で消せない・取り込んでも有効にはならない・使うのは 1 つだけ(ページが読む manifest もそれ)・同じ name は置き換え
+//  標準版は先頭で消せない・add だけでは有効にはならない(ダイアログの Add zip… = addAndActivate は取り込んだものを使う)・使うのは 1 つだけ(ページが読む manifest もそれ)・同じ name は置き換え
 //  (使っていればそのまま新しい版)・使っているものを消すと標準版に戻る・起動し直しても(prepare)選んだものが残る・無い ID なら標準版・
 //  1.5.0 build 35 までの custom/ が zips/ の 1 つに移り、使っていたならそれを使う・取り込んだ zip のページが 60 秒以内に 2 回落ちたら
 //  標準版へ戻って知らせる(1 回では戻らない)。試す zip は同梱の標準版の中身から作る。終わったら元に戻す。
@@ -672,6 +672,18 @@ enum DebugAutoTest {
         UserSetting.setWebContentActive("no-such-id")
         store.prepare()
         check("unknown active id falls back to built-in", store.activeId == builtIn && UserSetting.getWebContentActive() == builtIn)
+
+        // ダイアログの「Add zip…」は取り込んだものを使う(同じファイルなら取り込み直さずに使う)
+        let (c, cOutcome, cChanged) = try store.addAndActivate(makeZip("enginec", "1.0.0"))
+        check("Add zip activates the added one", cOutcome == .added && cChanged && store.activeId == c.id
+              && UserSetting.getWebContentActive() == c.id && store.manifest?.name == "enginec", names())
+        check("page serves the added one", try await servedName() == "enginec")
+        let (_, bAgainOutcome, bAgainChanged) = try store.addAndActivate(work.appendingPathComponent("engineb-2.0.0.zip"))
+        check("Add zip of the same file activates the one in the list", bAgainOutcome == .alreadyAdded && bAgainChanged
+              && store.activeId == b.id && names() == ["*" + std.manifest.name, "engineb", "enginec"], names())
+        let (_, _, againChanged) = try store.addAndActivate(work.appendingPathComponent("engineb-2.0.0.zip"))
+        check("Add zip of the active file changes nothing", !againChanged && store.activeId == b.id)
+        try store.remove(c.id)
 
         let refused = (try? store.add(work.appendingPathComponent("enginea-1.0.0/manifest.json"))) == nil
         check("bad file refused, nothing changes", refused && names() == ["*" + std.manifest.name, "engineb"], names())

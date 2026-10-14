@@ -153,9 +153,9 @@ Open it from `Display Engine (D)` in the menu bar, next to `Setting (S)`. It lis
 you can keep several, but only one is active.
 
 - **Standard** (the bundled zip) is the default and cannot be deleted.
-- `Add zip…` inspects the chosen zip on the spot and adds it to the list without activating it (if it fails, the reason
-  is shown in red and nothing changes). Adding the same file again does nothing; a zip whose manifest `name` is already
-  in the list replaces that entry (it stays active if it was).
+- `Add zip…` inspects the chosen zip on the spot, adds it to the list and makes it active (the graph view reloads; if
+  the check fails, the reason is shown in red and nothing changes). Adding the same file again just makes that entry
+  active; a zip whose manifest `name` is already in the list replaces that entry.
 - Select a row to make it active (the graph view reloads). `Delete` removes a zip; deleting the active one goes back to Standard.
 - Nothing can be changed during measurement or playback.
 - If an added zip crashes the graph view twice within 60 seconds, the app goes back to Standard and shows a message.

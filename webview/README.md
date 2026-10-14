@@ -10,8 +10,9 @@ and on Android (versionCode 26 and later) from the display icon next to the Sett
 side by side and only one is active:
 
 - **Standard** (the bundled zip) is the default and cannot be deleted.
-- **Add zip…** checks the zip and adds it to the list without activating it. Adding the same file again does nothing;
-  a zip whose manifest `name` is already in the list replaces that entry (it stays active if it was).
+- **Add zip…** checks the zip, adds it to the list and makes it active on Mac and Windows (on Android it is added
+  without activating it). Adding the same file again does not add it twice (on Mac and Windows it makes that entry
+  active); a zip whose manifest `name` is already in the list replaces that entry (it stays active if it was).
 - Select a row to make it active (the graph view reloads). Deleting the active zip goes back to Standard.
 - Nothing can be changed during measurement or replay.
 - If an added zip keeps crashing, the app goes back to Standard and says so: on every OS when the graph view's

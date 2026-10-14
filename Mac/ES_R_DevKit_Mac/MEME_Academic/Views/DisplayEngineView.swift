@@ -133,8 +133,8 @@ struct DisplayEngineView: View {
         refresh()
     }
 
-    /// zip を選んで取り込み、一覧に足す(有効にはしない)。検査に通らなければ何も変えず、理由を出す。
-    /// 同じファイルなら何もしない。同じ name のものを使っていて置き換えたときは、グラフ画面を読み込み直す。
+    /// zip を選んで取り込み、一覧に足して、それを使う。検査に通らなければ何も変えず、理由を出す。
+    /// 同じファイルなら取り込み直さず、そのまま使う。使う中身が変わったらグラフ画面を読み込み直す。
     private func addZip() {
         guard !busy else { return }
         let panel = NSOpenPanel()
@@ -144,14 +144,14 @@ struct DisplayEngineView: View {
         panel.allowedContentTypes = [.zip]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            let (entry, outcome, replacedActive) = try WebContentStore.shared.add(url)
+            let (entry, outcome, changed) = try WebContentStore.shared.addAndActivate(url)
             switch outcome {
             case .added: message = ""
             case .alreadyAdded: message = "\(entry.manifest.displayName) is already in the list."
             case .replaced: message = "Replaced the zip named \"\(entry.manifest.name)\" with \(entry.manifest.displayName)."
             }
             messageIsError = false
-            if replacedActive { viewModel.reloadGraph() }
+            if changed { viewModel.reloadGraph() }
         } catch {
             message = error.localizedDescription
             messageIsError = true

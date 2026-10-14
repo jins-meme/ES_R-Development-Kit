@@ -249,12 +249,20 @@ final class WebContentStore {
         return wasActive
     }
 
+    /// 取り込んで、それを使う(Display Engine ダイアログの「Add zip…」)。同じファイルを既に取り込んでいれば、それを使う。
+    /// 戻り値の `changed` が true なら、使っている中身が変わったのでグラフ画面を読み込み直すこと。
+    @discardableResult
+    func addAndActivate(_ zip: URL) throws -> (entry: WebContentEntry, outcome: AddOutcome, changed: Bool) {
+        let (entry, outcome, replacedActive) = try add(zip)
+        let switched = entry.id != activeId
+        if switched { activate(entry.id) }
+        return (entry, outcome, switched || replacedActive)
+    }
+
     /// 取り込んで、すぐ使う(自己テスト用の近道)
     @discardableResult
     func importAndActivate(_ zip: URL) throws -> WebContentManifest {
-        let (entry, _, _) = try add(zip)
-        activate(entry.id)
-        return entry.manifest
+        try addAndActivate(zip).entry.manifest
     }
 
     // MARK: - 展開と検査
