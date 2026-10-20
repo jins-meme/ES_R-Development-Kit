@@ -72,7 +72,7 @@ struct DisplayEngineView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isActive ? Theme.accent : Color.secondary)
                     .imageScale(.large)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.manifest.displayName).foregroundStyle(Color.primary)

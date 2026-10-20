@@ -34,7 +34,9 @@ struct ContentView: View {
                 .ignoresSafeArea(edges: .bottom)
         }
         .padding(.top, 8)
-        .background(Color(.systemGroupedBackground))
+        // 色はグラフ画面と揃える(Theme)
+        .background(Theme.paper)
+        .tint(Theme.accent)
         .overlay(alignment: .bottom) { ToastView(text: viewModel.toast) }
         .onChange(of: scenePhase) { _, phase in
             // アプリが裏に回っている間はグラフ画面へ送らない(戻ったら途切れを知らせる)。
@@ -95,8 +97,8 @@ private struct ConnectCard: View {
             if !viewModel.isReplaying {
                 HStack(spacing: 4) {
                     Text("Connect to MEME device")
-                        .font(.headline)
-                        .foregroundStyle(Color.accentColor)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Theme.accent)
                     Spacer()
                     IconButton("play.fill", label: "Playback (replay logged CSV)") { viewModel.chooseReplayFile() }
                         .disabled(viewModel.phase != .idle)
@@ -107,6 +109,7 @@ private struct ConnectCard: View {
                 HStack(spacing: 8) {
                     Button("Scan device") { viewModel.startScan() }
                         .buttonStyle(.borderedProminent)
+                        .foregroundStyle(Theme.onAccent(enabled: viewModel.canScan))
                         .disabled(!viewModel.canScan)
                     Menu {
                         Picker("Device", selection: $vm.selectedDevice) {
@@ -116,12 +119,13 @@ private struct ConnectCard: View {
                         HStack {
                             Text(viewModel.selectedDevice.isEmpty ? " " : viewModel.selectedDevice)
                                 .lineLimit(1)
+                                .foregroundStyle(Theme.ink)
                             Spacer()
                             Image(systemName: "chevron.down").font(.caption)
                         }
-                        .padding(.horizontal, 14)
-                        .frame(height: 36)
-                        .overlay(Capsule().stroke(Color.secondary.opacity(0.5)))
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .overlay(Capsule().stroke(Theme.line))
                     }
                     .disabled(viewModel.foundDevices.isEmpty || viewModel.phase != .idle)
                     if viewModel.isScanning {
@@ -133,7 +137,8 @@ private struct ConnectCard: View {
             HStack(spacing: 12) {
                 ConnectButton()
                 Text(viewModel.statusText)
-                    .font(.subheadline)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.muted)
                     .lineLimit(2)
                 Spacer(minLength: 0)
             }
@@ -156,6 +161,7 @@ private struct ConnectButton: View {
             Text(viewModel.connectButtonLabel)
         }
         .buttonStyle(.borderedProminent)
+        .foregroundStyle(Theme.onAccent(enabled: viewModel.canConnect))
         .disabled(!viewModel.canConnect)
         .simultaneousGesture(
             LongPressGesture(minimumDuration: MEMEViewModel.shelfLongPressSeconds)
@@ -182,13 +188,13 @@ private struct MeasureCard: View {
         Card {
             HStack(spacing: 8) {
                 Text("Measure")
-                    .font(.headline)
-                    .foregroundStyle(Color.accentColor)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Theme.accent)
                 Spacer()
                 if viewModel.isMeasuring {
                     Text("Recording(\(viewModel.recordingRows))")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.accent)
                         .monospacedDigit()
                 }
                 BatteryChip(level: viewModel.batteryLevel)
@@ -203,10 +209,13 @@ private struct MeasureCard: View {
                 Button {
                     viewModel.freeMarking()
                 } label: {
-                    Text("Free Marking").frame(maxWidth: .infinity)
+                    Text("Free Marking")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity, minHeight: HoldButton.height - 14)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonBorderShape(.roundedRectangle(radius: 10))
+                .foregroundStyle(Theme.onAccent(enabled: viewModel.isMeasuring))
                 .disabled(!viewModel.isMeasuring)
             }
 
@@ -225,7 +234,8 @@ private struct MeasureCard: View {
                     Text(String(format: "COMM RATE: %.2f%%", viewModel.commRate * 100))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .font(.caption)
+                .font(.caption2)
+                .foregroundStyle(Theme.muted)
                 .monospacedDigit()
             }
         }
@@ -252,10 +262,11 @@ private struct BatteryChip: View {
             Image(systemName: symbol)
             Text(level >= 0 ? "\(level)" : "?").monospacedDigit()
         }
-        .font(.subheadline)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.5)))
+        .font(.footnote)
+        .foregroundStyle(Theme.ink)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Theme.line))
     }
 }
 
@@ -265,10 +276,12 @@ private struct Card<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) { content }
-            .padding(12)
+        VStack(alignment: .leading, spacing: 8) { content }
+            .font(.subheadline)
+            .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.line))
     }
 }
 
@@ -286,8 +299,8 @@ private struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.title3)
-                .frame(width: 40, height: 36)
+                .font(.body)
+                .frame(width: 36, height: 32)
         }
         .accessibilityLabel(label)
     }

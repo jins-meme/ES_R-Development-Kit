@@ -16,6 +16,7 @@ struct MEME_AcademicApp: App {
         WindowGroup {
             ContentView()
                 .environment(viewModel)
+                .tint(Theme.accent)
                 .onOpenURL { url in
                     guard url.isFileURL, CsvFile.isSupported(fileName: url.lastPathComponent) else { return }
                     viewModel.openReplay(url)

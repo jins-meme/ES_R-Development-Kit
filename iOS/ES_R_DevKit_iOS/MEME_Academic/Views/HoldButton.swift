@@ -13,6 +13,9 @@ struct HoldButton: View {
     let hint: String
     let enabled: Bool
     var holdSeconds: Double = 0.7
+
+    /// ボタンの高さ(隣の Free Marking もこれに揃える)
+    static let height: CGFloat = 40
     let onConfirmed: () -> Void
 
     @State private var progress: CGFloat = 0
@@ -25,22 +28,22 @@ struct HoldButton: View {
         ZStack {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Color.accentColor.opacity(enabled ? 1 : 0.3)
+                    Theme.accent.opacity(enabled ? 1 : 0.3)
                     Color.black.opacity(0.3)
                         .frame(width: geo.size.width * progress)
                 }
             }
             Text(showHint ? hint : text)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.onAccent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, 8)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 50)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .frame(height: Self.height)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
         .onLongPressGesture(minimumDuration: holdSeconds, maximumDistance: 40) {
             guard enabled else { return }
             pressedAt = nil
