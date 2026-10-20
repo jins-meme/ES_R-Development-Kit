@@ -8,7 +8,7 @@ zip の中の並び(アプリは展開して、仮想ホストの根に置く):
     index.html      入口
     common/         共通部分(開発用の dev.js は入れない)
 
---install は、できた standard.zip を 3 アプリの同梱場所へも写す
+--install は、できた standard.zip を 4 アプリの同梱場所へも写す
 (Mac: Mac/ES_R_DevKit_Mac/MEME_Academic/App/WebContent/standard.zip ほか。アプリに同梱する標準版)。
 高機能版(advanced.zip)は python-processing-core で作る(ここの common/ を取り込む)。
 """
@@ -25,6 +25,7 @@ INSTALL = {
         os.path.join(REPO, "Mac", "ES_R_DevKit_Mac", "MEME_Academic", "App", "WebContent", "standard.zip"),
         os.path.join(REPO, "android", "ES_R_DevKit_Android2", "core", "src", "main", "assets", "webview", "standard.zip"),
         os.path.join(REPO, "windows", "ES_R_DevKit_Windows", "MEME_Academic_Sample", "WebContent", "standard.zip"),
+        os.path.join(REPO, "iOS", "ES_R_DevKit_iOS", "MEME_Academic", "WebContent", "standard.zip"),
     ],
 }
 SKIP = {"dev.js", ".DS_Store"}

@@ -1,6 +1,6 @@
 # Graph page ⇄ app bridge (bridgeApi 1)
 
-The Mac, Windows and Android apps draw their graphs in a WebView. The page inside the WebView comes from a zip
+The Mac, Windows, Android and iOS apps draw their graphs in a WebView. The page inside the WebView comes from a zip
 (the built-in `standard.zip`, or any zip chosen in Settings). This document is the contract between the app and
 that page, so that anyone can build their own page.
 
@@ -35,7 +35,7 @@ Nothing is written outside the app's folder for pages. `webview/tools/make_bad_z
 | `manifest.json` | At most 64 KB. `name`, `title`, `version`: at most 64 characters, no control characters. `entry`: a path allowed above |
 
 A new zip replaces the current one only after it has been fully extracted and checked; if anything fails, the current page stays.
-- The page is served from a fixed https-like origin (Mac `memeview://app/`, Windows `https://app.memeview.example/`,
+- The page is served from a fixed https-like origin (Mac and iOS `memeview://app/`, Windows `https://app.memeview.example/`,
   Android `https://appassets.androidplatform.net/`), never from `file://`, so ES modules, module workers and
   WebAssembly work. Refer to your own files with relative paths, or with root paths such as `/pyodide/`
   (a relative path inside a Worker resolves from the Worker's location).
@@ -85,7 +85,7 @@ Every argument may be a value or its JSON string.
 
 | Platform | How |
 | :--- | :--- |
-| Mac (WKWebView) | `window.webkit.messageHandlers.jmas.postMessage(object)` |
+| Mac / iOS (WKWebView) | `window.webkit.messageHandlers.jmas.postMessage(object)` |
 | Windows (WebView2) | `window.chrome.webview.postMessage(object)` |
 | Android (WebView) | `window.jmasNative.postMessage(JSON string)` |
 
@@ -193,6 +193,8 @@ hidden: `document.visibilityState` becomes `"hidden"` and `requestAnimationFrame
 - **Android**: by default the app stops calling `push` while it is in the background and calls `gap()` when it comes back.
   A page whose `manifest.json` has `"runInBackground": true` keeps receiving `push` (every 0.05 s, as usual) and no `gap()`,
   so it can keep calculating with the screen off. The measurement itself and the CSV do not depend on this.
+- **iOS**: the same as Android (no `push` in the background unless `runInBackground`, then `gap()`). iOS may also
+  suspend a hidden WebView, so a page that needs to calculate with the screen off should not rely on iOS.
 - **Mac / Windows**: the app always keeps calling `push`; `runInBackground` changes nothing.
 
 For a page that calculates in the background:

@@ -1,45 +1,58 @@
-# ES_R_DevKit_iOS (rate probe)
+# ES_R_DevKit_iOS
 
-Minimal iOS / iPadOS app that checks how fast JINS MEME ES_R data can be received over CoreBluetooth
-(Full / Standard / Quaternion, 100 Hz / 50 Hz). It does not draw graphs or record sensor values.
+iPhone / iPad app for JINS MEME ES_R: scan, connect, measure, record CSV and show the graphs.
+The screen follows `android/ES_R_DevKit_Android2`; the CSV, the graph page (WebView) and the artifacts work the same way
+as the Mac app (`Mac/ES_R_DevKit_Mac`). Requires iOS 17 or later.
 
 ## Run
 
-1. Open `MEME_Academic.xcodeproj`, select your Team in *Signing & Capabilities*, connect an iPhone/iPad
-   (Developer Mode on) and Run.
-2. **Scan** → tap the device → choose Mode / Rate → **Start**.
-3. Try foreground, background (home button / app switcher) and screen locked, then **Stop**.
+1. Open `MEME_Academic.xcodeproj`, select your Team in *Signing & Capabilities* (and change the bundle ID if needed),
+   connect an iPhone / iPad with Developer Mode on, and Run.
+2. **Scan device** → choose the device → **Connect** → hold **Start Measurement** (0.7 s).
+3. Hold **Stop Measurement** to finish. Free Marking writes `X` in the `ARTIFACT` column of that row.
 
-## What it shows
+Use the **MEME_Academic Mock** scheme (launch argument `-mock`) to run without a device, also on the simulator.
 
-* **Received / Lost**: samples counted from the 12-bit packet counter. A jump in the counter is counted as lost
-  samples; long stalls use elapsed time to resolve counter wrap-around.
-* **By app state**: seconds, average Hz and lost samples per state (`active`, `inactive`, `background`, `locked`).
-  `locked` is reported only on devices with a passcode, about 10 s after locking.
-* **Notification size / interval**: how many bytes each BLE notification carried (20 = one sample, 40 = two)
-  and the time between notifications, which hints at the connection interval iOS chose.
-* **ATT MTU** of the connection.
+## Screen
 
-A per-second CSV (`rate_<UTC time>_<mode>_<Hz>Hz.csv`) is written to the app's Documents folder.
-It can be shared from the app or copied from Finder / the Files app.
+* **Connect to MEME device**: ▶ replays a logged CSV (`.csv` / `.csv.gz`) in the graph page, the display icon opens
+  **Display Engine** (the zip that draws the graphs), the gear opens **Settings**.
+  Holding **Disconnect** for 5 seconds while connected (not measuring) offers **shelf mode**.
+* **Measure**: rows recorded, battery (0–5), success rate (from the packet counter) and communication rate.
+* The rest of the screen is the graph page (`webview/`, built-in `standard.zip`; see `webview/BRIDGE.md`).
+
+## Settings
+
+Measurement mode / transmission speed / accelerometer and gyroscope range, auto-connect, reconnect when BLE drops
+(default on), open the share sheet after a measurement, gzip (default on), graph time in local time, and **Initialize**
+(resets the parameters stored in the device).
+
+## Files
+
+CSV files are saved in the app's Documents folder: **Files app › On My iPhone › ES_R DevKit** (or Finder when the
+device is connected).
+
+* `<address>_<UTC time>.csv.gz` (or `.csv`): the same ES_R CSV as the Mac / Android apps. `DATE` is UTC.
+  With gzip, every 100 rows are appended as one gzip member, so the file is readable up to the last write even if the app stops.
+* `<address>_<UTC time>_disconnect.csv`: when the connection drops while measuring, the time, the reason
+  (`CONNECTION_TIMEOUT` = out of range, `REMOTE_USER_TERMINATED` = the device turned off, …) and the battery level just before.
+* `<base>_<name>.csv(.gz)`: detector tables sent by the graph page (`webview/BRIDGE.md`).
+
+## Background
+
+Measurement continues with the app in the background or the screen locked (`bluetooth-central` background mode).
+While the app is in the background the graph page receives no samples, and it is told about the gap when the app comes back
+(as on Android). If the connection drops while measuring and reconnect is on, the app keeps a connection request to the same
+device; iOS connects again when the device is back in range, also in the background, and the measurement restarts in a new CSV.
+
+## Unattended run (Debug builds)
+
+Launch arguments run scan → connect → measure → stop without touching the screen (`MEME_Academic/App/DebugAutoTest.swift`).
+The result is written to `Documents/autotest_result.json`.
 
 ```
-second,time_utc,phase,samples,lost,notifications,max_interval_ms,events
+xcrun devicectl device process launch --console --terminate-existing --device <id> com.jins-jp.MEME-Academic-iOS -- \
+  -autotestSeconds 60 -autotestDevice ESRG2_5 -autotestMode full -autotestRate 100 -autotestDropAt 20
 ```
 
-Seconds without any data are written as `0` rows, so gaps show up in the CSV.
-
-## Unattended run
-
-Launch arguments run scan → connect → measure → stop without touching the screen
-(see `MEME_Academic/App/AutoTest.swift`). The result is written to `Documents/autotest_result.json`.
-
-```
-xcrun devicectl device process launch --device <id> com.jins-jp.MEME-Academic-iOS-test \
-  -autotestSeconds 90 -autotestDevice ESRG2_5 -autotestMode full -autotestRate 100 -autotestBackgroundAt 30
-```
-
-## Status
-
-Builds and passes the unit tests on the simulator. Not yet run against a real ES_R
-(no iPhone could be connected to the development Mac so far).
+`--` is needed before the app's arguments; without it `devicectl` reads `-autotestSeconds` as its own `-t`.

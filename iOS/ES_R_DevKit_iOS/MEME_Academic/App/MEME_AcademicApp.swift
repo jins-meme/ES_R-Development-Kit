@@ -2,29 +2,27 @@
 //  MEME_AcademicApp.swift
 //  MEME_Academic (iOS)
 //
-//  iOS で ES_R をどのレートまで受けられるかを測る検証用アプリ。
+//  SwiftUI アプリのエントリポイント。ファイル App などから .csv / .csv.gz を「開く」と、再生する。
 //
 
 import SwiftUI
 
 @main
 struct MEME_AcademicApp: App {
-    @State private var central: MemeCentral
-    @State private var autoTest: AutoTest?
 
-    init() {
-        let central = MemeCentral()
-        _central = State(initialValue: central)
-        if let plan = AutoTest.plan() {
-            let test = AutoTest(central: central, plan: plan)
-            test.run()
-            _autoTest = State(initialValue: test)
-        }
-    }
+    @State private var viewModel = MEMEViewModel()
 
     var body: some Scene {
         WindowGroup {
-            ContentView(central: central)
+            ContentView()
+                .environment(viewModel)
+                .onOpenURL { url in
+                    guard url.isFileURL, CsvFile.isSupported(fileName: url.lastPathComponent) else { return }
+                    viewModel.openReplay(url)
+                }
+                #if DEBUG
+                .onAppear { DebugAutoTest.startIfRequested(viewModel) }
+                #endif
         }
     }
 }
