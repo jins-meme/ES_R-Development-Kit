@@ -47,7 +47,7 @@ import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> Unit) {
+internal fun SettingsDialog(ui: MainUiState, session: MeasurementSession, onDismiss: () -> Unit) {
     val canEditSettings = !ui.isMeasuring
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
@@ -66,7 +66,7 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
-                        onClick = { vm.initialize() },
+                        onClick = { session.initialize() },
                         enabled = canInitialize,
                     ) { Text(stringResource(R.string.button_initialize)) }
                     if (ui.isInitializing) {
@@ -83,38 +83,38 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                     options = MemeMode.entries.map { it.display },
                     selectedIndex = ui.settings.mode.ordinal,
                     enabled = canEditSettings,
-                ) { i -> vm.updateSettings { it.copy(mode = MemeMode.fromIndex(i)) } }
+                ) { i -> session.updateSettings { it.copy(mode = MemeMode.fromIndex(i)) } }
 
                 EnumDropdown(
                     label = stringResource(R.string.text_label_set_quality),
                     options = MemeQuality.entries.map { it.display },
                     selectedIndex = ui.settings.quality.ordinal,
                     enabled = canEditSettings,
-                ) { i -> vm.updateSettings { it.copy(quality = MemeQuality.fromIndex(i)) } }
+                ) { i -> session.updateSettings { it.copy(quality = MemeQuality.fromIndex(i)) } }
 
                 EnumDropdown(
                     label = stringResource(R.string.text_label_set_acceleration),
                     options = AccRange.entries.map { it.display },
                     selectedIndex = ui.settings.accRange.ordinal,
                     enabled = canEditSettings,
-                ) { i -> vm.updateSettings { it.copy(accRange = AccRange.fromIndex(i)) } }
+                ) { i -> session.updateSettings { it.copy(accRange = AccRange.fromIndex(i)) } }
 
                 EnumDropdown(
                     label = stringResource(R.string.text_label_set_gyroacope),
                     options = GyroRange.entries.map { it.display },
                     selectedIndex = ui.settings.gyroRange.ordinal,
                     enabled = canEditSettings,
-                ) { i -> vm.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
+                ) { i -> session.updateSettings { it.copy(gyroRange = GyroRange.fromIndex(i)) } }
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { vm.setAutoConnect(!ui.autoConnect) },
+                        .clickable { session.setAutoConnect(!ui.autoConnect) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = ui.autoConnect,
-                        onCheckedChange = vm::setAutoConnect,
+                        onCheckedChange = session::setAutoConnect,
                     )
                     Text(
                         stringResource(R.string.text_label_auto_connect),
@@ -125,12 +125,12 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { vm.setReconnectEnabled(!ui.reconnectEnabled) },
+                        .clickable { session.setReconnectEnabled(!ui.reconnectEnabled) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = ui.reconnectEnabled,
-                        onCheckedChange = { vm.setReconnectEnabled(it) },
+                        onCheckedChange = { session.setReconnectEnabled(it) },
                     )
                     Text(
                         stringResource(R.string.text_label_reconnect),
@@ -141,12 +141,12 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { vm.setOpenSharingOnComplete(!ui.openSharingOnComplete) },
+                        .clickable { session.setOpenSharingOnComplete(!ui.openSharingOnComplete) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = ui.openSharingOnComplete,
-                        onCheckedChange = { vm.setOpenSharingOnComplete(it) },
+                        onCheckedChange = { session.setOpenSharingOnComplete(it) },
                     )
                     Text(
                         stringResource(R.string.text_label_open_sharing_on_complete),
@@ -157,12 +157,12 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { vm.setGzipCompression(!ui.gzipCompression) },
+                        .clickable { session.setGzipCompression(!ui.gzipCompression) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = ui.gzipCompression,
-                        onCheckedChange = { vm.setGzipCompression(it) },
+                        onCheckedChange = { session.setGzipCompression(it) },
                     )
                     Text(
                         stringResource(R.string.text_label_gzip_compression),
@@ -173,12 +173,12 @@ internal fun SettingsDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { vm.setLocationLogging(!ui.locationLogging) },
+                        .clickable { session.setLocationLogging(!ui.locationLogging) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = ui.locationLogging,
-                        onCheckedChange = { vm.setLocationLogging(it) },
+                        onCheckedChange = { session.setLocationLogging(it) },
                     )
                     Text(
                         stringResource(R.string.text_label_location_logging),

@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.data.LocationSampler
 import com.jins_jp.meme.core.data.SettingsStore
@@ -31,7 +32,7 @@ private const val TAG = "MeasurementService"
  * BLE 接続そのものは [com.jins_jp.meme.core.App] スコープの
  * [com.jins_jp.meme.core.ble.MemeBleRepository] が保持しており、このサービスは
  * 「プロセスを生かす」ことだけを担う。開始／停止は計測ライフサイクルに合わせて
- * アプリ側の ViewModel から [start]/[stop] で制御する。
+ * アプリ全体の [com.jins_jp.meme.core.ui.main.MeasurementSession] から [start]/[stop] で制御する。
  */
 class MeasurementService : Service() {
 
@@ -93,7 +94,7 @@ class MeasurementService : Service() {
      *
      * 位置権限が無い／設定が OFF のときに location を渡すと [SecurityException] に
      * なるため、両方そろったときだけ足す。設定を計測中に切り替えたときは
-     * MainViewModel が [start] を呼び直してここを再評価させる。
+     * MeasurementSession が [start] を呼び直してここを再評価させる。
      */
     private fun foregroundServiceType(): Int {
         val useLocation =
@@ -107,8 +108,10 @@ class MeasurementService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // タスクをスワイプで消したら計測も畳む（孤児サービスを残さない）。
-        stopSelf()
+        // タスクをスワイプで消したら計測も畳む（孤児サービスを残さない）。ここで stopSelf すると OS がすぐ
+        // プロセスを終わらせ、CSV の最後の最大 99 行とアーティファクトの統合が消えるので、計測を正しく止め終えて
+        // からセッション側がこのサービスを止める（[com.jins_jp.meme.core.ui.main.MeasurementSession.closeForTaskRemoved]）。
+        (application as App).session.closeForTaskRemoved()
         super.onTaskRemoved(rootIntent)
     }
 

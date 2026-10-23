@@ -20,7 +20,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import androidx.lifecycle.LifecycleCoroutineScope
-import com.jins_jp.meme.core.ui.main.MainViewModel
+import com.jins_jp.meme.core.ui.main.MeasurementSession
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -66,43 +66,47 @@ import java.io.File
  *       # 計測が始まり直して行が増えるかを autotest/reconnect.json に書く(設定の自動再接続はテストの間だけオンにする)。
  *       # 切る前に画面を消しておくと(adb shell input keyevent KEYCODE_SLEEP)、再開の MeasurementService.start が裏から呼ばれる。
  *       # 裏からの FGS 開始が断られるとアプリが落ちて json は書かれない(logcat の ForegroundServiceStartNotAllowedException)
+ *   adb shell am start -n <パッケージ>/.MainActivity --es autotest_start D3FF      # **実機を使う**: 繋いで計測を始めるだけ(autotest/start.json)
+ *   adb shell am start -n <パッケージ>/.MainActivity --ez autotest_stop true       # 計測を止めて統合まで待つだけ(autotest/stop.json)
+ *       # 間に Activity の破棄(開発者向けオプション「アクティビティを保持しない」= settings put global always_finish_activities 1
+ *       # にして HOME へ)をはさみ、計測が続いて戻ったときに止められるかを見る。タスクの削除なら stop の代わりに CSV が閉じるかを見る
  *
  * ページの中の状態は chrome://inspect(デバッグビルドは WebView のデバッグが有効)から見る。
  */
 object DebugAutoTest {
     private const val TAG = "DebugAutoTest"
 
-    fun handle(context: Context, intent: Intent?, vm: MainViewModel, scope: LifecycleCoroutineScope) {
+    fun handle(context: Context, intent: Intent?, session: MeasurementSession, scope: LifecycleCoroutineScope) {
         if (intent == null || context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
         val base = context.getExternalFilesDir(null) ?: return
         val out = File(base, "autotest").apply { mkdirs() }
         intent.getStringExtra("autotest_zip")?.let { name ->
             intent.removeExtra("autotest_zip")
             scope.launch {
-                val r = vm.importGraphZipFile(File(base, name))
+                val r = session.importGraphZipFile(File(base, name))
                 write(out, "zip", JSONObject().put("zip", name)
                     .put("accepted", r.getOrNull()?.displayName).put("refused", r.exceptionOrNull()?.message))
             }
         }
         intent.getStringExtra("autotest_badzips")?.let { dir ->
             intent.removeExtra("autotest_badzips")
-            scope.launch { write(out, "badzips", keepingEngines(vm) { badZips(vm, File(base, dir)) }) }
+            scope.launch { write(out, "badzips", keepingEngines(session) { badZips(session, File(base, dir)) }) }
         }
         if (intent.getBooleanExtra("autotest_engines", false)) {
             intent.removeExtra("autotest_engines")
             scope.launch {
-                write(out, "engines", keepingEngines(vm) {
-                    runCatching { engines(context, vm) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) }
+                write(out, "engines", keepingEngines(session) {
+                    runCatching { engines(context, session) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) }
                 })
             }
         }
         if (intent.getBooleanExtra("autotest_builtin", false)) {
             intent.removeExtra("autotest_builtin")
-            vm.useBuiltInGraph()
+            session.useBuiltInGraph()
         }
         intent.getStringExtra("autotest_replay")?.let { name ->
             intent.removeExtra("autotest_replay")
-            vm.startPlayback(Uri.fromFile(File(base, name)))
+            session.startPlayback(Uri.fromFile(File(base, name)))
         }
         intent.getStringExtra("autotest_live")?.let { mode ->
             intent.removeExtra("autotest_live")
@@ -112,13 +116,13 @@ object DebugAutoTest {
             val outs = intent.getBooleanExtra("autotest_outputs", false)
             scope.launch {
                 // 設定「計測完了時に共有を開く」が ON でも、テストの間は共有シートを出さない（設定値は変えない）
-                vm.suppressShareForAutotest = true
+                session.suppressShareForAutotest = true
                 val r = try {
-                    runCatching { live(context, vm, mode, seconds, device, bg, outs) }
+                    runCatching { live(context, session, mode, seconds, device, bg, outs) }
                 } finally {
-                    vm.suppressShareForAutotest = false
+                    session.suppressShareForAutotest = false
                 }
-                if (r.isFailure && vm.ui.value.isMeasuring) vm.toggleMeasurement()   // 途中で失敗したら計測を止めておく
+                if (r.isFailure && session.ui.value.isMeasuring) session.toggleMeasurement()   // 途中で失敗したら計測を止めておく
                 write(out, "live-$mode", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
         }
@@ -127,43 +131,75 @@ object DebugAutoTest {
             val seconds = intent.getIntExtra("autotest_seconds", 15)
             val device = intent.getStringExtra("autotest_device")
             scope.launch {
-                vm.suppressShareForAutotest = true
+                session.suppressShareForAutotest = true
                 val r = try {
-                    runCatching { reconnectTest(context, vm, seconds, device) }
+                    runCatching { reconnectTest(context, session, seconds, device) }
                 } finally {
-                    vm.suppressShareForAutotest = false
+                    session.suppressShareForAutotest = false
                 }
-                if (r.isFailure && vm.ui.value.isMeasuring) vm.toggleMeasurement()
+                if (r.isFailure && session.ui.value.isMeasuring) session.toggleMeasurement()
                 write(out, "reconnect", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
+            }
+        }
+        // 計測を始めるだけ / 止めるだけ。間に画面の破棄やタスクの削除をはさんで、計測が続くか・正しく閉じるかを外から見る
+        intent.getStringExtra("autotest_start")?.let { device ->
+            intent.removeExtra("autotest_start")
+            scope.launch {
+                val r = runCatching {
+                    connectIdle(session, device.ifEmpty { null })
+                    session.toggleMeasurement()
+                    waitFor("measuring", 20_000) { session.ui.value.isMeasuring }
+                    JSONObject().put("ok", true).put("device", session.currentAddress())
+                }
+                write(out, "start", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
+            }
+        }
+        if (intent.getBooleanExtra("autotest_stop", false)) {
+            intent.removeExtra("autotest_stop")
+            scope.launch {
+                val r = runCatching {
+                    check(session.ui.value.isMeasuring) { "not measuring" }
+                    val rows = session.ui.value.recordingRows
+                    val saved0 = session.lastSaved.second
+                    session.suppressShareForAutotest = true
+                    try {
+                        session.toggleMeasurement()
+                        waitFor("stopped and merged", 30_000) { session.lastSaved.second > saved0 }
+                    } finally {
+                        session.suppressShareForAutotest = false
+                    }
+                    JSONObject().put("ok", true).put("rowsAtStop", rows).put("csv", session.lastSaved.first?.toString())
+                }
+                write(out, "stop", r.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
         }
         if (intent.getBooleanExtra("autotest_crash", false)) {
             intent.removeExtra("autotest_crash")
             scope.launch {
-                write(out, "crash", runCatching { crashPage(vm) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
+                write(out, "crash", runCatching { crashPage(session) }.getOrElse { JSONObject().put("ok", false).put("error", it.toString()) })
             }
         }
         if (intent.getBooleanExtra("autotest_native_crash", false)) {
             intent.removeExtra("autotest_native_crash")
-            write(out, "native-crash", JSONObject().put("activeBefore", vm.graphStore.manifest?.displayName))
+            write(out, "native-crash", JSONObject().put("activeBefore", session.graphStore.manifest?.displayName))
             android.system.Os.kill(android.system.Os.getpid(), android.system.OsConstants.SIGSEGV)
         }
         // 起動したときの Display Engine の状態(autotest_native_crash で落としたあと、標準版へ戻ったか)
         if (intent.getBooleanExtra("autotest_fallback_state", false)) {
             intent.removeExtra("autotest_fallback_state")
-            val ui = vm.ui.value
-            write(out, "fallback", JSONObject().put("active", vm.graphStore.activeId)
-                .put("activeName", vm.graphStore.manifest?.displayName)
+            val ui = session.ui.value
+            write(out, "fallback", JSONObject().put("active", session.graphStore.activeId)
+                .put("activeName", session.graphStore.manifest?.displayName)
                 .put("message", ui.graphMessage).put("toast", ui.toast))
         }
         if (intent.getBooleanExtra("autotest_end", false)) {
             intent.removeExtra("autotest_end")
-            if (vm.ui.value.isReplaying) vm.connectOrDisconnect()
+            if (session.ui.value.isReplaying) session.connectOrDisconnect()
         }
     }
 
-    private suspend fun badZips(vm: MainViewModel, dir: File): JSONObject {
-        val store = vm.graphStore
+    private suspend fun badZips(session: MeasurementSession, dir: File): JSONObject {
+        val store = session.graphStore
         val zips = dir.listFiles { f -> f.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList()
         val watch = listOf(store.root.parentFile!!, store.root, dir)
         fun listing() = watch.flatMap { d -> d.list()?.map { "${d.path}/$it" } ?: emptyList() }
@@ -174,7 +210,7 @@ object DebugAutoTest {
             val before = store.activeId to store.entries
             val beforeFiles = listing()
             val t0 = System.currentTimeMillis()
-            val r = vm.importGraphZipFile(zip)
+            val r = session.importGraphZipFile(zip)
             val row = JSONObject().put("zip", zip.name).put("ms", System.currentTimeMillis() - t0)
             r.onSuccess { row.put("accepted", it.displayName) }
             r.onFailure { row.put("refused", it.message); row.put("unchanged", before == (store.activeId to store.entries)) }
@@ -196,23 +232,23 @@ object DebugAutoTest {
     }
 
     /** 取り込んである zip の一覧と使っている 1 つを退避して block を回し、終わったら戻す(テストで取り込んだ zip を残さない) */
-    private suspend fun keepingEngines(vm: MainViewModel, block: suspend () -> JSONObject): JSONObject {
-        val store = vm.graphStore
+    private suspend fun keepingEngines(session: MeasurementSession, block: suspend () -> JSONObject): JSONObject {
+        val store = session.graphStore
         val kept = withContext(Dispatchers.IO) { store.copyImportedAside() }
             ?: return JSONObject().put("ok", false).put("error", "could not set the imported zips aside")
         return try {
             block()
         } finally {
             withContext(Dispatchers.IO) { store.restoreImported(kept) }
-            vm.web.load()
-            vm.graphStoreChanged()
+            session.web.load()
+            session.graphStoreChanged()
         }
     }
 
     // ---- Display Engine(複数の zip を持ち、1 つだけ使う) ----
 
-    private suspend fun engines(context: Context, vm: MainViewModel): JSONObject {
-        val store = vm.graphStore
+    private suspend fun engines(context: Context, session: MeasurementSession): JSONObject {
+        val store = session.graphStore
         val builtIn = WebContentStore.BUILT_IN_ID
         val work = File(context.cacheDir, "autotest-engines").apply { deleteRecursively(); mkdirs() }
         val std = store.entries.firstOrNull { it.isBuiltIn } ?: throw IllegalStateException("no built-in entry")
@@ -239,10 +275,10 @@ object DebugAutoTest {
         }
         // ページ(読み込み直したもの)が読んでいる manifest の name
         suspend fun servedName(): String {
-            vm.web.load()
+            session.web.load()
             delay(300)
-            waitFor("page ready", 30_000) { vm.web.isReady }
-            val r = page(vm, "(() => { const x = new XMLHttpRequest(); x.open('GET', 'manifest.json', false); x.send(); return JSON.parse(x.responseText).name; })()")
+            waitFor("page ready", 30_000) { session.web.isReady }
+            val r = page(session, "(() => { const x = new XMLHttpRequest(); x.open('GET', 'manifest.json', false); x.send(); return JSON.parse(x.responseText).name; })()")
             return runCatching { JSONArray("[$r]").getString(0) }.getOrDefault(r)
         }
 
@@ -329,9 +365,9 @@ object DebugAutoTest {
      * ページで JS の式を評価し、JSON.stringify した文字列を返す(evaluateJavascript は結果をもう一度 JSON にして返すので剥がす)。
      * ページが返事をしないとき(読み込み直しの途中など)は待ち続けず、10 秒で失敗にする。
      */
-    private suspend fun page(vm: MainViewModel, expr: String): String = withTimeoutOrNull(10_000) {
+    private suspend fun page(session: MeasurementSession, expr: String): String = withTimeoutOrNull(10_000) {
         suspendCancellableCoroutine { k ->
-            vm.web.webView.value.evaluateJavascript("JSON.stringify($expr)") { r ->
+            session.web.webView.value.evaluateJavascript("JSON.stringify($expr)") { r ->
                 if (k.isActive) k.resume(runCatching { JSONArray("[$r]").getString(0) }.getOrDefault("null"))
             }
         }
@@ -372,106 +408,110 @@ object DebugAutoTest {
 
     /**
      * 計測中の予期しない切断 → 自動再接続 → 計測の再開(新しい CSV)を通す。再開は ReconnectController が
-     * MainViewModel.startMeasurement を呼び、そこで MeasurementService.start(startForegroundService)をもう一度呼ぶ。
+     * MeasurementSession.startMeasurement を呼び、そこで MeasurementService.start(startForegroundService)をもう一度呼ぶ。
      * 画面を消しておけば、それが裏から呼ばれる(サービスは切断の間も止めずに動いている)。
      */
-    private suspend fun reconnectTest(context: Context, vm: MainViewModel, seconds: Int, device: String?): JSONObject {
+    private suspend fun reconnectTest(context: Context, session: MeasurementSession, seconds: Int, device: String?): JSONObject {
         val res = JSONObject()
-        val reconnect0 = vm.ui.value.reconnectEnabled
-        vm.setReconnectEnabled(true)
+        val reconnect0 = session.ui.value.reconnectEnabled
+        session.setReconnectEnabled(true)
         try {
-            connectIdle(vm, device)
-            res.put("device", vm.currentAddress())
-            val saved0 = vm.lastSaved.second
-            vm.toggleMeasurement()
-            waitFor("measuring", 20_000) { vm.ui.value.isMeasuring }
+            connectIdle(session, device)
+            res.put("device", session.currentAddress())
+            val saved0 = session.lastSaved.second
+            session.toggleMeasurement()
+            waitFor("measuring", 20_000) { session.ui.value.isMeasuring }
             delay(seconds * 1000L)
-            res.put("beforeDrop", screen(context).put("measuring", vm.ui.value.isMeasuring).put("rows", vm.ui.value.recordingRows))
-            vm.debugDropConnection()
-            waitFor("dropped", 15_000) { !vm.ui.value.isMeasuring }
+            res.put("beforeDrop", screen(context).put("measuring", session.ui.value.isMeasuring).put("rows", session.ui.value.recordingRows))
+            session.debugDropConnection()
+            waitFor("dropped", 15_000) { !session.ui.value.isMeasuring }
             val t0 = System.currentTimeMillis()
-            waitFor("measuring again", 120_000) { vm.ui.value.isMeasuring }
+            waitFor("measuring again", 120_000) { session.ui.value.isMeasuring }
             res.put("reconnectMs", System.currentTimeMillis() - t0)
             res.put("restarted", screen(context))
             delay(8000)
-            val rows = vm.ui.value.recordingRows
+            val rows = session.ui.value.recordingRows
             res.put("rowsAfterRestart", rows)
-            vm.toggleMeasurement()
-            waitFor("stopped", 30_000) { !vm.ui.value.isMeasuring && vm.lastSaved.second > saved0 }
+            session.toggleMeasurement()
+            waitFor("stopped", 30_000) { !session.ui.value.isMeasuring && session.lastSaved.second > saved0 }
             // 8 秒で 100 Hz なら 800 行近く。再開した計測が行を書いていれば ok
             return res.put("ok", rows > 300)
         } finally {
-            vm.setReconnectEnabled(reconnect0)
+            session.setReconnectEnabled(reconnect0)
         }
     }
 
-    /** autotest_device(アドレスの末尾。null なら見つかった最初の端末)に繋ぎ、計測していない状態にする */
-    private suspend fun connectIdle(vm: MainViewModel, device: String?) {
-        val want = { a: String? -> a != null && (device == null || a.endsWith(device, ignoreCase = true)) }
-        val settled = { vm.ui.value.connection.let { it == ConnectionState.Disconnected || it == ConnectionState.ServicesReady } }
-        if (!(vm.ui.value.connection == ConnectionState.ServicesReady && want(vm.currentAddress()))) {
-            if (vm.ui.value.connection != ConnectionState.Disconnected) {
+    /** autotest_device(アドレスの先頭か末尾。コロンは省いてよい。null なら見つかった最初の端末)に繋ぎ、計測していない状態にする */
+    private suspend fun connectIdle(session: MeasurementSession, device: String?) {
+        val key = device?.replace(":", "")
+        val want = { a: String? ->
+            val hex = a?.replace(":", "")
+            hex != null && (key == null || hex.startsWith(key, ignoreCase = true) || hex.endsWith(key, ignoreCase = true))
+        }
+        val settled = { session.ui.value.connection.let { it == ConnectionState.Disconnected || it == ConnectionState.ServicesReady } }
+        if (!(session.ui.value.connection == ConnectionState.ServicesReady && want(session.currentAddress()))) {
+            if (session.ui.value.connection != ConnectionState.Disconnected) {
                 waitFor("settled", 20_000, settled)
-                if (vm.ui.value.connection != ConnectionState.Disconnected) {
-                    vm.connectOrDisconnect()                        // 別の端末につながっている → 切る
-                    waitFor("disconnected", 15_000) { vm.ui.value.connection == ConnectionState.Disconnected }
+                if (session.ui.value.connection != ConnectionState.Disconnected) {
+                    session.connectOrDisconnect()                        // 別の端末につながっている → 切る
+                    waitFor("disconnected", 15_000) { session.ui.value.connection == ConnectionState.Disconnected }
                 }
             }
-            vm.startScan()
-            waitFor("device found", 20_000) { vm.ui.value.devices.any(want) }
+            session.startScan()
+            waitFor("device found", 20_000) { session.ui.value.devices.any(want) }
             delay(500)
             // 自動接続(設定)が繋ぎ始めていたら、落ち着くのを待ってから確かめる
-            if (vm.ui.value.connection != ConnectionState.Disconnected) waitFor("settled", 20_000, settled)
-            if (!(vm.ui.value.connection == ConnectionState.ServicesReady && want(vm.currentAddress()))) {
-                if (vm.ui.value.connection != ConnectionState.Disconnected) {
-                    vm.connectOrDisconnect()
-                    waitFor("disconnected", 15_000) { vm.ui.value.connection == ConnectionState.Disconnected }
+            if (session.ui.value.connection != ConnectionState.Disconnected) waitFor("settled", 20_000, settled)
+            if (!(session.ui.value.connection == ConnectionState.ServicesReady && want(session.currentAddress()))) {
+                if (session.ui.value.connection != ConnectionState.Disconnected) {
+                    session.connectOrDisconnect()
+                    waitFor("disconnected", 15_000) { session.ui.value.connection == ConnectionState.Disconnected }
                 }
-                vm.selectDevice(vm.ui.value.devices.indexOfFirst(want))
-                vm.connectOrDisconnect()
-                waitFor("connected", 30_000) { vm.ui.value.connection == ConnectionState.ServicesReady }
+                session.selectDevice(session.ui.value.devices.indexOfFirst(want))
+                session.connectOrDisconnect()
+                waitFor("connected", 30_000) { session.ui.value.connection == ConnectionState.ServicesReady }
             }
             delay(3000)                                            // 通知の有効化・端末情報の取得を待つ
         }
-        if (vm.ui.value.isMeasuring) {                              // 前の計測が残っていたら止めてから
-            vm.toggleMeasurement()
-            waitFor("previous stopped", 30_000) { !vm.ui.value.isMeasuring }
+        if (session.ui.value.isMeasuring) {                              // 前の計測が残っていたら止めてから
+            session.toggleMeasurement()
+            waitFor("previous stopped", 30_000) { !session.ui.value.isMeasuring }
             delay(2000)
         }
     }
 
-    private suspend fun live(context: Context, vm: MainViewModel, mode: String, seconds: Int, device: String?, bg: Boolean, outs: Boolean): JSONObject {
+    private suspend fun live(context: Context, session: MeasurementSession, mode: String, seconds: Int, device: String?, bg: Boolean, outs: Boolean): JSONObject {
         if (outs) {
-            page(vm, OUTPUTS_ON)
-            vm.web.load()
+            page(session, OUTPUTS_ON)
+            session.web.load()
             delay(500)
-            waitFor("page reloaded", 30_000) { vm.web.isReady }
+            waitFor("page reloaded", 30_000) { session.web.isReady }
         }
-        val res = JSONObject().put("mode", mode).put("page", vm.web.pageName)
-        vm.updateSettings {
+        val res = JSONObject().put("mode", mode).put("page", session.web.pageName)
+        session.updateSettings {
             it.copy(mode = if (mode == "standard") MemeMode.Standard else MemeMode.Full,
                 quality = MemeQuality.Hz100, accRange = AccRange.G8, gyroRange = GyroRange.Dps1000)
         }
-        connectIdle(vm, device)
-        res.put("device", vm.currentAddress())
-        val saved0 = vm.lastSaved.second
-        val keep = vm.graphStore.manifest?.runInBackground == true
-        if (bg) { res.put("runInBackground", keep); page(vm, BG_PROBE) }
-        vm.toggleMeasurement()
-        waitFor("measuring", 20_000) { vm.ui.value.isMeasuring }
+        connectIdle(session, device)
+        res.put("device", session.currentAddress())
+        val saved0 = session.lastSaved.second
+        val keep = session.graphStore.manifest?.runInBackground == true
+        if (bg) { res.put("runInBackground", keep); page(session, BG_PROBE) }
+        session.toggleMeasurement()
+        waitFor("measuring", 20_000) { session.ui.value.isMeasuring }
         delay(1500)
-        res.put("atStart", JSONObject(page(vm, STATE)))
+        res.put("atStart", JSONObject(page(session, STATE)))
         delay(seconds * 1000L)
-        res.put("measuring", JSONObject(page(vm, STATE)))
+        res.put("measuring", JSONObject(page(session, STATE)))
         // ページで付けたのと同じ形でアーティファクトを送る(持っている先頭から 100 行目のサンプル番号)。
         // 判定器の無いページ(標準版)はページの中の番号を読めないので、101(ライブのサンプル番号 = CSV の NUM。先頭は 1)を送る
-        val i = page(vm, "(() => { const s = window.jmasEngine?.store; return s ? s.iOfRow(s.first + 100) : null })()").toLongOrNull() ?: 101L
-        vm.web.webView.value.evaluateJavascript("window.jmasNative.postMessage(JSON.stringify({kind: 'artifact', i: $i, text: 'autotest'})); 0", null)
+        val i = page(session, "(() => { const s = window.jmasEngine?.store; return s ? s.iOfRow(s.first + 100) : null })()").toLongOrNull() ?: 101L
+        session.web.webView.value.evaluateJavascript("window.jmasNative.postMessage(JSON.stringify({kind: 'artifact', i: $i, text: 'autotest'})); 0", null)
         delay(500)
         res.put("artifactI", i)
-        vm.toggleMeasurement()
-        waitFor("stopped and merged", 30_000) { vm.lastSaved.second > saved0 }
-        val uri = vm.lastSaved.first ?: throw IllegalStateException("no saved CSV")
+        session.toggleMeasurement()
+        waitFor("stopped and merged", 30_000) { session.lastSaved.second > saved0 }
+        val uri = session.lastSaved.first ?: throw IllegalStateException("no saved CSV")
         res.put("csv", uri.toString())
         // 保存した CSV: ヘッダ・行数・アーティファクトの行(NUM 列)
         val lines = context.contentResolver.openInputStream(uri)!!.use { decompressIfGzip(it).bufferedReader().readLines() }
@@ -497,7 +537,7 @@ object DebugAutoTest {
         // 画面オフ: 実際に隠れたこと。runInBackground なら全部(止めたときの端数ぶんの余裕を見る)届き gap なし、そうでなければ隠れた間は届かず gap あり
         var bgOk = true
         if (bg) {
-            val b = JSONObject(page(vm, "({...window.__bg, hiddenAtEnd: document.hidden})"))
+            val b = JSONObject(page(session, "({...window.__bg, hiddenAtEnd: document.hidden})"))
             res.put("background", b)
             bgOk = b.optInt("hides") > 0 && if (keep) {
                 b.optInt("hiddenRows") > 0 && b.optInt("gaps") == 0 && b.optInt("rows") >= data.size - 20 && b.optInt("maxHiddenIntervalMs") < 3000
@@ -506,7 +546,7 @@ object DebugAutoTest {
                 b.optInt("hiddenRows") < 100 && (b.optInt("gaps") > 0 || b.optBoolean("hiddenAtEnd"))
             }
         }
-        val outsOk = if (outs) checkOutputs(context, vm, res, nums, bg && keep) else true
+        val outsOk = if (outs) checkOutputs(context, session, res, nums, bg && keep) else true
         res.put("check", JSONObject().put("mode", modeOk).put("artifact", artifactOk).put("detector", detOk)
             .put("rows", data.size > seconds * 80).put("num", numGaps == 0).apply { if (bg) put("background", bgOk) }
             .apply { if (outs) put("outputs", outsOk) })
@@ -518,16 +558,16 @@ object DebugAutoTest {
      * DATE が(ほぼ)全部入っていること。ページが送った数(jmasOutputs.sent)とアプリが受けた数も並べる。
      * inBackground(runInBackground のページで画面を消したとき)は、消えている間にも行が届いたこと
      */
-    private suspend fun checkOutputs(context: Context, vm: MainViewModel, res: JSONObject, dataNums: List<Long>, inBackground: Boolean): Boolean {
-        val o = vm.detectorOutputs
+    private suspend fun checkOutputs(context: Context, session: MeasurementSession, res: JSONObject, dataNums: List<Long>, inBackground: Boolean): Boolean {
+        val o = session.detectorOutputs
         val stats = o.stats.toJson()
         val out = JSONObject().put("app", stats).put("tables", o.tablesJson())
-            .put("pageSent", JSONObject(page(vm, "window.jmasOutputs?.sent ?? null").let { if (it == "null") "{}" else it }))
+            .put("pageSent", JSONObject(page(session, "window.jmasOutputs?.sent ?? null").let { if (it == "null") "{}" else it }))
         val lo = dataNums.minOrNull() ?: 0L
         val hi = dataNums.maxOrNull() ?: -1L
         val files = JSONArray()
-        var ok = vm.lastSavedTables.isNotEmpty() && stats.getJSONArray("warnings").length() == 0
-        for (uri in vm.lastSavedTables) {
+        var ok = session.lastSavedTables.isNotEmpty() && stats.getJSONArray("warnings").length() == 0
+        for (uri in session.lastSavedTables) {
             val lines = context.contentResolver.openInputStream(uri)!!.use { decompressIfGzip(it).bufferedReader().readLines() }
             val head = lines.takeWhile { it.startsWith("//") }
             val rows = lines.drop(head.size).filter { it.isNotEmpty() }.map { it.split(",") }
@@ -554,19 +594,19 @@ object DebugAutoTest {
      * レンダラを落として(chrome://crash。onRenderProcessGone → WebView を作り直して読み込み直す)、作り直したページで
      * 計測・再生が続いているかを見る。ステータスの行は start / openReplay を受けたときだけ端末のアドレス・ファイル名を出す。
      */
-    private suspend fun crashPage(vm: MainViewModel): JSONObject {
-        val st = vm.ui.value
+    private suspend fun crashPage(session: MeasurementSession): JSONObject {
+        val st = session.ui.value
         val key = when {
             st.isReplaying -> st.replayName
-            st.isMeasuring -> vm.currentAddress()
+            st.isMeasuring -> session.currentAddress()
             else -> null
         }
-        val before = JSONObject(page(vm, STATE))
-        val old = vm.web.webView.value
+        val before = JSONObject(page(session, STATE))
+        val old = session.web.webView.value
         old.loadUrl("chrome://crash")
-        waitFor("recreated", 20_000) { vm.web.webView.value !== old && vm.web.isReady }
+        waitFor("recreated", 20_000) { session.web.webView.value !== old && session.web.isReady }
         delay(3000)
-        val after = JSONObject(page(vm, STATE))
+        val after = JSONObject(page(session, STATE))
         val status = after.optString("status")
         val ok = key != null && status.contains(key) && (!st.isMeasuring || status.contains("Hz"))
         return JSONObject().put("ok", ok).put("key", key).put("measuring", st.isMeasuring).put("replaying", st.isReplaying)

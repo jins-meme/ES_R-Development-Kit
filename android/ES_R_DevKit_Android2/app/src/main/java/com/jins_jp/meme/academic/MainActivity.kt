@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.content.Intent
 import androidx.activity.ComponentActivity
-import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,15 +16,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.theme.ESRTheme
 import com.jins_jp.meme.core.ui.main.MainScreen
-import com.jins_jp.meme.core.ui.main.MainViewModel
+import com.jins_jp.meme.core.ui.main.MeasurementSession
 import com.jins_jp.meme.core.web.DebugAutoTest
 
 class MainActivity : ComponentActivity() {
 
-    // MainScreen の viewModel() と同じもの(同じ所有者・同じクラス)
-    private val vm: MainViewModel by viewModels { MainViewModel.Factory }
+    // 計測と画面の状態はアプリが持つ(この Activity より長生きする。計測中に破棄されても計測は続き、次の Activity がつながり直す)
+    private val session: MeasurementSession get() = (application as App).session
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
@@ -47,16 +47,16 @@ class MainActivity : ComponentActivity() {
                 // 乗って時計・電池が見えなくなる。コンテンツのインセットは
                 // MainScreen の Scaffold(contentWindowInsets)が処理する。
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(viewModel = vm)
+                    MainScreen(session = session)
                 }
             }
         }
-        DebugAutoTest.handle(this, intent, vm, lifecycleScope)
+        DebugAutoTest.handle(this, intent, session, lifecycleScope)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        DebugAutoTest.handle(this, intent, vm, lifecycleScope)   // デバッグビルドだけ(adb から自己テスト)
+        DebugAutoTest.handle(this, intent, session, lifecycleScope)   // デバッグビルドだけ(adb から自己テスト)
     }
 
     override fun onResume() {

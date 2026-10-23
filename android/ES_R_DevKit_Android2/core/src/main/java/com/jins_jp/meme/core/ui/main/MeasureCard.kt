@@ -37,7 +37,7 @@ import com.jins_jp.meme.core.ble.ConnectionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
+internal fun MeasureCard(ui: MainUiState, session: MeasurementSession) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -70,11 +70,11 @@ internal fun MeasureCard(ui: MainUiState, vm: MainViewModel) {
                     hintText = if (ui.isMeasuring) stringResource(R.string.hint_hold_to_stop)
                     else stringResource(R.string.hint_hold_to_start),
                     enabled = ui.connection == ConnectionState.ServicesReady && !ui.isStarting,
-                    onConfirmed = { vm.toggleMeasurement() },
+                    onConfirmed = { session.toggleMeasurement() },
                 )
                 Button(
                     modifier = Modifier.weight(1f),
-                    onClick = { vm.marking() },
+                    onClick = { session.marking() },
                     enabled = ui.isMeasuring,
                 ) { Text(stringResource(R.string.button_free_marking)) }
             }

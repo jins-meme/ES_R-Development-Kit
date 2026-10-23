@@ -100,7 +100,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
 
     /**
      * 直近の切断で GATT が返したステータス（[gattDisconnectReason] で名前になる）。
-     * 計測がなぜ止まったかを後から切り分けるための計装で、MainViewModel が
+     * 計測がなぜ止まったかを後から切り分けるための計装で、MeasurementSession が
      * 切断サイドカーCSV へ記録する。[connection] が Disconnected を流す前に必ず
      * 更新するので、購読側は同じ切断の理由として読める。GATT コールバックは
      * API 世代によってバインダースレッドから来るため volatile。
@@ -139,7 +139,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
 
     /**
      * Bluetooth OFF による接続消滅を、GATT 切断と同じ経路（[connection] の
-     * Disconnected）へ流す。これで MainViewModel 側の切断ハンドラが動き、CSV の
+     * Disconnected）へ流す。これで MeasurementSession 側の切断ハンドラが動き、CSV の
      * クローズ・切断サイドカーの記録・自動再接続が通常の切断と同じように走る。
      */
     private fun handleAdapterOff() {
@@ -282,7 +282,7 @@ class MemeBleRepository(private val context: Context) : MemeBleClient {
                 BluetoothProfile.STATE_DISCONNECTING -> _connection.value = ConnectionState.Disconnecting
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     // 切断理由は Disconnected を流す前に確定させる。購読側
-                    // (MainViewModel.collectConnection) が同じ切断の status として
+                    // (MeasurementSession.collectConnection) が同じ切断の status として
                     // 読み、サイドカーCSV へ書くため。
                     lastDisconnectStatus = status
                     _connection.value = ConnectionState.Disconnected

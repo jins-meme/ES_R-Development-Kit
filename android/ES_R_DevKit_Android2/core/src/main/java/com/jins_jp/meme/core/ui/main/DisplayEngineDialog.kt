@@ -40,11 +40,11 @@ import com.jins_jp.meme.core.web.WebContentStore
  * 同梱の標準版（Standard）は規定で、消せない。計測中・再生中は切り替えさせない（Mac・Windows と同じ）。
  */
 @Composable
-internal fun DisplayEngineDialog(ui: MainUiState, vm: MainViewModel, onDismiss: () -> Unit) {
+internal fun DisplayEngineDialog(ui: MainUiState, session: MeasurementSession, onDismiss: () -> Unit) {
     val busy = ui.isMeasuring || ui.isReplaying
-    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> vm.addGraphZip(uri) }
+    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> session.addGraphZip(uri) }
     var removing by remember { mutableStateOf<WebContentStore.Entry?>(null) }
-    LaunchedEffect(Unit) { vm.openDisplayEngine() }
+    LaunchedEffect(Unit) { session.openDisplayEngine() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -72,7 +72,7 @@ internal fun DisplayEngineDialog(ui: MainUiState, vm: MainViewModel, onDismiss: 
                             entry = entry,
                             active = entry.id == ui.graphActiveId,
                             enabled = !busy,
-                            onActivate = { vm.activateGraph(entry.id) },
+                            onActivate = { session.activateGraph(entry.id) },
                             onDelete = { removing = entry },
                         )
                     }
@@ -110,7 +110,7 @@ internal fun DisplayEngineDialog(ui: MainUiState, vm: MainViewModel, onDismiss: 
             title = { Text("Delete ${entry.manifest.displayName}?") },
             text = { Text("The zip is removed from this app. To use it again, add the zip file again.") },
             confirmButton = {
-                TextButton(onClick = { vm.removeGraph(entry.id); removing = null }) {
+                TextButton(onClick = { session.removeGraph(entry.id); removing = null }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },

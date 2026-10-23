@@ -4,13 +4,8 @@ import android.app.Application
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
 import com.jins.meme.academic.util.HexDump
 import com.jins.meme.academic.util.LogCat
-import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.ble.GATT_STATUS_NONE
 import com.jins_jp.meme.core.ble.MemeBleConstants
@@ -36,8 +31,10 @@ import com.jins_jp.meme.core.web.WebContentStore
 import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +43,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val TAG = "MainViewModel"
+private const val TAG = "MeasurementSession"
 
 // スキャン窓内で 1 台も見つからなかった時に一度だけ張り直す前の小休止。
 // コントローラのスキャン窓をリセットさせるための短い間隔。
@@ -106,12 +103,29 @@ data class MainUiState(
 /** 計測完了後に共有シートへ渡す CSV（本体データ＋サイドカーのうち存在するもの）の URI。 */
 data class ShareRequest(val uris: List<Uri>)
 
-class MainViewModel(
-    application: Application,
+/**
+ * 画面の状態と計測のパイプライン(BLE 受信 → CSV・グラフ画面・判定器の表)。[com.jins_jp.meme.core.App] が
+ * プロセスに 1 つだけ持つ。
+ *
+ * **Activity / ViewModel には持たせない。** 以前は ViewModel だったため、計測中に Activity が破棄されると
+ * (戻るジェスチャーなど)viewModelScope ごと受信処理が止まり、CSV は閉じられず(最大 99 行が消える)、
+ * 端末は送信を続け、BLE はアプリ全体の [MemeBleRepository] が繋いだままだった。サービスも止まって
+ * キャッシュ扱いで凍結されたプロセスに 100Hz の通知が溜まり、OS に強制終了されていた
+ * (2026-10-23 実機。exit-info `FREEZER / BINDER ASYNC FULL`)。ここに置けば画面の寿命と無関係に計測が続き、
+ * 通知などから戻った新しい Activity がこのセッションにつながり直す。
+ *
+ * プロセスを生かすのは計測中の [MeasurementService] の役目のまま。最近使ったアプリからタスクを消したときは
+ * [closeForTaskRemoved] で計測を正しく止めてから終わる。
+ */
+class MeasurementSession(
+    private val app: Application,
     private val repo: MemeBleRepository,
-) : AndroidViewModel(application) {
+) {
 
-    private val settingsStore = SettingsStore(application)
+    // scope と同じ構成(メインスレッド・子の失敗で全体を止めない)。プロセスと同じ寿命なので閉じない。
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private val settingsStore = SettingsStore(app)
 
     private val _ui = MutableStateFlow(
         MainUiState(
@@ -129,13 +143,13 @@ class MainViewModel(
 
     // グラフ画面(WebView)。中身は zip(同梱の標準版か、Display Engine で有効にしたもの)。描画・再生の操作・アーティファクトの入力は
     // ページ側で、アプリは計測の値を push し、ページで付けたアーティファクトを CSV へ書き戻す(DevKit webview/BRIDGE.md)。
-    private val webStore = WebContentStore(application)
-    val web = WebBridge(application, webStore)
+    private val webStore = WebContentStore(app)
+    val web = WebBridge(app, webStore)
 
-    private val csv = CsvWriter(application)
+    private val csv = CsvWriter(app)
 
     // 判定器の通知と演算結果の表(ページ → アプリの notify / table / records)。ライブ計測の間だけ受ける
-    private val outputs = DetectorOutputs(application)
+    private val outputs = DetectorOutputs(app)
 
     // Sample / timing book-keeping
     private val counter = SampleCounter()
@@ -154,15 +168,15 @@ class MainViewModel(
 
     // 計測中の予期しない切断からの自動再接続と、CSV 再生（mock）モードの出入り。
     private val reconnect = ReconnectController(
-        scope = viewModelScope,
+        scope = scope,
         repo = repo,
         ui = _ui,
         onSuppressAutoConnect = { autoConnectAttempted = true },
         restartMeasurement = ::startMeasurement,
-        stopMeasurementService = { MeasurementService.stop(getApplication()) },
+        stopMeasurementService = { MeasurementService.stop(app) },
     )
     private val playback = PlaybackController(
-        scope = viewModelScope,
+        scope = scope,
         ui = _ui,
         reconnect = reconnect,
         stopMeasurement = ::stopMeasurement,
@@ -179,9 +193,9 @@ class MainViewModel(
 
     // 計測中の大まかな位置の記録（設定で ON のとき）。グラフ画面にも印を出す
     // （CSV への書き込みは次のデータ行なので、ずれは 1 サンプル以内）。
-    private val locationSampler = LocationSampler(application)
+    private val locationSampler = LocationSampler(app)
     private val location = LocationRecorder(
-        scope = viewModelScope,
+        scope = scope,
         ui = _ui,
         sample = locationSampler::sample,
         onRecorded = { text -> web.mark(currentLabelKey(), text) },
@@ -189,7 +203,7 @@ class MainViewModel(
 
     // Disconnect の長押しで端末を Shelf mode へ移す。
     private val shelf = ShelfModeController(
-        scope = viewModelScope,
+        scope = scope,
         ui = _ui,
         connection = repo.connection,
         reconnect = reconnect,
@@ -200,11 +214,11 @@ class MainViewModel(
     private var fallbackForDialog: String? = null
 
     init {
-        viewModelScope.launch { collectScanning() }
-        viewModelScope.launch { collectDevices() }
-        viewModelScope.launch { collectConnection() }
-        viewModelScope.launch { collectIncoming() }
-        viewModelScope.launch { collectDescriptorWritten() }
+        scope.launch { collectScanning() }
+        scope.launch { collectDevices() }
+        scope.launch { collectConnection() }
+        scope.launch { collectIncoming() }
+        scope.launch { collectDescriptorWritten() }
         web.onArtifact = ::receiveArtifact
         web.onOutput = outputs::receive
         web.onReplayInfo = { info ->
@@ -247,7 +261,7 @@ class MainViewModel(
      */
     fun addGraphZip(uri: Uri?) {
         if (uri == null || !canChangeGraph) return
-        viewModelScope.launch {
+        scope.launch {
             val r = withContext(Dispatchers.IO) { runCatching { webStore.add(uri) } }
             r.onSuccess { (entry, outcome, replacedActive) ->
                 if (replacedActive) web.load()
@@ -272,7 +286,7 @@ class MainViewModel(
     /** Display Engine「Delete」。同梱の標準版は消せない。使っていたものを消したら標準版に戻して読み込み直す */
     fun removeGraph(id: String) {
         if (!canChangeGraph) return
-        viewModelScope.launch {
+        scope.launch {
             val r = withContext(Dispatchers.IO) { runCatching { webStore.remove(id) } }
             r.onSuccess { wasActive -> if (wasActive) web.load(); refreshGraphContent() }
                 .onFailure { e -> refreshGraphContent(e.message ?: e.toString(), isError = true) }
@@ -329,7 +343,6 @@ class MainViewModel(
     }
 
     private fun displayName(uri: Uri): String {
-        val app = getApplication<Application>()
         return runCatching {
             app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
@@ -337,11 +350,20 @@ class MainViewModel(
         }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "replay.csv"
     }
 
-    override fun onCleared() {
-        // Activity が破棄されると viewModelScope のデータパイプラインも止まるため、
-        // 常駐サービスだけを残さない（プロセスが生きていても受信処理が死ぬため）。
-        MeasurementService.stop(getApplication())
-        super.onCleared()
+    /**
+     * 最近使ったアプリからタスクを消したとき([MeasurementService.onTaskRemoved])。計測中なら Stop と同じく
+     * CSV を閉じてアーティファクトを統合し(共有シートは出す画面が無いので開かない)、端末を切ってからサービスを止める。
+     * OS はタスクを消したプロセスを前面サービスが無くなった時点で終わらせるので、サービスは最後に止める
+     * (先に止めると統合の途中で殺され、最後の最大 99 行とアーティファクトが消える)。
+     */
+    fun closeForTaskRemoved() {
+        scope.launch {
+            reconnect.noteUserDisconnect()
+            reconnect.cancel()
+            if (ui.value.isMeasuring) finishMeasurement(openShare = false)
+            if (ui.value.connection != ConnectionState.Disconnected) repo.disconnect()
+            MeasurementService.stop(app)
+        }
     }
 
     fun setAutoConnect(enabled: Boolean) {
@@ -385,7 +407,7 @@ class MainViewModel(
         // location 型が付いていないと画面 OFF 中の測位が落ちるため
         // （[MeasurementService.foregroundServiceType]）。冪等なので通知は増えない。
         if (ui.value.isMeasuring) {
-            MeasurementService.start(getApplication())
+            MeasurementService.start(app)
         }
     }
 
@@ -463,7 +485,7 @@ class MainViewModel(
                         web.stop()
                         // 判定器の表はページが stop の後に送る残りを待ってから閉じる(閉じる前に次の計測が始まっていたら何もしない)
                         val s = outputs.session
-                        viewModelScope.launch { delay(OUTPUTS_STOP_GRACE_MS); outputs.stop(s) }
+                        scope.launch { delay(OUTPUTS_STOP_GRACE_MS); outputs.stop(s) }
                     }
                     val dropResult = csv.stop()
                     // 予期しない切断でもタップラベルを失わないよう本体CSVへ統合する。
@@ -496,7 +518,7 @@ class MainViewModel(
                         // 再接続ループが動いていない通常の切断は完全に idle へ戻す。
                         // ループ中の一時的な切断ならループに任せ、再接続表示は消さない。
                         if (!reconnect.isRunning) _ui.update { it.copy(isReconnecting = false) }
-                        MeasurementService.stop(getApplication())
+                        MeasurementService.stop(app)
                     }
                 }
                 else -> Unit
@@ -527,7 +549,7 @@ class MainViewModel(
             return
         }
         autoConnectAttempted = false
-        viewModelScope.launch {
+        scope.launch {
             repo.startScan()
             delay(MemeBleConstants.SCAN_TIMEOUT_MS)
             repo.stopScan()
@@ -578,7 +600,7 @@ class MainViewModel(
     }
 
     fun initialize() {
-        viewModelScope.launch {
+        scope.launch {
             _ui.update { it.copy(isInitializing = true) }
             sendEncoded(MemeCommands.clearParams())
             // Wait for ACK in collectIncoming
@@ -590,7 +612,7 @@ class MainViewModel(
     }
 
     private fun startMeasurement() {
-        viewModelScope.launch {
+        scope.launch {
             _ui.update { it.copy(isStarting = true) }
             counter.reset()
             prevTimeMs = 0
@@ -609,7 +631,7 @@ class MainViewModel(
             outputs.start(csv.baseName ?: "", csv.compressed, ui.value.settings.quality.hz) { web.pageName }
             // 計測中はフォアグラウンドサービスでプロセス／CPU を保護し、
             // バックグラウンド・スリープ中も BLE 受信が途切れないようにする。
-            MeasurementService.start(getApplication())
+            MeasurementService.start(app)
 
             delay(0); sendSetMode()
             // 端末が実際に適用したモード/速度を読み戻して Toast で確認する。
@@ -647,37 +669,43 @@ class MainViewModel(
     }
 
     private fun stopMeasurement() {
-        viewModelScope.launch {
-            sendEncoded(MemeCommands.startStop(false))
-            web.stop()
-            val stoppedAt = SystemClock.elapsedRealtime()
-            val outputsSession = outputs.session
-            val stopResult = csv.stop()
-            stopCommTicker()
-            location.stop()
-            MeasurementService.stop(getApplication())
-            // 停止の見た目（ボタン・行数）は統合を待たずに先に戻す。統合は数百MBの
-            // CSV を書き直すことがあり、待たせると Stop が固まったように見える。
-            _ui.update {
-                it.copy(
-                    isMeasuring = false,
-                    recordingRows = 0L,
-                )
-            }
-            // Stop Measurement: アーティファクトをこのセッションで書いた本体CSVへ統合する
-            // (再生のぶんは再生を終えるとき [PlaybackController.exit] が再生元へ書き戻す)。
-            mergeTapLabels(target = stopResult.dataUri, byRowIndex = false)
-            // 判定器の表: ページが stop の後に送る残りを待ってから閉じる(統合で既に待ったぶんは差し引く)
-            delay((OUTPUTS_STOP_GRACE_MS - (SystemClock.elapsedRealtime() - stoppedAt)).coerceAtLeast(0))
-            val tableUris = outputs.stop(outputsSession)
-            lastSavedTables = tableUris
-            lastSaved = stopResult.dataUri to (lastSaved.second + 1)
-            // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
-            // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。判定器の表の CSV も一緒に渡す
-            val shareUris = listOfNotNull(stopResult.dataUri) + if (stopResult.dataUri != null) tableUris else emptyList()
-            if (shareUris.isNotEmpty() && ui.value.openSharingOnComplete && !suppressShareForAutotest) {
-                _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
-            }
+        scope.launch { finishMeasurement(openShare = true) }
+    }
+
+    /** Stop Measurement の本体。統合と判定器の表の書き出しまで終えてから返る。 */
+    private suspend fun finishMeasurement(openShare: Boolean) {
+        sendEncoded(MemeCommands.startStop(false))
+        web.stop()
+        val stoppedAt = SystemClock.elapsedRealtime()
+        val outputsSession = outputs.session
+        val stopResult = csv.stop()
+        stopCommTicker()
+        location.stop()
+        // 停止の見た目（ボタン・行数）は統合を待たずに先に戻す。統合は数百MBの
+        // CSV を書き直すことがあり、待たせると Stop が固まったように見える。
+        _ui.update {
+            it.copy(
+                isMeasuring = false,
+                recordingRows = 0L,
+            )
+        }
+        // Stop Measurement: アーティファクトをこのセッションで書いた本体CSVへ統合する
+        // (再生のぶんは再生を終えるとき [PlaybackController.exit] が再生元へ書き戻す)。
+        mergeTapLabels(target = stopResult.dataUri, byRowIndex = false)
+        // 判定器の表: ページが stop の後に送る残りを待ってから閉じる(統合で既に待ったぶんは差し引く)
+        delay((OUTPUTS_STOP_GRACE_MS - (SystemClock.elapsedRealtime() - stoppedAt)).coerceAtLeast(0))
+        val tableUris = outputs.stop(outputsSession)
+        lastSavedTables = tableUris
+        lastSaved = stopResult.dataUri to (lastSaved.second + 1)
+        // サービスは統合と表の書き出しを終えてから止める(裏に回っていてもそこまではプロセスを守る)。
+        // その間に次の計測や再接続が始まっていたら、そちらのために残す。
+        val st = ui.value
+        if (!st.isMeasuring && !st.isStarting && !reconnect.isRunning) MeasurementService.stop(app)
+        // 共有シートは統合が終わってから開く。統合は元ファイルを丸ごと置き換える
+        // ので、待たずに渡すと受け手が統合前・置き換え途中のファイルを掴む。判定器の表の CSV も一緒に渡す
+        val shareUris = listOfNotNull(stopResult.dataUri) + if (stopResult.dataUri != null) tableUris else emptyList()
+        if (openShare && shareUris.isNotEmpty() && ui.value.openSharingOnComplete && !suppressShareForAutotest) {
+            _ui.update { it.copy(shareRequest = ShareRequest(shareUris)) }
         }
     }
 
@@ -726,7 +754,7 @@ class MainViewModel(
         val labels = tapLabels.toList()
         tapLabels.clear()
         if (target == null) return
-        mergeLabelsIntoCsv(getApplication(), target, labels, byRowIndex)
+        mergeLabelsIntoCsv(app, target, labels, byRowIndex)
     }
 
     fun dismissToast() { _ui.update { it.copy(toast = null) } }
@@ -805,7 +833,7 @@ class MainViewModel(
      * 全データパケットに乗ってくるので、100Hz でそのまま出すと logcat が溢れる。
      * 値が変わった時と、変わらなくても [BATTERY_LOG_INTERVAL_MS] ごとに 1 行だけ出す。
      * 長時間計測が切断で止まった時に「切断直前に残量がどこまで落ちていたか」＝
-     * メガネの電池切れかどうかを `adb logcat -s MainViewModel` で追うための計装。
+     * メガネの電池切れかどうかを `adb logcat -s MeasurementSession` で追うための計装。
      */
     private fun logBatteryLevel(level: Int) {
         val now = SystemClock.elapsedRealtime()
@@ -847,7 +875,7 @@ class MainViewModel(
 
     private fun startCommTicker() {
         commTickerJob?.cancel()
-        commTickerJob = viewModelScope.launch {
+        commTickerJob = scope.launch {
             delay(200)
             while (true) {
                 val rate = counter.commRateTick(ui.value.settings.quality)
@@ -861,16 +889,4 @@ class MainViewModel(
         commTickerJob?.cancel(); commTickerJob = null
     }
 
-    companion object {
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : androidx.lifecycle.ViewModel> create(
-                modelClass: Class<T>,
-                extras: CreationExtras,
-            ): T {
-                val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as App
-                @Suppress("UNCHECKED_CAST")
-                return MainViewModel(app, app.bleRepository) as T
-            }
-        }
-    }
 }

@@ -22,7 +22,7 @@ private const val RECONNECT_NOTIFY_TIMEOUT_MS = 6_000L
 
 /**
  * 計測中の予期しない切断からの自動再接続ループと、その判定に使う「最後に接続した
- * デバイス」「意図した切断か」の記録を担うコントローラ。[MainViewModel] からの
+ * デバイス」「意図した切断か」の記録を担うコントローラ。[MeasurementSession] からの
  * 抽出で、UI 状態は [ui]（isReconnecting）へ直接反映する。
  */
 internal class ReconnectController(
@@ -31,7 +31,7 @@ internal class ReconnectController(
     private val ui: MutableStateFlow<MainUiState>,
     // 再接続ループ中に発見イベント駆動の自動接続が競合しないよう抑止する。
     private val onSuppressAutoConnect: () -> Unit,
-    // 再接続成立後に新しい CSV で計測を開始し直す（MainViewModel.startMeasurement）。
+    // 再接続成立後に新しい CSV で計測を開始し直す（MeasurementSession.startMeasurement）。
     private val restartMeasurement: () -> Unit,
     // 再接続を諦めた／中断した際に常駐サービスを畳む（計測中でなければ）。
     private val stopMeasurementService: () -> Unit,

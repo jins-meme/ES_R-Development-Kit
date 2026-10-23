@@ -31,7 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jins_jp.meme.core.App
 import com.jins_jp.meme.core.R
 import com.jins_jp.meme.core.ble.ConnectionState
 import com.jins_jp.meme.core.data.CSV_GZ_MIME
@@ -43,10 +43,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory),
-    charts: @Composable ColumnScope.(MainUiState) -> Unit = { _ -> WebChartsPane(viewModel.web, Modifier.weight(1f)) },
+    session: MeasurementSession = App.instance.session,
+    charts: @Composable ColumnScope.(MainUiState) -> Unit = { _ -> WebChartsPane(session.web, Modifier.weight(1f)) },
 ) {
-    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val ui by session.ui.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -55,8 +55,8 @@ fun MainScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_START) viewModel.setForeground(true)
-            if (e == Lifecycle.Event.ON_STOP) viewModel.setForeground(false)
+            if (e == Lifecycle.Event.ON_START) session.setForeground(true)
+            if (e == Lifecycle.Event.ON_STOP) session.setForeground(false)
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
@@ -65,7 +65,7 @@ fun MainScreen(
     // 計測完了時、設定が有効なら本体データCSVを「その他のアプリと共有」で開く。
     LaunchedEffect(ui.shareRequest) {
         val req = ui.shareRequest ?: return@LaunchedEffect
-        viewModel.dismissShareRequest()
+        session.dismissShareRequest()
         // 本体データは設定により .csv.gz か .csv なので、受け手を絞りすぎないよう intent の type は "*/*"。
         val shareMimes = arrayOf(CSV_GZ_MIME, CSV_MIME)
         val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
@@ -84,7 +84,7 @@ fun MainScreen(
     var toastJob by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(ui.toast) {
         val msg = ui.toast ?: return@LaunchedEffect
-        viewModel.dismissToast()
+        session.dismissToast()
         toastJob?.cancel()
         toastJob = scope.launch {
             snackbarHost.currentSnackbarData?.dismiss()
@@ -110,10 +110,10 @@ fun MainScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (!ui.isMeasuring) {
-                    ConnectCard(ui, viewModel)
+                    ConnectCard(ui, session)
                 }
                 if (ui.connection == ConnectionState.ServicesReady) {
-                    MeasureCard(ui, viewModel)
+                    MeasureCard(ui, session)
                 }
             }
             charts(ui)
@@ -124,16 +124,16 @@ fun MainScreen(
     // 端末は自ら切断する（復帰は充電のみ）。
     if (ui.showShelfDialog) {
         AlertDialog(
-            onDismissRequest = { viewModel.dismissShelfDialog() },
+            onDismissRequest = { session.dismissShelfDialog() },
             title = { Text(stringResource(R.string.shelf_dialog_title)) },
             text = { Text(stringResource(R.string.shelf_dialog_text)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmShelfMode() }) {
+                TextButton(onClick = { session.confirmShelfMode() }) {
                     Text(stringResource(R.string.button_dialog_yes))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissShelfDialog() }) {
+                TextButton(onClick = { session.dismissShelfDialog() }) {
                     Text(stringResource(R.string.button_dialog_cancel))
                 }
             },
@@ -142,11 +142,11 @@ fun MainScreen(
 
     if (ui.bluetoothError) {
         AlertDialog(
-            onDismissRequest = { viewModel.dismissBluetoothError() },
+            onDismissRequest = { session.dismissBluetoothError() },
             title = { Text(stringResource(R.string.bluetooth_error_title)) },
             text = { Text(stringResource(R.string.bluetooth_error_text)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.dismissBluetoothError() }) {
+                TextButton(onClick = { session.dismissBluetoothError() }) {
                     Text(stringResource(R.string.button_dialog_ok))
                 }
             },

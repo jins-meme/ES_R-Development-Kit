@@ -98,7 +98,7 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             WebView.setWebContentsDebuggingEnabled(true)     // デバッグビルドだけ(chrome://inspect・自己テスト)
         }
-        // WebView は画面の回転などで作り直さないよう ViewModel が持つのでアプリの Context で作るが、そのままだと
+        // WebView は Activity より長生きする MeasurementSession が持つのでアプリの Context で作るが、そのままだと
         // <select> の選択肢の一覧(ダイアログ)が出せない(Activity の上にしか出せない)。MutableContextWrapper で包み、
         // 画面に置いている間だけ Activity に差し替える(attachTo / detach。WebChartsPane)
         val wv = WebView(MutableContextWrapper(context))

@@ -52,13 +52,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
+internal fun ConnectCard(ui: MainUiState, session: MeasurementSession) {
     var showSettings by remember { mutableStateOf(false) }
     var showDisplayEngine by remember { mutableStateOf(false) }
     // Play button: pick a logged CSV; the graph page replays it (Disconnect ends the replay).
     val playbackCsvPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri -> vm.startPlayback(uri) }
+    ) { uri -> session.startPlayback(uri) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // ファイル再生中は、見出しの行(再生・設定のボタンごと)を出さずに上へ詰める(BLE の接続中は従来どおり出す)
@@ -108,7 +108,7 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
             // 再生中は端末を探さないので、Scan device と見つかった端末の一覧は出さない
             if (!ui.isReplaying) Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = { vm.startScan() },
+                    onClick = { session.startScan() },
                     enabled = !ui.scanning && ui.connection == ConnectionState.Disconnected,
                 ) { Text(stringResource(R.string.button_scan_device)) }
                 Box(Modifier.width(8.dp))
@@ -117,7 +117,7 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                         devices = ui.devices,
                         selectedIndex = ui.selectedDeviceIndex,
                         enabled = ui.devices.isNotEmpty() && ui.connection == ConnectionState.Disconnected,
-                        onSelected = vm::selectDevice,
+                        onSelected = session::selectDevice,
                     )
                 }
                 if (ui.scanning) {
@@ -135,9 +135,9 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
                                     ui.connection == ConnectionState.ServicesReady ||
                                     ui.connection == ConnectionState.Connected)),
                     // Shelf mode は隠し操作。移行できる状態のときだけ長押しを見る。
-                    longPressEnabled = vm.canEnterShelfMode(),
-                    onClick = { vm.connectOrDisconnect() },
-                    onLongPress = { vm.requestShelfMode() },
+                    longPressEnabled = session.canEnterShelfMode(),
+                    onClick = { session.connectOrDisconnect() },
+                    onLongPress = { session.requestShelfMode() },
                 )
                 Box(Modifier.width(12.dp))
                 Text(
@@ -151,10 +151,10 @@ internal fun ConnectCard(ui: MainUiState, vm: MainViewModel) {
     }
 
     if (showSettings) {
-        SettingsDialog(ui = ui, vm = vm, onDismiss = { showSettings = false })
+        SettingsDialog(ui = ui, session = session, onDismiss = { showSettings = false })
     }
     if (showDisplayEngine) {
-        DisplayEngineDialog(ui = ui, vm = vm, onDismiss = { showDisplayEngine = false })
+        DisplayEngineDialog(ui = ui, session = session, onDismiss = { showDisplayEngine = false })
     }
 }
 
