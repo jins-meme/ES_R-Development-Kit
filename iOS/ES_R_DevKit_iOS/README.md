@@ -1,5 +1,18 @@
 # ES_R_DevKit_iOS
 
+> [!NOTE]
+> **Delay and missing data at 100 Hz on iOS**
+>
+> At 100 Hz the device sends 100 packets per second, but iOS receives only about 96–97 packets per second
+> (iOS keeps the Bluetooth connection interval at about 30 ms and takes about 3 packets in each interval).
+> The packets that iOS has not received yet wait in the device. Right after the measurement starts the data arrives
+> without delay. Then the delay grows little by little. After about 25 seconds it reaches about 0.5 seconds and stays
+> there. From that point the device drops the packets that do not fit, so about 3–4 % of the samples are missing.
+> These show as a success rate below 100 %. The app on the phone cannot change the connection interval.
+>
+> If you need real-time response or complete data, measure with Android.
+> (Measured on iPhone 16 Pro with iOS 27.2.)
+
 iPhone / iPad app for JINS MEME ES_R: scan, connect, measure, record CSV and show the graphs.
 The screen follows `android/ES_R_DevKit_Android2`; the CSV, the graph page (WebView) and the artifacts work the same way
 as the Mac app (`Mac/ES_R_DevKit_Mac`). Requires iOS 17 or later.
