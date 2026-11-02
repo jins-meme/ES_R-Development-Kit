@@ -43,7 +43,7 @@ data class VasPrompt(
 
 /**
  * 設定「Record VAS」。計測開始の直後に 1 回目、その後 [com.jins_jp.meme.core.data.VasSettings.intervalMinutes] 分ごとに
- * 通知を出し、アプリ上に入力ポップアップ（[MainUiState.vasPrompt]）を出す。OK で全項目の値を "vas1:50_vas2:30" にして
+ * 通知を出し、アプリ上に入力ポップアップ（[MainUiState.vasPrompt]）を出す。OK で全項目の値を "vas1:50;vas2:30" にして
  * [onRecorded] へ渡す（通知を出した時点の NUM と一緒に。セッションが手動ラベルと同じ経路で停止時に CSV へ統合する）。
  *
  * - 前のポップアップに答えないまま次の時刻が来たら、前のものは記録せずに新しいものへ差し替える

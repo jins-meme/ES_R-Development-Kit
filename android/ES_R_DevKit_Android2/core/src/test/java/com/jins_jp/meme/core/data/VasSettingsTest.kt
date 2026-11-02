@@ -27,12 +27,12 @@ class VasSettingsTest {
     @Test
     fun formatsArtifactWithOneBasedIndex() {
         assertEquals("vas1:50", formatVasArtifact(listOf(50)))
-        assertEquals("vas1:0_vas2:100_vas3:72", formatVasArtifact(listOf(0, 100, 72)))
+        assertEquals("vas1:0;vas2:100;vas3:72", formatVasArtifact(listOf(0, 100, 72)))
     }
 
     @Test
     fun clampsValuesIntoRange() {
-        assertEquals("vas1:0_vas2:100", formatVasArtifact(listOf(-3, 140)))
+        assertEquals("vas1:0;vas2:100", formatVasArtifact(listOf(-3, 140)))
     }
 
     @Test
