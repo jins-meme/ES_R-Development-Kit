@@ -22,6 +22,7 @@ import com.jins_jp.meme.core.data.MemeMode
 import com.jins_jp.meme.core.data.MemeQuality
 import com.jins_jp.meme.core.data.SampleCounter
 import com.jins_jp.meme.core.data.SettingsStore
+import com.jins_jp.meme.core.data.VasSettings
 import com.jins_jp.meme.core.data.mergeLabelsIntoCsv
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.service.MeasurementService
@@ -98,6 +99,10 @@ data class MainUiState(
     val showShelfDialog: Boolean = false,
     // Shelf 移行コマンドの送信中（完了は端末側からの切断）。
     val isEnteringShelf: Boolean = false,
+    // 設定「Record VAS」（既定 OFF）。間隔と項目のメモ。計測中は変えられない（設定画面を開けないため）。
+    val vasSettings: VasSettings = VasSettings(),
+    // 計測中に出している VAS の入力ポップアップ（[VasRecorder]）。null なら出していない。
+    val vasPrompt: VasPrompt? = null,
 )
 
 /** 計測完了後に共有シートへ渡す CSV（本体データ＋サイドカーのうち存在するもの）の URI。 */
@@ -137,6 +142,7 @@ class MeasurementSession(
             openSharingOnComplete = settingsStore.loadOpenSharingOnComplete(),
             locationLogging = settingsStore.loadLocationLogging(),
             gzipCompression = settingsStore.loadGzipCompression(),
+            vasSettings = settingsStore.loadVas(),
         )
     )
     val ui: StateFlow<MainUiState> = _ui.asStateFlow()
@@ -172,7 +178,8 @@ class MeasurementSession(
         repo = repo,
         ui = _ui,
         onSuppressAutoConnect = { autoConnectAttempted = true },
-        restartMeasurement = ::startMeasurement,
+        // 自動再接続での再開。VAS の周期は引き継ぐ（[VasRecorder.start]）
+        restartMeasurement = { startMeasurement(resume = true) },
         stopMeasurementService = { MeasurementService.stop(app) },
     )
     private val playback = PlaybackController(
@@ -199,6 +206,19 @@ class MeasurementSession(
         ui = _ui,
         sample = locationSampler::sample,
         onRecorded = { text -> web.mark(currentLabelKey(), text) },
+    )
+
+    // 設定「Record VAS」: 計測開始直後と一定間隔ごとに通知とポップアップで VAS を求め、値を通知した時点の行の
+    // ARTIFACT 列へ残す（手動ラベルと同じく停止時に統合）。グラフ画面にも印を出す。
+    private val vas = VasRecorder(
+        context = app,
+        scope = scope,
+        ui = _ui,
+        currentKey = ::currentLabelKey,
+        onRecorded = { key, text ->
+            addLabel(key, text)
+            web.mark(key, text)
+        },
     )
 
     // Disconnect の長押しで端末を Shelf mode へ移す。
@@ -411,6 +431,19 @@ class MeasurementSession(
         }
     }
 
+    /**
+     * 設定「Record VAS」の内容（オンオフ・間隔・項目のメモ）。計測中は変えない（設定画面は計測中に開けないが、念のため）。
+     * 間隔は設定モーダルで検査済みの値が来る。
+     */
+    fun setVasSettings(settings: VasSettings) {
+        if (ui.value.isMeasuring || ui.value.isStarting) return
+        settingsStore.saveVas(settings)
+        _ui.update { it.copy(vasSettings = settings) }
+    }
+
+    /** VAS の入力ポップアップの OK。[values] は項目の順の値（0〜100） */
+    fun submitVas(promptId: Long, values: List<Int>) = vas.submit(promptId, values)
+
     fun dismissShareRequest() { _ui.update { it.copy(shareRequest = null) } }
 
     /**
@@ -465,6 +498,10 @@ class MeasurementSession(
                     // the files in that case (no-op if nothing was being written).
                     stopCommTicker()
                     location.stop()
+                    // 答えていない VAS のポップアップは消す（この CSV へはもう載せられない）。自動再接続で続けるなら周期は残す。
+                    vas.stop(
+                        keepSchedule = wasMeasuring && _ui.value.reconnectEnabled && !reconnect.userInitiatedDisconnect,
+                    )
                     // なぜ計測が止まったかを後から切り分けられるよう、切断の時刻と
                     // GATT ステータスと電池残量を "<base>_disconnect.csv" へ残す。csv.stop() が
                     // サイドカーのベース名も畳むので、必ずその前に書く（電池残量は下で -1 に戻す前に読む）。
@@ -611,7 +648,8 @@ class MeasurementSession(
         if (ui.value.isMeasuring) stopMeasurement() else startMeasurement()
     }
 
-    private fun startMeasurement() {
+    /** [resume] は自動再接続での再開（VAS の周期を引き継ぐ）。ユーザーの Start は false */
+    private fun startMeasurement(resume: Boolean = false) {
         scope.launch {
             _ui.update { it.copy(isStarting = true) }
             counter.reset()
@@ -649,6 +687,7 @@ class MeasurementSession(
             }
             startCommTicker()
             location.start()
+            vas.start(resume)
         }
     }
 
@@ -681,6 +720,7 @@ class MeasurementSession(
         val stopResult = csv.stop()
         stopCommTicker()
         location.stop()
+        vas.stop(keepSchedule = false)
         // 停止の見た目（ボタン・行数）は統合を待たずに先に戻す。統合は数百MBの
         // CSV を書き直すことがあり、待たせると Stop が固まったように見える。
         _ui.update {

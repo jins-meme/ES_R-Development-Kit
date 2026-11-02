@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.jins_jp.meme.core.R
@@ -49,6 +53,9 @@ import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 @Composable
 internal fun SettingsDialog(ui: MainUiState, session: MeasurementSession, onDismiss: () -> Unit) {
     val canEditSettings = !ui.isMeasuring
+    // VAS の設定モーダル。null は閉じている。true はチェックボックスから開いた(OK で Record VAS を ON にする)、
+    // false は横の設定アイコンから開いた(オンオフは変えず、間隔と項目だけ変える)
+    var vasDialogEnables by remember { mutableStateOf<Boolean?>(null) }
     val canInitialize = ui.connection == ConnectionState.ServicesReady &&
             !ui.isMeasuring && !ui.isInitializing
     // グラフ画面の中身(zip)の切り替えは、設定ボタンの横の Display Engine から(DisplayEngineDialog)。
@@ -186,6 +193,42 @@ internal fun SettingsDialog(ui: MainUiState, session: MeasurementSession, onDism
                     )
                 }
 
+                // Record VAS: オンにすると設定モーダルを開く(Cancel ならオフのまま)。後から項目を変えるときは横の設定アイコン
+                val onVasChecked: (Boolean) -> Unit = { checked ->
+                    if (checked) vasDialogEnables = true
+                    else session.setVasSettings(ui.vasSettings.copy(enabled = false))
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = canEditSettings) { onVasChecked(!ui.vasSettings.enabled) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.vasSettings.enabled,
+                        onCheckedChange = onVasChecked,
+                        enabled = canEditSettings,
+                    )
+                    Text(
+                        stringResource(R.string.text_label_record_vas),
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = { vasDialogEnables = false },
+                        enabled = canEditSettings,
+                    ) {
+                        Icon(
+                            Icons.Filled.Settings,
+                            contentDescription = stringResource(R.string.text_label_vas_settings),
+                            tint = if (canEditSettings) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                    }
+                }
+
             }
         },
         confirmButton = {
@@ -232,6 +275,17 @@ internal fun SettingsDialog(ui: MainUiState, session: MeasurementSession, onDism
             }
         },
     )
+
+    vasDialogEnables?.let { enables ->
+        VasSettingsDialog(
+            initial = ui.vasSettings,
+            onConfirm = { edited ->
+                session.setVasSettings(if (enables) edited.copy(enabled = true) else edited)
+                vasDialogEnables = null
+            },
+            onDismiss = { vasDialogEnables = null },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
