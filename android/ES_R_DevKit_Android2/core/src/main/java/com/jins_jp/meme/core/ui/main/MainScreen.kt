@@ -140,6 +140,11 @@ fun MainScreen(
         )
     }
 
+    // VAS の入力ポップアップ(設定「Record VAS」。計測中に一定間隔で出る)。OK で記録して閉じる
+    ui.vasPrompt?.let { prompt ->
+        VasPromptDialog(prompt) { values -> session.submitVas(prompt.id, values) }
+    }
+
     if (ui.bluetoothError) {
         AlertDialog(
             onDismissRequest = { session.dismissBluetoothError() },

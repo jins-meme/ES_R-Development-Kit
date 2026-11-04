@@ -1,6 +1,7 @@
 package com.jins_jp.meme.core.data
 
 import android.content.Context
+import org.json.JSONArray
 
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -60,6 +61,32 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean(KEY_LOCATION_LOGGING, enabled).apply()
     }
 
+    // 既定 OFF。設定「Record VAS」。間隔(分)と項目のメモ(CSV には書かない)も一緒に残す。
+    // 項目はメモの JSON 配列で持つ（項目の数 = 配列の長さ）。
+    fun loadVas(): VasSettings {
+        val interval = prefs.getInt(KEY_VAS_INTERVAL, VAS_INTERVAL_DEFAULT_MIN)
+            .takeIf { it in VAS_INTERVAL_MIN_MIN..VAS_INTERVAL_MAX_MIN } ?: VAS_INTERVAL_DEFAULT_MIN
+        val items = prefs.getString(KEY_VAS_ITEMS, null)?.let { json ->
+            runCatching {
+                val a = JSONArray(json)
+                List(a.length()) { VasItem(a.optString(it, "")) }
+            }.getOrNull()
+        }?.takeIf { it.isNotEmpty() } ?: listOf(VasItem())
+        return VasSettings(
+            enabled = prefs.getBoolean(KEY_VAS_ENABLED, false),
+            intervalMinutes = interval,
+            items = items,
+        )
+    }
+
+    fun saveVas(s: VasSettings) {
+        prefs.edit()
+            .putBoolean(KEY_VAS_ENABLED, s.enabled)
+            .putInt(KEY_VAS_INTERVAL, s.intervalMinutes)
+            .putString(KEY_VAS_ITEMS, JSONArray(s.items.map { it.memo }).toString())
+            .apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "measurement_settings"
         const val KEY_MODE = "mode"
@@ -71,5 +98,8 @@ class SettingsStore(context: Context) {
         const val KEY_OPEN_SHARING = "open_sharing_on_complete"
         const val KEY_LOCATION_LOGGING = "location_logging"
         const val KEY_GZIP_COMPRESSION = "gzip_compression"
+        const val KEY_VAS_ENABLED = "vas_enabled"
+        const val KEY_VAS_INTERVAL = "vas_interval_min"
+        const val KEY_VAS_ITEMS = "vas_items"
     }
 }

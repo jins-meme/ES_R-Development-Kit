@@ -19,6 +19,19 @@
     <string name="text_label_location_logging">Record approximate location when moved 50m or more</string>
     <string name="text_label_gzip_compression">Compress saved data (.csv.gz)</string>
     <string name="text_label_oss_licenses">OSS Licenses</string>
+    <!-- 設定「Record VAS」と、その設定モーダル・計測中の入力ポップアップ(VasDialogs / VasRecorder)。UI の文言は英語。 -->
+    <string name="text_label_record_vas">Record VAS</string>
+    <string name="text_label_vas_settings">VAS settings</string>
+    <string name="vas_interval_label">Interval (minutes)</string>
+    <string name="vas_interval_error">Enter a whole number from 1 to 1440</string>
+    <string name="vas_interval_note">VAS is recorded right after the measurement starts, then at this interval (shared by all items).</string>
+    <string name="vas_item_title">Item %1$d</string>
+    <string name="vas_memo_label">Memo (optional)</string>
+    <string name="vas_memo_note">Memos are kept in the app only and are not written to the CSV.</string>
+    <string name="button_vas_add_item">Add item</string>
+    <string name="vas_delete_item">Delete item</string>
+    <string name="vas_prompt_title">VAS</string>
+    <string name="vas_prompt_time">Requested at %1$s</string>
     <string name="bluetooth_error_title">Bluetooth error</string>
     <string name="bluetooth_error_text">Bluetooth is off. Please turn it on from the settings.</string>
     <string name="text_label_starting">Starting…</string>
@@ -64,4 +77,8 @@
     <string name="notification_measuring_text">センサーデータを受信しています</string>
     <!-- 判定器のイベント通知(グラフ画面のページが送る notify。DetectorOutputs) -->
     <string name="notification_channel_detector">Detector events</string>
+    <!-- VAS の記録を求める通知(VasRecorder) -->
+    <string name="notification_channel_vas">VAS reminders</string>
+    <string name="notification_vas_title">VAS</string>
+    <string name="notification_vas_text">Time to record VAS. Tap to open the app.</string>
 </resources>
