@@ -4,6 +4,8 @@
 //   ・アプリの受け口の真似 … start の features(notify / records)を渡し、ページから届いた notify / table / records を
 //     アプリと同じ規則で検査して、パネルに出す。表は Stop の後に「Download tables」で CSV に落とせる(アプリが書くのと同じ形)。
 //     仕様は webview/BRIDGE.md の Detector notifications and tables。
+//   ・日別キャッシュの真似 … features に "cache" を入れ、cacheList / cacheRead / cacheWrite をブラウザの localStorage
+//     (キー jmasDevCache:<device>/<name>)で受けて、アプリと同じく jmasHost.cacheResult で返す(BRIDGE.md の Cache files)。
 // アプリへの post はブラウザでは console に出る(bridge.js の post が jmasDevSink を呼ぶ)。
 const host = window.jmasHost;
 const panel = document.createElement("div");
@@ -14,7 +16,7 @@ panel.innerHTML = `<b>Dev</b>
   <button id="devStop" type="button">Stop</button>
   <button id="devGap" type="button">Gap</button>
   <button id="devMark" type="button">Free Marking</button>
-  <label title="start の features に notify / records を入れる(外すと、未対応のアプリの真似)"><input id="devFeatures" type="checkbox" checked> App features</label>
+  <label title="start / openReplay の features に notify / records / cache を入れる(外すと、未対応のアプリの真似)"><input id="devFeatures" type="checkbox" checked> App features</label>
   <button id="devTables" type="button" disabled>Download tables</button>
   <label style="max-width:100%">Open CSV <input id="devCsv" type="file" accept=".csv,.gz" style="max-width:100%"></label>`;
 document.body.prepend(panel);
@@ -41,9 +43,10 @@ document.getElementById("devStart").onclick = () => {
   clearInterval(timer);
   mode = document.getElementById("devMode").value; i = 0;
   const cps = 100, cols = COLS[mode], t0 = performance.now();
-  const features = document.getElementById("devFeatures").checked ? ["notify", "records"] : [];
+  const features = document.getElementById("devFeatures").checked ? ["notify", "records", "cache"] : [];
   app.begin({ startedAt: Date.now(), cps, i0: 1000, features });
-  host.start(JSON.stringify({ label: `Simulated ${mode}`, mode, cps, accRange: 8, gyroRange: 1000, columns: cols, startedAt: app.startedAt, timeZone: "local", features }));
+  host.start(JSON.stringify({ label: `Simulated ${mode}`, mode, cps, accRange: 8, gyroRange: 1000, columns: cols, startedAt: app.startedAt, timeZone: "local", features,
+    device: DEV_DEVICE }));
   timer = setInterval(() => {
     const due = Math.floor((performance.now() - t0) / 1000 * cps), rows = [];
     for (; i < due; i++) { const s = sample(i / cps); rows.push([i + 1000, ...cols.map((c) => Math.round(s[c]))]); }
@@ -56,12 +59,20 @@ document.getElementById("devGap").onclick = () => host.gap();
 document.getElementById("devMark").onclick = () => host.mark(JSON.stringify({ i: i + 1000, text: "X" }));
 document.getElementById("devCsv").onchange = (e) => {
   const f = e.target.files[0];
-  if (f) { clearInterval(timer); app.end(); host.openReplay(JSON.stringify({ url: URL.createObjectURL(f), name: f.name })); }
+  if (f) { clearInterval(timer); app.end(); host.openReplay(JSON.stringify({ url: URL.createObjectURL(f), name: f.name, ...replayExtra(f.name) })); }
 };
 
 // ---------------------------------------------------------------- アプリの受け口の真似(notify / table / records)
 // Android の実装はこれと同じ規則にする(名前・列名の形、上限、文字列の扱い、ライブの間だけ受ける、同じ tag は 2 秒に 1 件)。
+const DEV_DEVICE = "DE0000000001";     // 模擬の計測の device(アプリは接続中の MEME の MAC)
+/** openReplay に足すもの(アプリと同じ: features と、CSV 名の先頭 12 桁の 16 進から device) */
+function replayExtra(name) {
+  const m = /^([0-9A-Fa-f]{12})_/.exec(name ?? "");
+  const on = document.getElementById("devFeatures").checked;
+  return { features: on ? ["cache"] : [], ...(m ? { device: m[1].toUpperCase() } : {}) };
+}
 const NAME = /^[a-z][a-z0-9_]{0,31}$/, COLUMN = /^[A-Z][A-Z0-9_]{0,31}$/, CTRL = /[\u0000-\u001f\u007f]/, FORMULA = /^[=+\-@]/;
+const CACHE_DEVICE = /^[0-9A-F]{12}$/, CACHE_NAME = /^\d{4}-\d{2}-\d{2}\.json$/, CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const MAX_MESSAGE = 64000, MAX_TAGS = 16, MAX_TABLES = 16, TAG_INTERVAL_MS = 2000;
 const appBox = document.createElement("div");
 appBox.style.cssText = "flex-basis:100%;font:11px/1.4 ui-monospace,monospace;white-space:pre-wrap";
@@ -103,6 +114,7 @@ const app = {
 
   receive(msg) {
     if (msg.kind === "ready") { this.page = `${msg.name ?? ""} ${msg.version ?? ""}`.trim(); return; }   // CSV の前書きの Page(アプリと同じ)
+    if (["cacheList", "cacheRead", "cacheWrite"].includes(msg.kind)) return this.cache(msg);
     if (!["notify", "table", "records"].includes(msg.kind)) return;
     if (JSON.stringify(msg).length > MAX_MESSAGE) return this.warn(`${msg.kind}: message over ${MAX_MESSAGE} characters, ignored`);
     const need = msg.kind === "notify" ? "notify" : "records";
@@ -166,6 +178,39 @@ const app = {
     this.show();
   },
 
+  /** 日別キャッシュの真似(Android は CacheStore.kt。名前の検査・上限・返り値の形を同じにする)。返りは非同期(アプリも別スレッド) */
+  cache({ kind, id, device, name, text }) {
+    const reply = (r) => setTimeout(() => host.cacheResult(JSON.stringify({ id, ...r })), 0);
+    if (!document.getElementById("devFeatures").checked) { this.warn(`${kind}: the app did not offer "cache" in features`); return reply({ ok: false, error: "no_access" }); }
+    if (!CACHE_DEVICE.test(device ?? "") || (kind !== "cacheList" && !CACHE_NAME.test(name ?? ""))) return reply({ ok: false, error: "bad_name" });
+    const key = (n) => `jmasDevCache:${device}/${n}`;
+    try {
+      if (kind === "cacheList") {
+        const files = [];
+        for (let k = 0; k < localStorage.length; k++) {
+          const full = localStorage.key(k);
+          if (!full.startsWith(`jmasDevCache:${device}/`)) continue;
+          const n = full.slice(`jmasDevCache:${device}/`.length), v = JSON.parse(localStorage.getItem(full));
+          if (CACHE_NAME.test(n)) files.push({ name: n, size: v.size, mtime: v.mtime });
+        }
+        return reply({ ok: true, files });
+      }
+      if (kind === "cacheRead") {
+        const v = localStorage.getItem(key(name));
+        return reply(v ? { ok: true, text: JSON.parse(v).text } : { ok: false, error: "not_found" });
+      }
+      const size = new TextEncoder().encode(text ?? "").length;
+      if (size > CACHE_MAX_BYTES) return reply({ ok: false, error: "too_large" });
+      localStorage.setItem(key(name), JSON.stringify({ text, size, mtime: Date.now() }));
+      this.cacheWrites = (this.cacheWrites ?? 0) + 1;
+      this.show();
+      return reply({ ok: true, size });
+    } catch (e) {
+      this.warn(`${kind}: ${e}`);                    // 主に localStorage の容量切れ(数 MB)。アプリは 16 MB まで
+      return reply({ ok: false, error: "io_error" });
+    }
+  },
+
   /** アプリが書くのと同じ形の CSV(前書きと列名の行は //) */
   csv(name, t) {
     const base = `SIMULATED_${new Date(this.startedAt).toISOString().replace(/\D/g, "").slice(0, 14)}`;
@@ -187,7 +232,7 @@ const app = {
   show() {
     const lines = [`App: ${this.live ? "live" : "idle"} · features [${this.features.join(", ")}]`];
     for (const [name, t] of this.tables) lines.push(`  table ${name}: ${t.lines.length} rows${t.bad ? " (columns changed, dropping)" : ""} — ${t.columns.join(", ")}`);
-    lines.push(`  notifications: ${this.notices.length}`);
+    lines.push(`  notifications: ${this.notices.length}${this.cacheWrites ? ` · cache writes: ${this.cacheWrites}` : ""}`);
     for (const n of this.notices.slice(-5)) lines.push(`    [${n.tag}] ${n.title}${n.text ? " — " + n.text : ""}${n.i != null ? ` (i ${n.i})` : ""}`);
     for (const w of this.warnings.slice(-5)) lines.push(`  ! ${w}`);
     appBox.textContent = lines.join("\n");
@@ -200,7 +245,7 @@ app.show();
 
 // ?replay=<URL> で開いた時点から再生する(serve.py --data と組み合わせる)
 const replayUrl = new URLSearchParams(location.search).get("replay");
-if (replayUrl) host.openReplay(JSON.stringify({ url: replayUrl, name: replayUrl.split("/").pop() }));
+if (replayUrl) host.openReplay(JSON.stringify({ url: replayUrl, name: replayUrl.split("/").pop(), ...replayExtra(replayUrl.split("/").pop()) }));
 
 // ?mock=full|standard|quaternion で模擬の計測をすぐ始める
 const mockMode = new URLSearchParams(location.search).get("mock");

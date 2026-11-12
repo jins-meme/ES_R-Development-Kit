@@ -146,7 +146,7 @@ export function createViewer(root, hooks) {
   }
 
   // ---------------------------------------------------------------- 再生(ページが受け持つ)
-  async function startReplay({ url, name }) {
+  async function startReplay({ url, name, device, features }) {
     stopReplay();
     ctx.mode = "loading";
     statusL.textContent = name ?? url;
@@ -160,7 +160,9 @@ export function createViewer(root, hooks) {
         total, onProgress: (read, tot, rows) => showMessage(`Loading… ${tot ? Math.round(read / tot * 100) + " %" : (read / 1e6).toFixed(0) + " MB"} (${(rows / 100 / 60).toFixed(0)} min)`),
       });
       const cond = { mode: r.mode, cps: r.cps, accRange: r.accRange, gyroRange: r.gyroRange, columns: r.columns,
-                     timeZone: ctx.cond?.timeZone ?? ctx.pendingTimeZone ?? "local", accOffset: ctx.pendingAccOffset ?? [0, 0, 0] };
+                     timeZone: ctx.cond?.timeZone ?? ctx.pendingTimeZone ?? "local", accOffset: ctx.pendingAccOffset ?? [0, 0, 0],
+                     // 日別キャッシュ(BRIDGE.md の Cache files): アプリが openReplay に渡した MEME の MAC と使える機能を、ページへそのまま渡す
+                     device: device ?? null, features: features ?? [], file: name ?? null };
       const rp = { playing: true, speed: 0, head: 0, dur: Math.max(0, (r.store.n - 1) / r.cps), name };
       ctx.replay = rp; ctx.mode = "replay";
       view.head = () => rp.head;

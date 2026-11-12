@@ -25,6 +25,26 @@ export function post(kind, data = {}) {
   console.debug("[bridge →app]", msg);
 }
 
+/**
+ * 日別キャッシュ(BRIDGE.md の Cache files)。kind = "cacheList" / "cacheRead" / "cacheWrite"。アプリが start / openReplay の
+ * features に "cache" を入れたときだけ使う。アプリは同じ id で jmasHost.cacheResult を呼ぶ → Promise がその中身で解決する
+ * ({ok, error?, files? / text? / size?})。返りが来ないまま timeoutMs が過ぎたら {ok: false, error: "timeout"}。
+ */
+let cacheSeq = 0;
+const cacheWait = new Map();
+export function cacheRequest(kind, data, timeoutMs = 30000) {
+  const id = ++cacheSeq;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { cacheWait.delete(id); resolve({ id, ok: false, error: "timeout" }); }, timeoutMs);
+    cacheWait.set(id, (r) => { clearTimeout(timer); resolve(r); });
+    post(kind, { id, ...data });
+  });
+}
+function cacheResult(r) {
+  const done = cacheWait.get(r?.id);
+  if (done) { cacheWait.delete(r.id); done(r); }
+}
+
 /** アプリの中で開かれているか(ブラウザで直接開いたときは false) */
 export const embedded = () => !!(window.webkit?.messageHandlers?.jmas || window.chrome?.webview || window.jmasNative);
 
@@ -54,6 +74,7 @@ export function installHost(handlers) {
     mark: (arg) => call("mark", parse(arg)),
     setTheme: (t) => call("theme", String(t)),
     stop: () => call("stop"),
+    cacheResult: (r) => cacheResult(parse(r)),
   };
   addEventListener("error", (e) => post("log", { level: "error", message: `${e.message} (${e.filename}:${e.lineno})` }));
   addEventListener("unhandledrejection", (e) => post("log", { level: "error", message: String(e.reason?.stack || e.reason) }));

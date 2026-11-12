@@ -62,9 +62,10 @@ Every argument may be a value or its JSON string.
 | `jmasHost.gap()` | Reception was interrupted (the app was in the background without `runInBackground`, reconnected …). |
 | `jmasHost.status(text)` | One line of status made by the app (optional). |
 | `jmasHost.mark({i, text})` | A mark made in the app at sample `i` (Free Marking writes `X`). |
-| `jmasHost.openReplay({url, name, timeZone, accOffset, theme})` | Replay a recorded CSV. The page fetches `url` (same origin) and owns playback: play, pause, speed, seek. |
+| `jmasHost.openReplay({url, name, timeZone, accOffset, theme, features, device})` | Replay a recorded CSV. The page fetches `url` (same origin) and owns playback: play, pause, speed, seek. `features` / `device`: as in `cond` below (Android, iOS, Mac: `["cache"]`, and `device` from the first 12 hex digits of the CSV name when it has them). |
 | `jmasHost.setTheme("light" \| "dark")` | The app's appearance changed. |
 | `jmasHost.stop()` | The measurement or replay ended. Keep what is shown. |
+| `jmasHost.cacheResult({id, ok, error, …})` | The answer to a `cacheList` / `cacheRead` / `cacheWrite` with the same `id` (see [Cache files](#cache-files)). `common/bridge.js` turns it into the Promise of `cacheRequest`. |
 
 `cond` for `start`:
 
@@ -79,7 +80,8 @@ Every argument may be a value or its JSON string.
 | `timeZone` | `"local"` / `"utc"` | How to show clock times (app setting) |
 | `accOffset` | `[0, 0, 0]` | Accelerometer offsets in LSB (app setting), added before conversion |
 | `theme` | `"light"` / `"dark"` | App appearance |
-| `features` | `["notify", "records"]` | Extra page → app messages this app accepts (see [Detector notifications and tables](#detector-notifications-and-tables)). Missing or empty: none. Only sent for a live measurement |
+| `features` | `["notify", "records", "cache"]` | Extra page → app messages this app accepts (see [Detector notifications and tables](#detector-notifications-and-tables) and [Cache files](#cache-files)). Missing or empty: none. Only sent for a live measurement (`openReplay` has its own `features`) |
+| `device` | `"D3FE9978A82E"` | The connected JINS MEME's address without colons, upper case (the first part of the data CSV name). The folder name of its [cache files](#cache-files). Android, iOS and Mac for now (missing when the app could not read the address) |
 
 ## Page → app
 
@@ -97,6 +99,7 @@ Every argument may be a value or its JSON string.
 | `{kind: "log", level, message}` | Written to the app log (errors in the page are sent here). |
 | `{kind: "notify", tag, title, text, i}` | Show an app notification for a detector event. Only if `cond.features` has `"notify"`. See below. |
 | `{kind: "table", name, columns, title}` / `{kind: "records", name, rows}` | Declare a table of detector results / add rows to it; the app saves each table as a CSV next to the data CSV. Only if `cond.features` has `"records"`. See below. |
+| `{kind: "cacheList" \| "cacheRead" \| "cacheWrite", id, device, name, text}` | List / read / write the page's daily cache files. Only if `features` has `"cache"`. The app answers with `jmasHost.cacheResult`. See [Cache files](#cache-files). |
 
 An app ignores (logs and drops) a `kind` it does not know, so a page may send these to any app, but it should not:
 check `cond.features` first.
@@ -184,6 +187,45 @@ of that sample; a row for a sample that has no row in the data CSV (the first pa
 A page offers these per detector, off by default: the Advanced page (python-processing-core `js/viewer/advanced/`)
 has "Notify" and "CSV" check boxes in its detector settings, for the detectors that declare them (notify: sit / stand;
 CSV: height / velocity at 5 Hz).
+
+## Cache files
+
+A page can keep **one file per day per JINS MEME** (for example the 15-second windows of an analysis and the events it found),
+so that a replay or another day can be shown without computing again. The app only stores and returns text; the page decides the
+content. The files are meant to be synced to a PC (for example with Syncthing), so they live next to the data CSVs, in
+`<data folder>/logic4-cache/<device>/<YYYY-MM-DD>.json` (Android: `Download/ESR Logger/logic4-cache/…`; iOS: the app's `Documents/logic4-cache/…`,
+shown in the Files app under On My iPhone; Mac: the "Graph Cache Folder" setting, or the Save File Path when it is empty).
+
+Only if `cond.features` (live) or the `openReplay` argument's `features` has `"cache"`. `common/bridge.js` has
+`cacheRequest(kind, data)`, which adds `id`, posts the message and resolves with the app's answer (or `{ok: false, error: "timeout"}`
+after 30 s).
+
+| Message | Answer (`jmasHost.cacheResult({id, ok, error?, …})`) |
+| :--- | :--- |
+| `{kind: "cacheList", id, device}` | `files: [{name, size, mtime}]` — the `YYYY-MM-DD.json` files of that device (empty when there is no folder yet). `mtime` in epoch ms |
+| `{kind: "cacheRead", id, device, name}` | `text` — the whole file as UTF-8 text. `error: "not_found"` when it does not exist |
+| `{kind: "cacheWrite", id, device, name, text}` | `size` (bytes written). The app writes `<name>.tmp` first and then renames it to `<name>`, so a sync tool never sees a half-written file (ignore `*.tmp` in the sync tool) |
+
+- `device` must match `^[0-9A-F]{12}$` and `name` `^\d{4}-\d{2}-\d{2}\.json$`; anything else is answered with `error: "bad_name"`.
+  The app never reads or writes outside `logic4-cache/<device>/`.
+- At most **16 MB** per file (`error: "too_large"`). A `cacheWrite` message may be larger than the 64 000-character limit of other
+  messages (up to about twice the file limit, for JSON escaping).
+- Other errors: `"no_access"` (the app has no access to the folder, see below), `"io_error"`, `"timeout"` (from `cacheRequest`).
+- The app runs the requests one at a time off the UI thread, in the order they arrive. A page writing during a live measurement
+  (for example every 15 s) should send the write from `push`, like `records` (see [Running in the background](#running-in-the-background)).
+- **Android:** the data CSVs are written through MediaStore, which only lets an app see the files it created itself, so files that a
+  sync tool brought from a PC could not be read or replaced. The cache therefore uses a folder the user grants once in the app's
+  settings ("Graph cache folder": choose `Download/ESR Logger`, or its `logic4-cache` folder), through the Storage Access Framework.
+  Until then every request is answered with `"no_access"`. A rename onto an existing name would make `name (1)` there, so the app
+  deletes the old `<name>` just before renaming `<name>.tmp` (for a moment there is no file of that name).
+- **iOS:** the folder is in the app's own Documents, so no grant is needed and files placed there by other means (the Files app,
+  a sync tool with access to it) are read and replaced as they are. The new file replaces the old one in one step.
+- **Mac:** the folder is the "Graph Cache Folder" setting, or the Save File Path when that is empty; a chosen folder named
+  `logic4-cache` is used as is (like Android), so a folder that a sync tool keeps can be chosen. The app is not sandboxed, so no grant is needed.
+- Windows does not offer `"cache"` yet.
+
+`common/dev.js` imitates this in the browser (`?dev`, "App features"), keeping the files in `localStorage`
+(`jmasDevCache:<device>/<name>`; a browser keeps only a few MB there).
 
 ## Running in the background
 
