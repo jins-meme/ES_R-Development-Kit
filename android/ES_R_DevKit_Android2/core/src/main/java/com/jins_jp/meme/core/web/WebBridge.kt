@@ -48,6 +48,8 @@ import java.util.UUID
 class WebBridge(private val context: Context, private val store: WebContentStore) {
 
     private val main = Handler(Looper.getMainLooper())
+    /** 日別キャッシュ(cacheList / cacheRead / cacheWrite)。フォルダの許可は設定で選ぶ([CacheStore.setTree]) */
+    val cache = CacheStore(context)
     private val _webView = MutableStateFlow(createWebView())
     /** 今の WebView（レンダラが落ちたら作り直すので、描く側はこれを見る） */
     val webView: StateFlow<WebView> = _webView.asStateFlow()
@@ -292,6 +294,9 @@ class WebBridge(private val context: Context, private val store: WebContentStore
             .put("url", "$ORIGIN/replay/$token/${Uri.encode(name)}")
             .put("name", name)
             .put("theme", if (dark) "dark" else "light")
+            .put("features", org.json.JSONArray(listOf(CacheStore.FEATURE)))
+        // 日別キャッシュの device は CSV 名の先頭(<MAC>_…)。取れない名前なら付けない(ページはキャッシュを使わない)
+        CacheStore.deviceOfFileName(name)?.let { arg.put("device", it) }
         session = Session.Replay(arg)
         call("jmasHost.openReplay(${JSONObject.quote(arg.toString())})")
     }
@@ -305,8 +310,10 @@ class WebBridge(private val context: Context, private val store: WebContentStore
     // ------------------------------------------------------------------ ページ → アプリ
 
     private fun receive(data: String) {
-        if (data.length > MAX_MESSAGE) { Log.w(TAG, "message too long (${data.length})"); return }
+        // cacheWrite だけは 1 日ぶんのキャッシュ(数 MB)を運ぶので上限を大きくする(それ以外は今までどおり)
+        if (data.length > MAX_CACHE_MESSAGE) { Log.w(TAG, "message too long (${data.length})"); return }
         val o = runCatching { JSONObject(data) }.getOrNull() ?: return
+        if (data.length > MAX_MESSAGE && o.optString("kind") != "cacheWrite") { Log.w(TAG, "message too long (${data.length})"); return }
         when (o.optString("kind")) {
             "ready" -> {
                 val api = o.optInt("bridgeApi", 0)
@@ -330,6 +337,8 @@ class WebBridge(private val context: Context, private val store: WebContentStore
             }
             "replay-info" -> onReplayInfo?.invoke(o)
             "notify", "table", "records" -> onOutput?.invoke(o)
+            "cacheList", "cacheRead", "cacheWrite" ->
+                cache.handle(o) { r -> call("jmasHost.cacheResult(${JSONObject.quote(r.toString())})") }
             "log" -> {
                 val msg = o.optString("message").take(2000)
                 val level = o.optString("level", "info")
@@ -379,6 +388,8 @@ class WebBridge(private val context: Context, private val store: WebContentStore
         const val HOST = "appassets.androidplatform.net"
         const val ORIGIN = "https://$HOST"
         private const val MAX_MESSAGE = 64_000
+        /** cacheWrite の上限(16 MB の中身 + JSON の書き出しで増える分) */
+        private const val MAX_CACHE_MESSAGE = 2 * CacheStore.MAX_BYTES + 64_000
 
         /** 全応答に付ける Content-Security-Policy（3 アプリで同じ。webview/BRIDGE.md の Limits） */
         const val CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +

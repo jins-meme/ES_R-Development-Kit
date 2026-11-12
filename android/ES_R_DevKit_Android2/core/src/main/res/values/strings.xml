@@ -18,6 +18,9 @@
     <string name="text_label_open_sharing_on_complete">Open sharing when measurement is complete</string>
     <string name="text_label_location_logging">Record approximate location when moved 50m or more</string>
     <string name="text_label_gzip_compression">Compress saved data (.csv.gz)</string>
+    <string name="text_label_cache_folder">Graph cache folder (logic4-cache)</string>
+    <string name="text_cache_folder_not_set">Not set. Choose Download/ESR Logger so the graph page can keep its daily cache there.</string>
+    <string name="button_choose_cache_folder">Choose…</string>
     <string name="text_label_oss_licenses">OSS Licenses</string>
     <!-- 設定「Record VAS」と、その設定モーダル・計測中の入力ポップアップ(VasDialogs / VasRecorder)。UI の文言は英語。 -->
     <string name="text_label_record_vas">Record VAS</string>

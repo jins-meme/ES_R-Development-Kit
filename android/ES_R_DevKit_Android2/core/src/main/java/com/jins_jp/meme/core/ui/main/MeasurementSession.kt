@@ -26,6 +26,7 @@ import com.jins_jp.meme.core.data.VasSettings
 import com.jins_jp.meme.core.data.mergeLabelsIntoCsv
 import com.jins_jp.meme.core.data.formatRow
 import com.jins_jp.meme.core.service.MeasurementService
+import com.jins_jp.meme.core.web.CacheStore
 import com.jins_jp.meme.core.web.DetectorOutputs
 import com.jins_jp.meme.core.web.WebBridge
 import com.jins_jp.meme.core.web.WebContentStore
@@ -704,8 +705,15 @@ class MeasurementSession(
             .put("startedAt", System.currentTimeMillis())
             .put("timeZone", "local")
             .put("accOffset", JSONArray(listOf(0, 0, 0)))
-            .put("features", JSONArray(DetectorOutputs.FEATURES))
+            .put("features", JSONArray(DetectorOutputs.FEATURES + CacheStore.FEATURE))
+            .put("device", CacheStore.deviceOf(address))       // 日別キャッシュのフォルダ名(BRIDGE.md の Cache files)
     }
+
+    /** 設定: 日別キャッシュを置くフォルダ(Download/ESR Logger か、その中の logic4-cache)を選んだ */
+    fun setCacheFolder(uri: android.net.Uri) = web.cache.setTree(uri)
+
+    /** 設定に出す、選んだキャッシュのフォルダ(未設定 / 許可切れは null) */
+    fun cacheFolderLabel(): String? = web.cache.folderLabel()
 
     private fun stopMeasurement() {
         scope.launch { finishMeasurement(openShare = true) }

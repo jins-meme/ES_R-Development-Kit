@@ -1,6 +1,9 @@
 package com.jins_jp.meme.core.ui.main
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.jins_jp.meme.core.web.CacheStore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -175,6 +178,31 @@ internal fun SettingsDialog(ui: MainUiState, session: MeasurementSession, onDism
                         stringResource(R.string.text_label_gzip_compression),
                         modifier = Modifier.weight(1f),
                     )
+                }
+
+                // グラフ画面の日別キャッシュを置くフォルダ(SAF の許可。CacheStore)。Download/ESR Logger を選ぶと、その中の logic4-cache に置く
+                var cacheLabel by remember { mutableStateOf(session.cacheFolderLabel()) }
+                val pickCache = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                    if (uri != null) {
+                        runCatching { session.setCacheFolder(uri) }
+                        cacheLabel = session.cacheFolderLabel()
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.text_label_cache_folder))
+                        Text(
+                            cacheLabel ?: stringResource(R.string.text_cache_folder_not_set),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { pickCache.launch(CacheStore.INITIAL_URI) }) {
+                        Text(stringResource(R.string.button_choose_cache_folder))
+                    }
                 }
 
                 Row(
