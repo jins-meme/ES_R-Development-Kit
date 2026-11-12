@@ -385,7 +385,9 @@ final class MEMEViewModel: NSObject {
         cond["gyroRange"] = MeasurementRange.gyroDps(device: memelib.getGyroRange())
         cond["columns"] = mode.hasGraph ? mode.columns : []
         cond["startedAt"] = Date().timeIntervalSince1970 * 1000
-        cond["features"] = DetectorOutputs.features
+        cond["features"] = DetectorOutputs.features + [CacheStore.feature]
+        // 日別キャッシュのフォルダ名(BRIDGE.md の Cache files)。アドレスが読めていなければ付けない(ページはキャッシュを使わない)
+        if let d = CacheStore.deviceOf(address: memelib.macAddress) { cond["device"] = d }
         return cond
     }
 
