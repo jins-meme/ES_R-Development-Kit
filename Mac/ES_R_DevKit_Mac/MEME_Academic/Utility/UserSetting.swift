@@ -74,6 +74,14 @@ class UserSetting: NSObject {
         return UserDefaults.standard.object(forKey: kConst_SaveFilePath) as? String ?? ""
     }
 
+    /// グラフ画面の日別キャッシュのフォルダ(空 = Save File Path の下。CacheStore.settingsRoot)
+    class func setCacheFolder(_ value: String) {
+        UserDefaults.standard.set(value, forKey: kConst_CacheFolder)
+    }
+    class func getCacheFolder() -> String {
+        return UserDefaults.standard.string(forKey: kConst_CacheFolder) ?? ""
+    }
+
     class func setXAxis(_ value: Double) {
         UserDefaults.standard.set(value, forKey: kConst_X_Axis)
     }

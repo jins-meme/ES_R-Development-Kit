@@ -30,6 +30,10 @@
 //  保存ダイアログで移したときに表も同じフォルダ・同じベース名へ移ることを outputs に書く(Android の autotest_outputs と同じ。
 //  webview/BRIDGE.md の Detector notifications and tables)。
 //
+//  MEME_AUTOTEST_REPLAY=<CSV> を足すと(MEME 不要。-mock も要らない)、計測はせず、その CSV を再生して解析し終わるまで待ち
+//  (advanced2 の再生のダイアログは MEME_AUTOTEST_REPLAY_MODE = update | temp | cache を選んで閉じる。省略時は既定のまま)、
+//  ページの状態・Logic4 タブの表示・日別キャッシュの置き場所と一覧(logic4)を result.json に書く(2026-11-12、日別キャッシュの確かめ用)。
+//
 //  MEME_AUTOTEST_SOCKET_PORT=<ポート> を足すと、テストの間だけ TCP 出力(Settings の TCP Output)をそのポートで有効にする
 //  (受け取る側は外で用意する。例: nc localhost <ポート> > out.csv)。終わったら元の設定に戻す。
 //
@@ -188,6 +192,10 @@ enum DebugAutoTest {
         try await wait("page ready", 20) { vm.web.isReady }
         result["page"] = vm.web.pageName
         await snapshot(vm, "0-idle", out)
+        if let path = ProcessInfo.processInfo.environment["MEME_AUTOTEST_REPLAY"] {
+            try await replayOnly(vm, csv: URL(fileURLWithPath: path), out: out, result: &result)
+            return
+        }
         let outputsTest = ProcessInfo.processInfo.environment["MEME_AUTOTEST_OUTPUTS"] == "1"
         if outputsTest {
             // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)
@@ -290,9 +298,15 @@ enum DebugAutoTest {
         vm.openReplayFile(url: csv)
         await sleep(4)
         if try await hasDetector(vm), !standard {             // 高機能版: 再生したファイルを最後まで解析し終える
-            try await waitJs(vm, "detector replay", 60, "jmasEngine.finalSent === true")
+            // advanced2 は再生の前に「Logic4 for this file」のダイアログを出して待つので、既定の選択のまま閉じる
+            try await waitJs(vm, "detector replay", 120, """
+                (() => { const d = document.getElementById('dlg');
+                  if (d && !d.hidden) document.querySelector('#dlgForm button[type=submit]')?.click();
+                  return jmasEngine.finalSent === true; })()
+                """)
         }
         result["replay"] = await pageState(vm)
+        result["logic4"] = await logic4State(vm)
         result["probeReplay"] = await probe(vm)
         await snapshot(vm, "2-replay", out)
         // 再生中のアーティファクト(番号は CSV のデータ行)。カンマは空白に、数式風は断り、空は X。切断時に書き戻す
@@ -408,6 +422,72 @@ enum DebugAutoTest {
                 let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 return da < db
             }
+    }
+
+    /// MEME_AUTOTEST_REPLAY: CSV を再生して解析し終えるまで待ち、状態を書く
+    private static func replayOnly(_ vm: MEMEViewModel, csv: URL, out: URL, result: inout [String: Any]) async throws {
+        let mode = ProcessInfo.processInfo.environment["MEME_AUTOTEST_REPLAY_MODE"] ?? ""
+        let start = Date()
+        if ProcessInfo.processInfo.environment["MEME_AUTOTEST_L4"] == "1" {   // 計算の間 Logic4 タブを出しておく(3 秒ごとに途中の日の JSON を作る)
+            _ = try? await vm.web.webView.evaluateJavaScript("document.getElementById('tabL4')?.click(); 0")
+        }
+        vm.openReplayFile(url: csv)
+        await sleep(2)
+        var dialog: String? = nil
+        let end = Date().addingTimeInterval(600)
+        while true {
+            let js = """
+                (() => { const d = document.getElementById('dlg');
+                  if (d && !d.hidden) { const st = document.getElementById('dlgState')?.textContent ?? '';
+                    const r = document.getElementById({update: 'rmUpdate', temp: 'rmTemp', cache: 'rmCache'}['\(mode)']);
+                    if (r && !r.disabled) r.checked = true;
+                    document.querySelector('#dlgForm button[type=submit]')?.click(); return 'dialog:' + st; }
+                  return window.jmasEngine && jmasEngine.finalSent === true ? 'done' : 'wait'; })()
+                """
+            let v = (try? await vm.web.webView.evaluateJavaScript(js) as? String) ?? "wait"
+            if v.hasPrefix("dialog:") { dialog = String(v.dropFirst(7)) }
+            if v == "done" { break }
+            if Date() > end { throw Timeout(what: "replay analysed") }
+            await sleep(0.5)
+        }
+        result["replayFile"] = csv.lastPathComponent
+        result["dialog"] = dialog ?? NSNull()
+        result["analyseSeconds"] = Date().timeIntervalSince(start)
+        await sleep(4)                                        // 最後の日のファイルの書き込みを待つ
+        result["replay"] = await pageState(vm)
+        result["logic4"] = await logic4State(vm)
+        await snapshot(vm, "2-replay", out)
+        result["ok"] = true
+    }
+
+    /// advanced2 の Logic4 タブと日別キャッシュ(Logic4 に替えて表示を読み、置き場所の一覧を足す。Logic4 が無いページは null)
+    private static func logic4State(_ vm: MEMEViewModel) async -> Any {
+        let js = """
+            if (!window.jmasLogic4) return null;
+            document.getElementById('tabL4')?.click();
+            await new Promise((r) => setTimeout(r, 2500));
+            const t = (id) => document.getElementById(id)?.textContent ?? null;
+            const sel = document.getElementById('l4dev');
+            const out = { date: jmasLogic4.date, chip: t('cache'), base: t('base'), dev: sel && !sel.hidden ? sel.value : null };
+            document.getElementById('tabRt')?.click();
+            return JSON.stringify(out);
+            """
+        var o: [String: Any] = [:]
+        if let s = try? await vm.web.webView.callAsyncJavaScript(js, contentWorld: .page) as? String,
+           let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] { o = obj }
+        let fm = FileManager.default
+        if let root = CacheStore.settingsRoot() {
+            o["root"] = root.path
+            var files: [String: Int] = [:]
+            for dev in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
+                for n in (try? fm.contentsOfDirectory(atPath: root.appendingPathComponent(dev).path)) ?? [] {
+                    let a = try? fm.attributesOfItem(atPath: root.appendingPathComponent(dev).appendingPathComponent(n).path)
+                    files["\(dev)/\(n)"] = (a?[.size] as? NSNumber)?.intValue ?? 0
+                }
+            }
+            o["files"] = files
+        }
+        return o
     }
 
     private static func hasDetector(_ vm: MEMEViewModel) async throws -> Bool {

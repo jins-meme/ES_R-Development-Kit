@@ -49,6 +49,8 @@ final class WebBridge: NSObject {
     static let crashWindow: TimeInterval = 60
     /// 判定器の通知・演算結果の表(kind = notify / table / records)。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める
     var onOutput: (([String: Any]) -> Void)?
+    /// 日別キャッシュ(cacheList / cacheRead / cacheWrite。<Graph Cache Folder か Save File Path>/logic4-cache。BRIDGE.md の Cache files)
+    let cache = CacheStore()
 
     override init() {
         let cfg = WKWebViewConfiguration()
@@ -163,6 +165,9 @@ final class WebBridge: NSObject {
         var arg = extra
         arg["url"] = url
         arg["name"] = file.lastPathComponent
+        // 日別キャッシュは使えると知らせ(features)、device は CSV 名の先頭(<MAC>_…)。取れない名前なら付けない(ページはキャッシュを使わない)
+        arg["features"] = [CacheStore.feature]
+        if let d = CacheStore.deviceOf(fileName: file.lastPathComponent) { arg["device"] = d }
         session = .replay(arg)
         call("jmasHost.openReplay(\(Self.json(arg)))")
     }
@@ -196,6 +201,13 @@ extension WebBridge: WKScriptMessageHandler {
             onReplayInfo?(body)
         case "notify", "table", "records":
             onOutput?(body)
+        case "cacheList", "cacheRead", "cacheWrite":
+            // 返りは id を付けて jmasHost.cacheResult へ(common/bridge.js の cacheRequest の Promise になる)
+            let text = kind == "cacheWrite" ? (body["text"] as? String ?? "") : ""
+            cache.handle(idJSON: Self.json(body["id"] ?? NSNull()), kind: kind, device: body["device"] as? String ?? "",
+                         name: body["name"] as? String ?? "", text: text) { [weak self] json in
+                self?.call("jmasHost.cacheResult(\(json))")
+            }
         case "log":
             NSLog("[WebView %@] %@", String(describing: body["level"] ?? "info"), String(describing: body["message"] ?? ""))
         default:

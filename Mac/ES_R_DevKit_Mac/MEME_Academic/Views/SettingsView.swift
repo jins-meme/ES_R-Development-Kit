@@ -14,6 +14,7 @@ struct SettingsView: View {
     @Environment(MEMEViewModel.self) private var viewModel
 
     @State private var saveFilePath: String = ""
+    @State private var cacheFolder: String = ""
     @State private var xAxis: String = "0"
     @State private var yAxis: String = "0"
     @State private var zAxis: String = "0"
@@ -37,6 +38,21 @@ struct SettingsView: View {
                             .frame(minWidth: 320)
                         Button("Select") { browseFolder() }
                         Button("Open Folder") { openFolder() }
+                    }
+                }
+
+                GridRow {
+                    Text("Graph Cache Folder")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            TextField("Same as Save File Path", text: $cacheFolder)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(minWidth: 320)
+                            Button("Select") { browseCacheFolder() }
+                            Button("Open Folder") { openCacheFolder() }
+                        }
+                        Text("The graph page keeps one file per day in logic4-cache here (choose a synced folder to share it).")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
 
@@ -116,6 +132,7 @@ struct SettingsView: View {
 
     private func load() {
         saveFilePath = UserSetting.getSaveFilePath()
+        cacheFolder = UserSetting.getCacheFolder()
         xAxis = String(format: "%g", UserSetting.getXAxis())
         yAxis = String(format: "%g", UserSetting.getYAxis())
         zAxis = String(format: "%g", UserSetting.getZAxis())
@@ -128,6 +145,7 @@ struct SettingsView: View {
 
     private func apply() {
         UserSetting.setSaveFilePath(saveFilePath)
+        UserSetting.setCacheFolder(cacheFolder.trimmingCharacters(in: .whitespaces))
         UserSetting.setXAxis(Double(xAxis) ?? 0)
         UserSetting.setYAxis(Double(yAxis) ?? 0)
         UserSetting.setZAxis(Double(zAxis) ?? 0)
@@ -150,6 +168,25 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             saveFilePath = url.path
         }
+    }
+
+    private func browseCacheFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            cacheFolder = url.path
+        }
+    }
+
+    /// 実際に使う logic4-cache(無ければ作ってから開く)
+    private func openCacheFolder() {
+        let chosen = cacheFolder.trimmingCharacters(in: .whitespaces)
+        let base = URL(fileURLWithPath: chosen.isEmpty ? saveFilePath : chosen, isDirectory: true)
+        let url = base.lastPathComponent == CacheStore.dirName ? base : base.appendingPathComponent(CacheStore.dirName, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(url)
     }
 
     private func openFolder() {

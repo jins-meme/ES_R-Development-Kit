@@ -10,6 +10,8 @@ import Foundation
 
 // Settingのパラメーター
 let kConst_SaveFilePath = "SaveFilePath"
+/// グラフ画面の日別キャッシュを置くフォルダ(空 = Save File Path。CacheStore.settingsRoot)
+let kConst_CacheFolder = "Logic4CacheFolder"
 let kConst_X_Axis = "X_Axis"
 let kConst_Y_Axis = "Y_Axis"
 let kConst_Z_Axis = "Z_Axis"
