@@ -5,9 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
-val MemeRed = Color(0xFFD00D2B)
-val MemeRedDark = Color(0xFFBE0C27)
-val MemeRedContainer = Color(0xFFFFE2E5)
+// アプリの主の色(ボタン・見出し)。グラフ画面 advanced2.zip のアクセント(app.css の --accent / --press)に合わせた濃いピンク
+// (2026-11-11、本人指示。それまでは赤 0xFFD00D2B / 0xFFBE0C27 / 0xFFFFE2E5)
+val MemePink = Color(0xFFC2127F)            // ライト(--accent)
+val MemePinkDarkMode = Color(0xFFE0529F)    // ダーク(--accent)
+val MemePinkDeep = Color(0xFF9C0E66)        // 押した色・濃い文字
+val MemePinkContainer = Color(0xFFF6E3EE)   // ライトの薄い地(--press)
 
 val EogBlue = Color(0xFF1565C0)
 val EogRed = Color(0xFFD32F2F)

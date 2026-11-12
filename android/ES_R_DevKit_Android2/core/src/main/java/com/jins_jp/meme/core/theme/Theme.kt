@@ -7,18 +7,18 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val LightScheme = lightColorScheme(
-    primary = MemeRed,
+    primary = MemePink,
     onPrimary = androidx.compose.ui.graphics.Color.White,
-    primaryContainer = MemeRedContainer,
-    onPrimaryContainer = MemeRedDark,
-    secondary = MemeRedDark,
+    primaryContainer = MemePinkContainer,
+    onPrimaryContainer = MemePinkDeep,
+    secondary = MemePinkDeep,
     onSecondary = androidx.compose.ui.graphics.Color.White,
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = MemeRed,
+    primary = MemePinkDarkMode,
     onPrimary = androidx.compose.ui.graphics.Color.White,
-    secondary = MemeRedDark,
+    secondary = MemePink,
 )
 
 @Composable
