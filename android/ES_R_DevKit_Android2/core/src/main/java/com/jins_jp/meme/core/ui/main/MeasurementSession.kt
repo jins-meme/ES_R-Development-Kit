@@ -54,6 +54,8 @@ private const val SCAN_RETRY_GAP_MS = 500L
 // 端末(ES_R)の電池残量を logcat へ出す最長間隔。残量が変わらなくてもこの間隔で
 // 1 行出し、長時間計測中の減り方を追えるようにする。
 private const val BATTERY_LOG_INTERVAL_MS = 60_000L
+/** 電池切れの SLEEP の通知から切断までをひと続きと見なす長さ(端末は通知のすぐ後に SLEEP に入る) */
+private const val LOW_BATTERY_SLEEP_WINDOW_MS = 30_000L
 
 // 計測を止めてから判定器の表を閉じるまで待つ時間。ページは stop を受けてから溜めた行(最大 1 秒ぶん)を送るので、
 // それが届くのを待つ(DetectorOutputs。webview/BRIDGE.md の Detector notifications and tables)。
@@ -165,6 +167,8 @@ class MeasurementSession(
     // 端末(ES_R)電池残量ログの間引き状態（[logBatteryLevel]）。
     private var lastLoggedBattery = Int.MIN_VALUE
     private var lastBatteryLogAt = 0L
+    /** 端末が電池切れで SLEEP に入ると知らせてきた時刻(elapsedRealtime)。直後の切断の理由を LOW_BATTERY_SLEEP にする */
+    private var lowBatterySleepAt: Long? = null
 
     // 自動接続：1スキャンにつき一度だけ発火（再接続ループを防ぐ）
     private var autoConnectAttempted = false
@@ -507,7 +511,10 @@ class MeasurementSession(
                     // GATT ステータスと電池残量を "<base>_disconnect.csv" へ残す。csv.stop() が
                     // サイドカーのベース名も畳むので、必ずその前に書く（電池残量は下で -1 に戻す前に読む）。
                     val status = repo.lastDisconnectStatus
-                    val reason = gattDisconnectReason(status)
+                    // 直前(LOW_BATTERY_SLEEP_WINDOW_MS 以内)に端末が電池切れの SLEEP を知らせていたら、理由はそれ(GATT の名前も括弧で残す)
+                    val sleptForBattery = lowBatterySleepAt?.let { SystemClock.elapsedRealtime() - it <= LOW_BATTERY_SLEEP_WINDOW_MS } == true
+                    lowBatterySleepAt = null
+                    val reason = gattDisconnectReason(status).let { if (sleptForBattery) "LOW_BATTERY_SLEEP($it)" else it }
                     csv.writeDisconnect(System.currentTimeMillis(), status, reason, _ui.value.batteryLevel)
                     // 起動直後は connection(StateFlow) の初期値 Disconnected がそのまま
                     // 流れてくる。接続した形跡がない（status 未設定かつ非計測）なら
@@ -905,6 +912,13 @@ class MeasurementSession(
     private fun handleMode(data: ByteArray) {
         val modeVal = data[4].toInt() and 0xFF
         val qualityVal = data[5].toInt() and 0xFF
+        if (modeVal == MemeBleConstants.MODE_SLEEP) {
+            // 問い合わせていない通知。電池切れで端末が SLEEP に入る(この後すぐ切断される)。前は「モード設定: Mode 16 / 50Hz」と出ていた
+            lowBatterySleepAt = SystemClock.elapsedRealtime()
+            Log.i(TAG, "device reported SLEEP (low-voltage auto sleep) battery=${_ui.value.batteryLevel}/5 rows=${csv.recordedRows}")
+            _ui.update { it.copy(toast = "Battery empty: the glasses went to sleep (low voltage). Please charge them.") }
+            return
+        }
         val modeName = MemeMode.entries.getOrNull(modeVal - 1)?.display ?: "Mode $modeVal"
         val hz = MemeQuality.entries.getOrNull(qualityVal - 1)?.display ?: "Quality $qualityVal"
         _ui.update { it.copy(toast = "モード設定: $modeName / $hz") }

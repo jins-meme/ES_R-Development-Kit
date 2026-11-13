@@ -42,6 +42,14 @@ object MemeBleConstants {
      */
     const val MODE_CONFIG: Byte = 0x0F
 
+    /**
+     * AUP_REPORT_MODE の mode バイト(byte4)が SLEEP。電池の電圧が PowerOFF(3.41V 未満)と 5 秒続けて判定されると、
+     * 端末は接続中ならこの値で動作モード通知を出してから自分で SLEEP に入る(=この直後に切断される)。
+     * 出典: Gen3.0 ACP FW 仕様書 Rev0.1 §3.6.11.5・§3.7.5(python-processing-core
+     * docs/algorithms/firmware/notes/acp-low-voltage-sleep.md)。
+     */
+    const val MODE_SLEEP: Int = 0x10
+
     const val AUP_REPORT_DEV_INFO: Byte = 0x81.toByte()
     const val AUP_REPORT_MODE: Byte = 0x83.toByte()
     const val AUP_REPORT_6AXIS_PARAMS: Byte = 0x89.toByte()
