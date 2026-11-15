@@ -87,6 +87,8 @@ final class MEMEViewModel: NSObject {
 
     private var memelib: (any MEMELibInterface)!
     private var isFreeMarking = false
+    /// 端末が電池切れの SLEEP を知らせてきた時刻(直後の切断の表示を「電池切れ」にする)
+    private var lowBatterySleepAt: Date?
 
     private var peripheralManager: CBPeripheralManager?
     private var socket: TCPSocket?
@@ -693,12 +695,23 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         syncDeviceSettings()
     }
 
+    func memeLowBatterySleepDelegate() {
+        // 電池切れで端末が SLEEP に入る(この直後に切断される)。前は Mode 16 として読んでいた
+        lowBatterySleepAt = Date()
+        NSLog("device reported SLEEP (low-voltage auto sleep)")
+    }
+
     func memePeripheralDisconnectedDelegate(result: UInt32) {
         NSLog("memePeripheralDisconnectedDelegate : %d", result)
         let wasMeasuring = phase == .measuring
+        // 直前(30 秒以内)に電池切れの SLEEP を知らせていたら、状態の表示でそう伝える(Mac には Toast が無い)
+        let sleptForBattery = lowBatterySleepAt.map { Date().timeIntervalSince($0) <= 30 } ?? false
+        lowBatterySleepAt = nil
         isConnecting = false
         isScanning = false
-        connectionStateText = "State : Disconnected"
+        connectionStateText = sleptForBattery
+            ? "State : Disconnected (Battery empty: the glasses went to sleep (low voltage). Please charge them.)"
+            : "State : Disconnected"
         foundDevices.removeAll()
         selectedDevice = ""
         phase = .idle

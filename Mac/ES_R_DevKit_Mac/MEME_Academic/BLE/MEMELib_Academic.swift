@@ -80,6 +80,14 @@ protocol MEMELibAcademicDelegate: AnyObject {
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData)
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData)
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData)
+    /// 電池切れで端末が SLEEP に入る(動作モード通知 0x83 の mode = 0x10)。この直後に切断される。
+    /// 出典: Gen3.0 ACP FW 仕様書 Rev0.1 §3.6.11.5・§3.7.5(python-processing-core docs/algorithms/firmware/notes/acp-low-voltage-sleep.md)
+    func memeLowBatterySleepDelegate()
+}
+
+/// 電池切れの SLEEP の知らせは受けなくてもよい(既定は何もしない)
+extension MEMELibAcademicDelegate {
+    func memeLowBatterySleepDelegate() {}
 }
 
 // MARK: - Main Class
@@ -471,6 +479,11 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
                 libLog("0x81 AUP_REPORT_DEV_INFO")
             // AUP_REPORT_MODE
             case 0x83:
+                if buff[4] == 0x10 {                     // 電池切れの SLEEP の知らせ(問い合わせていない通知)。モードは書き換えず、問い合わせも送らない
+                    libLog("0x83 AUP_REPORT_MODE: SLEEP (low battery)")
+                    delegate?.memeLowBatterySleepDelegate()
+                    break
+                }
                 selectMode = UInt32(buff[4])
                 transMode = UInt32(buff[5])
                 memeAdnGet6AxisParams()

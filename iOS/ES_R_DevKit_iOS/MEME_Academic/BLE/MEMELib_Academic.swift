@@ -31,6 +31,8 @@ let MEMEMode_Quaternion: UInt32 = 3
 /// ADN_SET_MODE の mode バイト(buff[4])へ入れる CONFIG モードの値。
 /// 通常の計測モード(1..3)とは別枠で、SHELF コマンドの前段としてのみ使う。
 let MEMEMode_Config: UInt32 = 0x0F
+/// 動作モード通知の mode が SLEEP(電池切れで端末が自分で入る。ACP FW 仕様書 §3.6.11.5)
+let MEMEMode_Sleep: UInt8 = 0x10
 
 /// 保管(SHELF)モードへの遷移コマンド。op の後ろに ASCII "SHELF" を置く形で、
 /// BOOT(0x40 + "BOOT") と同じ「合言葉つき」の系列。CONFIG モードでのみ受理される。
@@ -304,6 +306,10 @@ final class MEMELib_Academic: NSObject, MEMELibInterface {
             memeVersion.revision = UInt32(b[4])
             send(0xA3)
         case 0x83:  // AUP_REPORT_MODE
+            if b[4] == MEMEMode_Sleep {                 // 電池切れの SLEEP の知らせ(問い合わせていない通知)。モードは書き換えず、問い合わせも送らない
+                delegate?.memeLowBatterySleepDelegate()
+                break
+            }
             selectMode = UInt32(b[4])
             transMode = UInt32(b[5])
             send(0xA9)

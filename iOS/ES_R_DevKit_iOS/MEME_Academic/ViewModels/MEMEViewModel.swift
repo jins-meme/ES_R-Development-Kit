@@ -127,6 +127,8 @@ final class MEMEViewModel: NSObject {
     @ObservationIgnored private var replayScoped = false
     @ObservationIgnored private var shelfDisconnectTimer: Timer?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    /// 端末が電池切れの SLEEP を知らせてきた時刻(直後の切断の理由を LOW_BATTERY_SLEEP にする)
+    @ObservationIgnored private var lowBatterySleepAt: Date?
     /// 最後に締めた計測のデータ CSV
     @ObservationIgnored private(set) var lastSavedFile: URL?
 
@@ -616,7 +618,18 @@ extension MEMEViewModel: MEMELibAcademicDelegate {
         }
     }
 
-    func memePeripheralDisconnectedDelegate(result: UInt32, reason: String) {
+    func memeLowBatterySleepDelegate() {
+        // 電池切れで端末が SLEEP に入る(この直後に切断される)。前は Mode 16 として読んでいた
+        lowBatterySleepAt = Date()
+        NSLog("[MEMEViewModel] device reported SLEEP (low-voltage auto sleep) battery=%d", lastBattery)
+        showToast("Battery empty: the glasses went to sleep (low voltage). Please charge them.")
+    }
+
+    func memePeripheralDisconnectedDelegate(result: UInt32, reason rawReason: String) {
+        // 直前(30 秒以内)に電池切れの SLEEP を知らせていたら、理由はそれ(元の理由も括弧で残す。Android と同じ)
+        let sleptForBattery = lowBatterySleepAt.map { Date().timeIntervalSince($0) <= 30 } ?? false
+        lowBatterySleepAt = nil
+        let reason = sleptForBattery ? "LOW_BATTERY_SLEEP(\(rawReason))" : rawReason
         let wasMeasuring = phase == .measuring
         startTask?.cancel()
         isStarting = false

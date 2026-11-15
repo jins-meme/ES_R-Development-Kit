@@ -63,4 +63,12 @@ protocol MEMELibAcademicDelegate: AnyObject {
     func memeAcademicStandardDataReceivedDelegate(data: AcademicStandardData)
     func memeAcademicFullDataReceivedDelegate(data: AcademicFullData)
     func memeAcademicQuaternionDataReceivedDelegate(data: AcademicQuaternionData)
+    /// 電池切れで端末が SLEEP に入る(動作モード通知 0x83 の mode = 0x10)。この直後に切断される。
+    /// 出典: Gen3.0 ACP FW 仕様書 Rev0.1 §3.6.11.5・§3.7.5(python-processing-core docs/algorithms/firmware/notes/acp-low-voltage-sleep.md)
+    func memeLowBatterySleepDelegate()
+}
+
+/// 電池切れの SLEEP の知らせは受けなくてもよい(既定は何もしない)
+extension MEMELibAcademicDelegate {
+    func memeLowBatterySleepDelegate() {}
 }
