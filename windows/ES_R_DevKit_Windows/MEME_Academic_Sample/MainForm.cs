@@ -46,6 +46,10 @@ public partial class MainForm : Form
     /// <summary>Shelf 移行コマンドの送信中。完了は端末側からの切断で判断する。</summary>
     private bool isEnteringShelf;
 
+    /// <summary>端末が電池切れの SLEEP を知らせてきた時刻(UTC の Ticks、0 = 無い)。直後の切断の表示を「電池切れ」にする
+    /// (Mac と同じ。Windows には Toast が無い)。受信スレッドで書き UI スレッドで読むので Interlocked で</summary>
+    private long lowBatterySleepTicks;
+
     /// <summary>
     /// 長押しが成立した押下の Click を 1 回だけ捨てるフラグ。WinForms の Click は
     /// マウスを離した時点で走るため、これが無いと確認ダイアログを出しながら切断してしまう。
@@ -83,7 +87,7 @@ public partial class MainForm : Form
         Icon = AppInfo.LoadIcon();
 
         webContent = new WebContentStore(setting);
-        web = new WebBridge(webContent, webHost);
+        web = new WebBridge(webContent, webHost, () => CacheStore.RootFrom(setting));
         web.Artifact += ReceiveArtifact;
         web.ReplayInfo += ApplyReplayInfo;
         web.EngineFallback += ShowEngineFallback;
@@ -100,6 +104,12 @@ public partial class MainForm : Form
         memeLib.memePeripheralFound += OnPeripheralFound;
         memeLib.memePeripheralConnected += OnPeripheralConnected;
         memeLib.memePeripheralDisconnected += OnPeripheralDisconnected;
+        memeLib.memeLowBatterySleep += _ =>
+        {
+            // 電池切れで端末が SLEEP に入る(この直後に切断される)。前は Mode 16 として読んでいた
+            Interlocked.Exchange(ref lowBatterySleepTicks, DateTime.UtcNow.Ticks);
+            System.Diagnostics.Debug.WriteLine("device reported SLEEP (low-voltage auto sleep)");
+        };
         memeLib.memeAcademicStandardDataReceived += (_, data) => HandleSample(data);
         memeLib.memeAcademicFullDataReceived += (_, data) => HandleSample(data);
         memeLib.memeAcademicQuaternionDataReceived += (_, data) => HandleSample(data);
@@ -310,9 +320,14 @@ public partial class MainForm : Form
             }
 
             phase = cb_DeviceList.Items.Count > 0 ? Phase.DeviceFound : Phase.Idle;
-            lb_ConnectionState.Text = result == MEMEStatus.MEMELIB_OK
-                ? "State : Disconnected"
-                : "State : Disconnected (link lost)";
+            // 直前(30 秒以内)に電池切れの SLEEP を知らせていたら、状態の表示でそう伝える(Android・iOS のトーストと同じ文)
+            var at = Interlocked.Exchange(ref lowBatterySleepTicks, 0);
+            var sleptForBattery = at != 0 && DateTime.UtcNow.Ticks - at <= TimeSpan.FromSeconds(30).Ticks;
+            lb_ConnectionState.Text = sleptForBattery
+                ? "State : Disconnected (Battery empty: the glasses went to sleep (low voltage). Please charge them.)"
+                : result == MEMEStatus.MEMELIB_OK
+                    ? "State : Disconnected"
+                    : "State : Disconnected (link lost)";
             UpdateUiState();
             // SHELF 送信後の切断は、端末が移行を受理した合図。
             if (isEnteringShelf)
@@ -806,7 +821,13 @@ public partial class MainForm : Form
         cond["gyroRange"] = MeasurementRange.Dps(gyroRange);
         cond["columns"] = mode.HasGraph ? mode.Columns : Array.Empty<string>();
         cond["startedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        cond["features"] = DetectorOutputs.Features;
+        cond["features"] = DetectorOutputs.Features.Append(CacheStore.Feature).ToArray();
+        // 日別キャッシュのフォルダ名(BRIDGE.md の Cache files)。アドレスが読めていなければ付けない(ページはキャッシュを使わない)
+        if (CacheStore.DeviceOfAddress(CurrentDeviceAddress()) is { } device)
+        {
+            cond["device"] = device;
+        }
+
         return cond;
     }
 

@@ -18,6 +18,9 @@ public delegate void memeAcademicFullDataReceivedDelegate(object sender, Academi
 
 public delegate void memeAcademicQuaternionDataReceivedDelegate(object sender, AcademicQuaternionData quaternionData);
 
+/// <summary>電池切れで端末が SLEEP に入る(動作モード通知の mode = 0x10)。この直後に切断される。</summary>
+public delegate void memeLowBatterySleepDelegate(object sender);
+
 /// <summary>
 /// JINS MEME ES_R を Windows 本体の BLE Central として直接扱うライブラリ。
 /// 旧 SDK が必要としていた USB ドングル(仮想 COM ポート)は使わない。
@@ -51,6 +54,7 @@ public sealed class MEMELib : IDisposable
     public event memeAcademicStandardDataReceivedDelegate? memeAcademicStandardDataReceived;
     public event memeAcademicFullDataReceivedDelegate? memeAcademicFullDataReceived;
     public event memeAcademicQuaternionDataReceivedDelegate? memeAcademicQuaternionDataReceived;
+    public event memeLowBatterySleepDelegate? memeLowBatterySleep;
 
     private readonly Lock _gate = new();
     private readonly Dictionary<ulong, MEMEDevice> _found = [];
@@ -636,6 +640,13 @@ public sealed class MEMELib : IDisposable
                 break;
 
             case MemeProtocol.AupReportMode:
+                if (packet[4] == MemeProtocol.SleepMode)
+                {
+                    // 電池切れの SLEEP の知らせ(問い合わせていない通知)。モードは書き換えず、設定の問い合わせも送らない
+                    memeLowBatterySleep?.Invoke(this);
+                    break;
+                }
+
                 _mode = (MEMEMode)packet[4];
                 _quality = (MEMEQuality)packet[5];
                 Send(MemeProtocol.Get6AxisParams());

@@ -194,7 +194,7 @@ A page can keep **one file per day per JINS MEME** (for example the 15-second wi
 so that a replay or another day can be shown without computing again. The app only stores and returns text; the page decides the
 content. The files are meant to be synced to a PC (for example with Syncthing), so they live next to the data CSVs, in
 `<data folder>/logic4-cache/<device>/<YYYY-MM-DD>.json` (Android: `Download/ESR Logger/logic4-cache/…`; iOS: the app's `Documents/logic4-cache/…`,
-shown in the Files app under On My iPhone; Mac: the "Graph Cache Folder" setting, or the Save File Path when it is empty).
+shown in the Files app under On My iPhone; Mac and Windows: the "Graph Cache Folder" setting, or the Save File Path when it is empty).
 
 Only if `cond.features` (live) or the `openReplay` argument's `features` has `"cache"`. `common/bridge.js` has
 `cacheRequest(kind, data)`, which adds `id`, posts the message and resolves with the app's answer (or `{ok: false, error: "timeout"}`
@@ -222,7 +222,8 @@ after 30 s).
   a sync tool with access to it) are read and replaced as they are. The new file replaces the old one in one step.
 - **Mac:** the folder is the "Graph Cache Folder" setting, or the Save File Path when that is empty; a chosen folder named
   `logic4-cache` is used as is (like Android), so a folder that a sync tool keeps can be chosen. The app is not sandboxed, so no grant is needed.
-- Windows does not offer `"cache"` yet.
+- **Windows:** like Mac: the "Graph Cache Folder" setting, or the Save File Path when that is empty (a chosen folder named `logic4-cache`
+  is used as is). `<name>.tmp` is renamed onto `<name>` with `File.Move(overwrite: true)` (a replace on the same volume). No grant is needed.
 
 `common/dev.js` imitates this in the browser (`?dev`, "App features"), keeping the files in `localStorage`
 (`jmasDevCache:<device>/<name>`; a browser keeps only a few MB there).

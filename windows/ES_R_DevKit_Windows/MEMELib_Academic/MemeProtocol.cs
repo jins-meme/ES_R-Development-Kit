@@ -43,6 +43,13 @@ public static partial class MemeProtocol
     /// </summary>
     public const byte ConfigMode = 0x0F;
 
+    /// <summary>
+    /// AUP_REPORT_MODE の mode バイト(byte4)が SLEEP。電池の電圧が PowerOFF(3.41V 未満)と 5 秒続けて判定されると、端末は接続中なら
+    /// この値で動作モード通知を出してから自分で SLEEP に入る(= この直後に切断される)。出典: Gen3.0 ACP FW 仕様書 Rev0.1 §3.6.11.5・§3.7.5
+    /// (python-processing-core docs/algorithms/firmware/notes/acp-low-voltage-sleep.md)。
+    /// </summary>
+    public const byte SleepMode = 0x10;
+
     // AUP: 端末 → PC
     public const byte AupReportDevInfo = 0x81;
     public const byte AupReportMode = 0x83;

@@ -79,12 +79,17 @@ public sealed class WebBridge : IDisposable
     /// <summary>判定器の通知・演算結果の表(kind = notify / table / records)と、メッセージの長さ。ライブの間だけ受けるかは受け手(DetectorOutputs)が決める</summary>
     public event Action<JsonElement, int>? Output;
 
+    /// <summary>日別キャッシュ(cacheList / cacheRead / cacheWrite。&lt;Graph Cache Folder か Save File Path&gt;/logic4-cache。BRIDGE.md の Cache files)</summary>
+    public CacheStore Cache { get; }
+
     /// <param name="store">中身の置き場</param>
     /// <param name="host">WebView を置くパネル。WebView2 ランタイムが無いときは代わりに案内を置く</param>
-    public WebBridge(WebContentStore store, Control host)
+    /// <param name="cacheRoot">日別キャッシュの logic4-cache の場所(読み書きのたびに呼ぶ。null = 置き場所が無い → no_access)</param>
+    public WebBridge(WebContentStore store, Control host, Func<string?> cacheRoot)
     {
         this.store = store;
         owner = host;
+        Cache = new CacheStore(cacheRoot);
         WebView = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.White };
         host.Controls.Add(WebView);
         flushTimer.Tick += (_, _) => FlushRows();
@@ -316,7 +321,14 @@ public sealed class WebBridge : IDisposable
         {
             ["url"] = $"{Origin}/replay/{replayToken}/{Uri.EscapeDataString(Path.GetFileName(file))}",
             ["name"] = Path.GetFileName(file),
+            // 日別キャッシュは使えると知らせる(features)。device は CSV 名の先頭(<MAC>_…)。取れない名前なら付けない(ページはキャッシュを使わない)
+            ["features"] = new[] { CacheStore.Feature },
         };
+        if (CacheStore.DeviceOfFileName(Path.GetFileName(file)) is { } device)
+        {
+            arg["device"] = device;
+        }
+
         session = (false, arg);
         Call($"jmasHost.openReplay({Json(arg)})");
     }
@@ -393,6 +405,10 @@ public sealed class WebBridge : IDisposable
             case "notify" or "table" or "records":
                 Output?.Invoke(body.Clone(), e.WebMessageAsJson.Length);
                 break;
+            case "cacheList" or "cacheRead" or "cacheWrite":
+                // 返りは id を付けて jmasHost.cacheResult へ(common/bridge.js の cacheRequest の Promise になる)
+                _ = AnswerCacheAsync(kindEl.GetString()!, body.Clone());
+                break;
             case "log":
                 Log($"[page {Str(body, "level")}] {Str(body, "message")}");
                 break;
@@ -400,6 +416,16 @@ public sealed class WebBridge : IDisposable
                 Log($"unknown message {kindEl.GetString()}");
                 break;
         }
+    }
+
+    /// <summary>日別キャッシュの求めを CacheStore で(別スレッドで順に)行い、UI スレッドで jmasHost.cacheResult に返す</summary>
+    private async Task AnswerCacheAsync(string kind, JsonElement body)
+    {
+        var idJson = body.TryGetProperty("id", out var idEl) ? idEl.GetRawText() : "null";
+        var text = kind == "cacheWrite" && body.TryGetProperty("text", out var tEl) && tEl.ValueKind == JsonValueKind.String
+            ? tEl.GetString() ?? "" : "";
+        var json = await Cache.HandleAsync(idJson, kind, Str(body, "device"), Str(body, "name"), text);   // UI スレッドへ戻る
+        Call($"jmasHost.cacheResult({json})");
     }
 
     private static string Str(JsonElement body, string key) =>

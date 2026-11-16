@@ -23,6 +23,9 @@ public sealed class UserSetting
     /// <summary>CSV の保存先。既定は ドキュメント\JINS\MEME_Academic。</summary>
     public string SaveFilePath { get; set; } = DefaultSaveDirectory();
 
+    /// <summary>グラフ画面の日別キャッシュ(logic4-cache)を置くフォルダ。空なら SaveFilePath の下(CacheStore.RootFrom。Mac の Graph Cache Folder と同じ)。</summary>
+    public string CacheFolder { get; set; } = "";
+
     /// <summary>加速度に加算する表示オフセット。CSV には影響せず、チャートの見え方だけを変える。</summary>
     public double AccOffsetX { get; set; }
 

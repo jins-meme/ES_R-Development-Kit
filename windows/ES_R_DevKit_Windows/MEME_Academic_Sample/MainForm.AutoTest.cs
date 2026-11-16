@@ -47,6 +47,9 @@ namespace MEME_Academic_Sample;
 /// 通知が使えたか(Windows App Runtime が無ければ、案内のダイアログを出そうとしたこと)を outputs に書く(Android の autotest_outputs と同じ)。
 /// --socket はテストの間だけ TCP 出力をそのポートで有効にし、live の間テスト自身が受け取って、届いたヘッダと行が保存した CSV と
 /// 同じかを見る。--socket-stall を足すと受け取る側が読まないままにし、送信が詰まっても受信(計測)が止まらないことを見る。
+/// 日別キャッシュ(advanced2。webview/BRIDGE.md の Cache files)はテストの間 --autotest のフォルダの csv\logic4-cache に置く
+/// (Graph Cache Folder をテストの間だけ空にする。利用者の同期フォルダに書かない)。再生で advanced2 の「Logic4 for this file」のダイアログが
+/// 出たら --replay-mode(update | temp | cache。既定は選ばれているもの)で閉じ、replay の解析を終えたら logic4-cache の中身を result の cache に書く。
 /// --zip は始める前に Display Engine ダイアログと同じ経路(WebContentStore.Add → Activate)で取り込んで使い、終わったら元に戻す
 /// (取り込んである zip の一覧と使っている 1 つは、退避しておいて戻す。同じ name の zip は置き換えになるため。zip の組・engines も同じ)。
 /// 確かめたことが合わなければ result.json の ok が false になり、error に理由が入る。
@@ -72,6 +75,38 @@ public partial class MainForm
         _ = form.RunAutoTest(args, dir);
     }
 
+    /// <summary>--replay-mode(advanced2 の再生のダイアログで選ぶもの。空なら選ばれているまま)</summary>
+    private string replayMode = "";
+
+    /// <summary>
+    /// 再生の解析が終わったか(JS の式)。advanced2 の「Logic4 for this file」のダイアログが出ていたら --replay-mode を選んで閉じる
+    /// (閉じないと解析が始まらない。Mac の DebugAutoTest と同じ)
+    /// </summary>
+    private string ReplayDone()
+    {
+        var id = replayMode switch { "update" => "rmUpdate", "temp" => "rmTemp", "cache" => "rmCache", _ => "" };
+        return "(() => { const d = document.getElementById('dlg');" +
+               " if (d && !d.hidden) { const r = document.getElementById('" + id + "'); if (r && !r.disabled) r.checked = true;" +
+               " document.querySelector('#dlgForm button[type=submit]')?.click(); return false; }" +
+               " return jmasEngine.finalSent === true; })()";
+    }
+
+    /// <summary>日別キャッシュ(logic4-cache)のファイルの一覧: "device/name" → バイト数</summary>
+    private JsonObject CacheListing()
+    {
+        var o = new JsonObject();
+        if (CacheStore.RootFrom(setting) is { } root && Directory.Exists(root))
+        {
+            o["root"] = root;
+            foreach (var f in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+            {
+                o[Path.GetRelativePath(root, f).Replace('\\', '/')] = new FileInfo(f).Length;
+            }
+        }
+
+        return o;
+    }
+
     private static string? Arg(string[] args, string name)
     {
         var k = Array.IndexOf(args, name);
@@ -88,6 +123,9 @@ public partial class MainForm
         var csvDir = Path.Combine(dir, "csv");
         Directory.CreateDirectory(csvDir);
         setting.SaveFilePath = csvDir;   // Save はしない(利用者の設定ファイルを書き換えない)
+        var savedCacheFolder = setting.CacheFolder;
+        setting.CacheFolder = "";        // 日別キャッシュも csv\logic4-cache へ(利用者の同期フォルダに書かない)
+        replayMode = Arg(args, "--replay-mode") ?? "";
         var usesZips = Arg(args, "--zip") is not null || Arg(args, "--suite") is "zip" or "engines";
         var startIds = webContent.Entries.Select(e => e.Id).ToHashSet();
         var startActive = webContent.ActiveId;
@@ -182,6 +220,7 @@ public partial class MainForm
         await File.WriteAllTextAsync(Path.Combine(dir, "result.json"),
             result.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         setting.SaveFilePath = savedPath;
+        setting.CacheFolder = savedCacheFolder;
         setting.ShowSaveFileDialog = savedDialog;
         if (Arg(args, "--socket") is not null)
         {
@@ -527,7 +566,7 @@ public partial class MainForm
         await Sleep(4);
         if (!standard && await HasDetector())
         {
-            await WaitJs("detector replay", 120, "jmasEngine.finalSent === true");
+            await WaitJs("detector replay", 120, ReplayDone());
         }
 
         result["replay"] = await PageState();
@@ -772,8 +811,10 @@ public partial class MainForm
         await Sleep(3);
         if (await HasDetector())
         {
-            await WaitJs("detector replay", 300, "jmasEngine.finalSent === true");
+            await WaitJs("detector replay", 300, ReplayDone());
             result["analysisSeconds"] = Math.Round(sw.Elapsed.TotalSeconds, 1);
+            await Sleep(4);                       // 最後の日のファイルの書き込み(cacheWrite)を待つ
+            result["cache"] = CacheListing();
         }
 
         result["replay"] = await PageState();

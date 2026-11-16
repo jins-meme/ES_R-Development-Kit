@@ -146,6 +146,7 @@ and restored on the next launch.
 | Time Display | Show graph times in local time (recording is always UTC) |
 | TCP Output | Stream measurement data to the outside over TCP |
 | Local Port | Listening port. Defaults to 88 |
+| Graph Cache Folder | Where the graph page (advanced2) keeps its daily cache (`logic4-cache\<device>\<YYYY-MM-DD>.json`). Empty = under Save File Path. A folder named `logic4-cache` is used as is, so a folder kept by a sync tool (for example Syncthing) can be chosen. See `webview/BRIDGE.md` (Cache files) |
 
 ## Display Engine
 
@@ -233,8 +234,11 @@ It writes the result (`result.json`) and snapshots (PNG) to the specified folder
 JINS_MEME_DataLogger.exe --autotest <output folder> [--suite live|replay|zip|engines|settings|webcrash|reconnect] [--csv <CSV>] [--zip <zip>]
                          [--mode full|standard] [--seconds 20] [--badzips <folder>] [--probe <JS expression | @file>]
                          [--probe-live <same>] [--expect <blinks,EMR,EML[,step events]>] [--real [--device <address or name suffix>]]
-                         [--socket <port> [--socket-stall]]
+                         [--socket <port> [--socket-stall]] [--replay-mode update|temp|cache]
 ```
+
+During a self-test the daily cache goes to `<output folder>\csv\logic4-cache` (Graph Cache Folder is emptied for the test, so a synced folder is never written).
+`--replay-mode` answers advanced2's "Logic4 for this file" dialog on replay (default: the option already selected); the `replay` suite then lists the cache files in `result.json` (`cache`).
 
 `--probe` is evaluated in the page after each scenario, and `--probe-live` while rows are being streamed in live (for example, to measure how drawing progresses).
 
