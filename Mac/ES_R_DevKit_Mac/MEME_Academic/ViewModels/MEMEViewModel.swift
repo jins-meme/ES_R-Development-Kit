@@ -244,13 +244,11 @@ final class MEMEViewModel: NSObject {
     /// SHELF 送信後、端末が自ら切断するのを待つ時間（切断＝移行成功）。
     private static let shelfDisconnectTimeout: TimeInterval = 5
 
+    /// 接続中の端末のアドレス(接続後に端末から読む。日別キャッシュのフォルダ名と、自己テストが繋いだ端末を確かめる用)
+    var connectedMacAddress: String { memelib?.macAddress ?? "" }
+
     /// Shelf mode へ移行できる状態か。SHELF コマンドは実機に接続済みで計測していない
     /// ときだけ受理されるので、モック（CSV再生用のダミー）と計測中は対象外。
-#if DEBUG
-    /// 接続中の端末のアドレス(接続後に端末から読む。自己テストが繋いだ端末を確かめる用)
-    var connectedMacAddress: String { memelib?.macAddress ?? "" }
-#endif
-
     var canEnterShelfMode: Bool {
         phase == .connected && !MEMELibFactory.isMock && !isEnteringShelf && !isConnecting
     }
