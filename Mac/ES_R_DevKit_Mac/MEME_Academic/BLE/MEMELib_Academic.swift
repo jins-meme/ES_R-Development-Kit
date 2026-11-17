@@ -450,6 +450,17 @@ class MEMELib_Academic: NSObject, MEMELibInterface {
         return Int16(bitPattern: combined)
     }
 
+#if DEBUG
+    /// 自己テスト用(DebugAutoTest の lowbattery): 端末から届いたものとして、平文のパケットを暗号化して受信の処理に流す
+    func debugReceive(plain: [UInt8]) {
+        var buff = [UInt8](repeating: 0, count: PACKET_LENGTH)
+        for (i, b) in plain.prefix(PACKET_LENGTH).enumerated() { buff[i] = b }
+        buff.withUnsafeMutableBufferPointer { if let p = $0.baseAddress { DecEnc.encode(p) } }
+        recvData.append(Data(buff))
+        dataAnalysis()
+    }
+#endif
+
     private func dataAnalysis() {
         guard !recvData.isEmpty else { return }
         let cnt = recvData.count - 1

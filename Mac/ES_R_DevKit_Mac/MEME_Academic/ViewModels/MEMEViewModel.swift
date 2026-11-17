@@ -247,6 +247,11 @@ final class MEMEViewModel: NSObject {
     /// 接続中の端末のアドレス(接続後に端末から読む。日別キャッシュのフォルダ名と、自己テストが繋いだ端末を確かめる用)
     var connectedMacAddress: String { memelib?.macAddress ?? "" }
 
+#if DEBUG
+    /// 自己テスト用: BLE ライブラリ(実機かモック)
+    var debugLib: any MEMELibInterface { memelib }
+#endif
+
     /// Shelf mode へ移行できる状態か。SHELF コマンドは実機に接続済みで計測していない
     /// ときだけ受理されるので、モック（CSV再生用のダミー）と計測中は対象外。
     var canEnterShelfMode: Bool {

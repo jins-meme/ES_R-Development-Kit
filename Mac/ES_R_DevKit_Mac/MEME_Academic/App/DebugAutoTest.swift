@@ -43,6 +43,12 @@
 //  MEME_AUTOTEST_SUITE=reconnect は(-mock か MEME_AUTOTEST_REAL=1)、計測中に切断 → 繋ぎ直して計測を始められるか、切断した回の CSV が
 //  停止と同じく締められるか(ファイルが分かれる・NUM が続かない・Artifact が書き戻される)を見る。
 //
+//  MEME_AUTOTEST_SUITE=lowbattery は(-mock か MEME_AUTOTEST_REAL=1)、電池切れの SLEEP の知らせ(動作モード通知 0x83 の mode = 0x10)を見る。
+//  実機では端末から届いたものとして 0x83 / 0x10 のパケットを受信の処理に流し(端末は実際には眠らないので、切断はアプリから)、
+//  モードが書き換わらないこと・計測中なら CSV が締められること・状態の表示が「Disconnected (Battery empty: …)」になることを確かめる
+//  (モックは受信の解析を通らないので知らせを直に呼ぶ)。続けて、知らせの無い切断と知らせから 30 秒を過ぎた切断は普通の表示のままかも見る。
+//  切断直後の画面全体を lowbattery.png に書く。
+//
 //  MEME_AUTOTEST_SUITE=zip MEME_AUTOTEST_BADZIPS=<フォルダ> は、フォルダの中の zip を 1 つずつ読み込み、
 //  名前が good で始まるものは通り、それ以外は断られて今の中身が変わらず、展開先の外に何も書かれないことを見る
 //  (zip slip・zip 爆弾などの検査。悪い zip は webview/tools/make_bad_zips.py が作る)。
@@ -74,6 +80,10 @@ enum DebugAutoTest {
             let csvDir = out.appendingPathComponent("csv", isDirectory: true)
             try? FileManager.default.createDirectory(at: csvDir, withIntermediateDirectories: true)
             UserSetting.setSaveFilePath(csvDir.path)
+            // 日別キャッシュ(logic4-cache)も空にして Save File Path(= テスト用のフォルダ)の下へ。利用者の Graph Cache Folder は
+            // Syncthing などで同期していることがあり、テストの計測の分が混ざらないように。終わったら戻す
+            let savedCacheFolder = UserSetting.getCacheFolder()
+            UserSetting.setCacheFolder("")
             // MEME_AUTOTEST_SOCKET_PORT があれば、その間だけ TCP 出力を有効にする(外から nc などで受けて確かめる)。終わったら戻す
             let savedSocket = (UserSetting.getExtermalOutputSocket(), UserSetting.getLocalPort())
             let socketPort = ProcessInfo.processInfo.environment["MEME_AUTOTEST_SOCKET_PORT"]
@@ -106,6 +116,11 @@ enum DebugAutoTest {
                         throw Timeout(what: "refused: reconnect suite needs -mock or MEME_AUTOTEST_REAL=1")
                     }
                     try await runReconnect(vm, result: &result)
+                } else if env["MEME_AUTOTEST_SUITE"] == "lowbattery" {
+                    guard MEMELibFactory.isMock || env["MEME_AUTOTEST_REAL"] == "1" else {
+                        throw Timeout(what: "refused: lowbattery suite needs -mock or MEME_AUTOTEST_REAL=1")
+                    }
+                    try await runLowBattery(vm, out: out, result: &result)
                 } else if env["MEME_AUTOTEST_SUITE"] == "settings" {
                     guard MEMELibFactory.isMock || env["MEME_AUTOTEST_REAL"] == "1" else {
                         throw Timeout(what: "refused: settings suite needs -mock or MEME_AUTOTEST_REAL=1")
@@ -126,6 +141,7 @@ enum DebugAutoTest {
                 try? data.write(to: out.appendingPathComponent("result.json"))
             }
             UserSetting.setSaveFilePath(savedPath)   // terminate は戻らないので defer でなくここで戻す
+            UserSetting.setCacheFolder(savedCacheFolder)
             if socketPort != nil {
                 UserSetting.setExtermalOutputSocket(savedSocket.0)
                 UserSetting.setLocalPort(savedSocket.1)
@@ -563,6 +579,85 @@ enum DebugAutoTest {
     /// 計測中に切断されたあと、繋ぎ直して Start Measurement で計測が始まるか
     /// (以前は計測中の印が残り、繋ぎ直した後の Start が停止として扱われていた)。
     /// 切断した回も停止と同じく締められ(CSV が分かれ、NUM が続かない)、付けた Artifact が書き戻されるか。
+    // MARK: - 電池切れの SLEEP(動作モード通知 0x83 の mode = 0x10)
+
+    private static func runLowBattery(_ vm: MEMEViewModel, out: URL, result: inout [String: Any]) async throws {
+        try await wait("page ready", 20) { vm.web.isReady }
+        let plain = "State : Disconnected"
+        var problems: [String] = []
+        func connect(_ what: String) async throws {
+            vm.startScan()
+            try await wait("device found \(what)", 30) { vm.phase == .deviceFound }
+            vm.toggleConnect()
+            try await wait("connected \(what)", 30) { vm.phase == .connected }
+        }
+        func notifySleep() {
+            if let lib = vm.debugLib as? MEMELib_Academic {      // 実機: 受信の解析(0x83 の分岐)から通す
+                lib.debugReceive(plain: [UInt8(PACKET_LENGTH), 0x83, 0x00, 0x00, 0x10, 0x00])
+            } else {
+                vm.memeLowBatterySleepDelegate()
+            }
+        }
+
+        // 1. 計測中に知らせ → 切断: 電池切れの表示・モードはそのまま・CSV は締められる
+        try await connect("1")
+        result["address"] = vm.connectedMacAddress
+        vm.toggleMeasurement()
+        try await wait("measuring", 5) { vm.phase == .measuring }
+        await sleep(3)
+        let modeBefore = vm.debugLib.getSelectMode()
+        notifySleep()
+        await sleep(0.5)
+        let modeAfter = vm.debugLib.getSelectMode()
+        result["modeBefore"] = modeBefore
+        result["modeAfterNotice"] = modeAfter
+        if modeAfter != modeBefore { problems.append("mode changed \(modeBefore) -> \(modeAfter) by the SLEEP notice") }
+        if vm.phase != .measuring { problems.append("phase \(vm.phase) right after the notice (should keep measuring until the link drops)") }
+        vm.toggleConnect()
+        try await wait("disconnected 1", 15) { vm.phase == .idle }
+        await sleep(1)
+        result["stateAfterSleep"] = vm.connectionStateText
+        if !vm.connectionStateText.hasPrefix("State : Disconnected (Battery empty") { problems.append("state after SLEEP: \(vm.connectionStateText)") }
+        await windowSnapshot("lowbattery", out)
+        if let csv = newestCsv() {
+            let rows = ((try? CsvFile.readText(at: csv)) ?? "").components(separatedBy: "\n")
+                .drop { !$0.hasPrefix("//ARTIFACT") }.dropFirst().filter { !$0.isEmpty }.count
+            result["csv"] = ["name": csv.lastPathComponent, "rows": rows]
+            if rows == 0 { problems.append("CSV of the measurement has no rows") }
+        } else {
+            problems.append("no CSV saved")
+        }
+
+        // 2. 知らせの無い切断は普通の表示(前の知らせを持ち越さない)
+        await sleep(2)
+        try await connect("2")
+        await sleep(1)
+        vm.toggleConnect()
+        try await wait("disconnected 2", 15) { vm.phase == .idle }
+        result["stateAfterNormal"] = vm.connectionStateText
+        if vm.connectionStateText != plain { problems.append("state after a normal disconnect: \(vm.connectionStateText)") }
+
+        // 3. 知らせから 30 秒を過ぎた切断も普通の表示
+        await sleep(2)
+        try await connect("3")
+        notifySleep()
+        await sleep(31)
+        vm.toggleConnect()
+        try await wait("disconnected 3", 15) { vm.phase == .idle }
+        result["stateAfterStaleNotice"] = vm.connectionStateText
+        if vm.connectionStateText != plain { problems.append("state 31 s after the notice: \(vm.connectionStateText)") }
+
+        if !problems.isEmpty { throw CheckFailed(problems: problems) }
+    }
+
+    /// 画面全体(左の操作欄を含む)を PNG に書く。snapshot はグラフ画面だけ
+    private static func windowSnapshot(_ name: String, _ out: URL) async {
+        guard let view = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil })?.contentView,
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent("\(name).png"))
+    }
+
     private static func runReconnect(_ vm: MEMEViewModel, result: inout [String: Any]) async throws {
         try await wait("page ready", 20) { vm.web.isReady }
         for round in 1...2 {
