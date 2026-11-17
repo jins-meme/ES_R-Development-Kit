@@ -625,6 +625,21 @@ public sealed class MEMELib : IDisposable
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// 自己テスト用(MainForm.AutoTest の lowbattery): 端末から届いたものとして、平文のパケットを暗号化してから
+    /// 受信の処理(OnValueChanged と同じ Decode → Dispatch)に流す。BLE が繋がっていなくても呼べる。
+    /// </summary>
+    public void DebugReceive(byte[] plain)
+    {
+        var packet = new byte[MemeProtocol.PacketLength];
+        plain.AsSpan(0, Math.Min(plain.Length, packet.Length)).CopyTo(packet);
+        DecEnc.Encode(packet);
+        DecEnc.Decode(packet);
+        Dispatch(packet);
+    }
+#endif
+
     private void Dispatch(byte[] packet)
     {
         if (!MemeProtocol.IsValidPacket(packet))

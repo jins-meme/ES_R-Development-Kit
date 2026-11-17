@@ -14,7 +14,7 @@ namespace MEME_Academic_Sample;
 /// Windows を動かすときなど)から、グラフ画面が動いていることを確かめる。結果(result.json)とスナップショット(PNG)を
 /// 渡したフォルダに書いて、アプリを閉じる。
 ///
-///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|engines|settings|webcrash|reconnect] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
+///     JINS_MEME_DataLogger.exe --autotest &lt;dir&gt; [--suite live|replay|zip|engines|settings|webcrash|reconnect|lowbattery] [--csv &lt;golden の CSV&gt;] [--zip &lt;zip&gt;]
 ///                              [--mode full|standard] [--seconds 20] [--badzips &lt;dir&gt;] [--probe &lt;JS の式 | @ファイル&gt;] [--probe-live &lt;同&gt;]
 ///                              [--expect &lt;瞬目,EMR,EML[,歩のイベント]&gt;] [--real [--device &lt;アドレスか名前の末尾&gt;]]
 ///                              [--socket &lt;ポート&gt; [--socket-stall]] [--outputs]
@@ -41,6 +41,9 @@ namespace MEME_Academic_Sample;
 /// - reconnect: 計測中に切断 → 繋ぎ直して Start Measurement で計測が始まるか、切断した回の CSV が停止と同じく締められるか
 ///   (ファイルが分かれる・NUM が続かない・付けた Artifact が書き戻される)を見る。--real なら実機で、無ければ --csv の行を流し、
 ///   切断は端末側から切られたときと同じ口(OnPeripheralDisconnected)を呼ぶ。
+/// - lowbattery: 電池切れの SLEEP の知らせ(動作モード通知 0x83 の mode = 0x10)を MEMELib の受信の処理に流し、モードが書き換わらないこと・
+///   その後の切断で状態の表示が「Disconnected (Battery empty: …)」になり CSV が締められること、知らせの無い切断と知らせから 30 秒を
+///   過ぎた切断はその表示にならないことを見る(Mac 版の lowbattery と同じ)。--real なら実機で、無ければ --csv の行を流す。
 /// --outputs は live で(--zip で高機能版を読み込んだとき)、計測の前に高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして
 /// 読み込み直し、判定器の表の CSV(データ CSV と同じベース名 + _hve・同じ圧縮)ができたこと・ページが送った行と通知の数をアプリが受けたこと・
 /// NUM がデータ CSV の行と DATE ごと一致すること・受け口の検査規則(数式風・カンマ・真偽値・列数・名前)・保存ダイアログで移したときに表も移ること、
@@ -195,6 +198,9 @@ public partial class MainForm
                     break;
                 case "reconnect":
                     await RunReconnectSuite(args, result);
+                    break;
+                case "lowbattery":
+                    await RunLowBatterySuite(args, dir, result);
                     break;
                 default:
                     await RunLiveSuite(args, dir, result);
@@ -1033,6 +1039,148 @@ public partial class MainForm
         if (row49 != "cut")
         {
             problems.Add($"artifact of the cut measurement: {row49}");
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new CheckFailed(problems);
+        }
+    }
+
+    #endregion
+
+    #region lowbattery(電池切れの SLEEP)
+
+    /// <summary>
+    /// 電池切れの SLEEP の知らせ(動作モード通知 0x83 の mode = 0x10)を見る(Mac 版 DebugAutoTest の lowbattery と同じ)。
+    /// 端末から届いたものとして 0x83 / 0x10 のパケットを MEMELib の受信の処理(DebugReceive → Decode → Dispatch)に流し、
+    /// モードが書き換わらないこと・計測中のままであること・その後の切断で状態の表示が「Disconnected (Battery empty: …)」になり
+    /// CSV が締められることを確かめる。続けて、知らせの無い切断と知らせから 30 秒を過ぎた切断は電池切れの表示にならないことも見る。
+    /// 端末は実際には眠らないので、切断は --real なら disconnectPeripheral、無ければ端末側から切られたときと同じ口
+    /// (OnPeripheralDisconnected)を呼ぶ(サンプルは --csv の行を流す)。切断直後のウィンドウを lowbattery.png に撮る。
+    /// </summary>
+    private async Task RunLowBatterySuite(string[] args, string dir, JsonObject result)
+    {
+        var real = args.Contains("--real");
+        var rows = real ? new List<string[]>() : DataRows(Arg(args, "--csv") ?? throw new ArgumentException("--csv is required (or --real)"));
+        await Wait("page ready", 30, () => web.IsReady);
+        mode = MeasurementMode.Full;
+        quality = MEMEQuality.High;
+        var problems = new List<string>();
+        const string batteryEmpty = "State : Disconnected (Battery empty";
+
+        void NotifySleep() => memeLib.DebugReceive(
+            [(byte)MemeProtocol.PacketLength, MemeProtocol.AupReportMode, 0x00, 0x00, MemeProtocol.SleepMode, 0x00]);
+
+        async Task Connect(int round)
+        {
+            if (!real)
+            {
+                phase = Phase.Connected;
+            }
+            else if (round == 1)
+            {
+                await ConnectReal(Arg(args, "--device"), result);
+            }
+            else
+            {
+                bt_Connect_Click(this, EventArgs.Empty);     // 一覧に残っている同じ端末へ
+                await WaitConnected($"connected {round}");
+                await Sleep(2);
+            }
+        }
+
+        async Task Disconnect(int round, MEMEStatus asIfFromDevice)
+        {
+            if (real)
+            {
+                memeLib.disconnectPeripheral();
+            }
+            else
+            {
+                OnPeripheralDisconnected(memeLib, asIfFromDevice);
+            }
+
+            await Wait($"disconnected {round}", 15, () => phase is Phase.Idle or Phase.DeviceFound);
+            await Sleep(0.5);
+        }
+
+        // 1. 計測中に知らせ → 切断: 電池切れの表示・モードはそのまま・計測は切断まで続く・CSV は締められる
+        await Connect(1);
+        bt_Measurement_Click(this, EventArgs.Empty);
+        if (phase != Phase.Measuring)
+        {
+            throw new CheckFailed([$"phase {phase} after Start Measurement"]);
+        }
+
+        if (real)
+        {
+            await Sleep(3);
+        }
+        else
+        {
+            await Feed(rows, 0, 300, standard: false);
+        }
+
+        var modeBefore = memeLib.getMode();
+        NotifySleep();
+        await Sleep(0.5);
+        var modeAfter = memeLib.getMode();
+        result["modeBefore"] = modeBefore.ToString();
+        result["modeAfterNotice"] = modeAfter.ToString();
+        if (modeAfter != modeBefore)
+        {
+            problems.Add($"mode changed {modeBefore} -> {modeAfter} by the SLEEP notice");
+        }
+
+        if (phase != Phase.Measuring)
+        {
+            problems.Add($"phase {phase} right after the notice (should keep measuring until the link drops)");
+        }
+
+        await Disconnect(1, MEMEStatus.MEMELIB_NG);           // 端末が自分で切ったとき(普段なら link lost の表示)
+        result["stateAfterSleep"] = lb_ConnectionState.Text;
+        if (!lb_ConnectionState.Text.StartsWith(batteryEmpty, StringComparison.Ordinal))
+        {
+            problems.Add($"state after SLEEP: {lb_ConnectionState.Text}");
+        }
+
+        FormSnapshot(dir, "lowbattery");
+        var csv = Directory.GetFiles(setting.SaveFilePath).Where(CsvFile.IsSupported).OrderBy(File.GetCreationTimeUtc).LastOrDefault();
+        if (csv is null)
+        {
+            problems.Add("no CSV saved");
+        }
+        else
+        {
+            var data = DataRows(csv);
+            result["csv"] = new JsonObject { ["name"] = Path.GetFileName(csv), ["rows"] = data.Count };
+            if (data.Count == 0)
+            {
+                problems.Add("CSV of the measurement has no rows");
+            }
+        }
+
+        // 2. 知らせの無い切断は電池切れの表示にならない(前の知らせを持ち越さない)
+        await Sleep(1);
+        await Connect(2);
+        await Disconnect(2, MEMEStatus.MEMELIB_OK);
+        result["stateAfterNormal"] = lb_ConnectionState.Text;
+        if (lb_ConnectionState.Text.StartsWith(batteryEmpty, StringComparison.Ordinal))
+        {
+            problems.Add($"state after a normal disconnect: {lb_ConnectionState.Text}");
+        }
+
+        // 3. 知らせから 30 秒を過ぎた切断も電池切れの表示にならない
+        await Sleep(1);
+        await Connect(3);
+        NotifySleep();
+        await Sleep(31);
+        await Disconnect(3, MEMEStatus.MEMELIB_OK);
+        result["stateAfterStaleNotice"] = lb_ConnectionState.Text;
+        if (lb_ConnectionState.Text.StartsWith(batteryEmpty, StringComparison.Ordinal))
+        {
+            problems.Add($"state 31 s after the notice: {lb_ConnectionState.Text}");
         }
 
         if (problems.Count > 0)
