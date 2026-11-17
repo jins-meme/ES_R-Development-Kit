@@ -397,9 +397,12 @@ object DebugAutoTest {
   return 1;
 })()"""
 
-    /** 高機能版の設定(detectors.js)の Notify・CSV をオンにする localStorage のキー(ページは読み込むときに読む) */
-    private const val OUTPUTS_ON = "(localStorage.setItem('advanced.notify', JSON.stringify(['posture']))," +
-        " localStorage.setItem('advanced.csv', JSON.stringify(['hve'])), 1)"
+    /**
+     * 高機能版の設定(detectors.js)の Notify・CSV をオンにする localStorage のキー(ページは読み込むときに読む)。
+     * キーは advanced が advanced.*、advanced2 が advanced2.* なので、どちらを読み込んでいても効くよう両方に入れる(式の値は前と同じ 1)
+     */
+    private const val OUTPUTS_ON = "(['advanced', 'advanced2'].forEach(p => { localStorage.setItem(p + '.notify', JSON.stringify(['posture']));" +
+        " localStorage.setItem(p + '.csv', JSON.stringify(['hve'])); }), 1)"
 
     /** 画面と画面ロックの状態(裏から呼ばれたかを結果に残す) */
     private fun screen(context: Context): JSONObject = JSONObject()
