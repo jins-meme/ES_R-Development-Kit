@@ -198,9 +198,10 @@ enum DebugAutoTest {
         }
         let outputsTest = ProcessInfo.processInfo.environment["MEME_AUTOTEST_OUTPUTS"] == "1"
         if outputsTest {
-            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)
+            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)。
+            // キーは advanced が advanced.*、advanced2 が advanced2.* なので、どちらを読み込んでいても効くよう両方に入れる
             _ = try? await vm.web.webView.evaluateJavaScript(
-                "localStorage.setItem('advanced.notify', JSON.stringify(['posture'])); localStorage.setItem('advanced.csv', JSON.stringify(['hve'])); 0")
+                "for (const p of ['advanced', 'advanced2']) { localStorage.setItem(p + '.notify', JSON.stringify(['posture'])); localStorage.setItem(p + '.csv', JSON.stringify(['hve'])); } 0")
             vm.reloadGraph()
             await sleep(0.5)
             try await wait("page reloaded", 30) { vm.web.isReady }
