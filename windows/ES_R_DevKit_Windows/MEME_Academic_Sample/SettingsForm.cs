@@ -12,7 +12,7 @@ public partial class SettingsForm : Form
     private readonly UserSetting setting;
 
     /// <summary>Graph Cache Folder の行(日別キャッシュ logic4-cache の置き場所。Mac の SettingsView と同じ)。デザイナーではなくコードで足す</summary>
-    private readonly TextBox tb_CacheFolder = new() { Name = "tb_CacheFolder", Location = new Point(165, 274), Size = new Size(380, 23), TabIndex = 11,
+    private readonly TextBox tb_CacheFolder = new() { Name = "tb_CacheFolder", Size = new Size(380, 23), TabIndex = 11,
         PlaceholderText = "(empty = Save File Path)" };
 
     /// <summary>グラフ画面の中身(zip)の切り替えは、メニューの Display Engine(DisplayEngineForm)から。</summary>
@@ -95,22 +95,35 @@ public partial class SettingsForm : Form
     /// </summary>
     private void AddCacheFolderRow()
     {
-        const int Row = 40;
+        // InitializeComponent の終わりでフォームは既に自動スケール済み(AutoScaleMode.Font)。ここで足すものは
+        // デザイナーと同じ 96 DPI の座標で作り、デザイナーの基準(AutoScaleDimensions = 7×15)からの倍率で揃える。
+        // 揃えないと高 DPI で行が Local Port の上にずれ、大きさも他の行と合わない
+        var current = CurrentAutoScaleDimensions;
+        var factor = new SizeF(current.Width / 7F, current.Height / 15F);
+        var row = (int)Math.Round(40 * factor.Height);
+
         SuspendLayout();
         foreach (var c in new Control[] { separator, bt_Cancel, bt_Apply })
         {
-            c.Top += Row;
+            c.Top += row;
         }
 
-        ClientSize = new Size(ClientSize.Width, ClientSize.Height + Row);
-        var label = new Label { Name = "lb_CacheFolder", Location = new Point(20, 278), Size = new Size(140, 20), Text = "Graph Cache Folder" };
-        var select = new RoundedButton { Name = "bt_SelectCacheFolder", Location = new Point(553, 273), Size = new Size(70, 26), TabIndex = 12,
+        ClientSize = new Size(ClientSize.Width, ClientSize.Height + row);
+        var label = new Label { Name = "lb_CacheFolder", Location = new Point(20, 282), Size = new Size(140, 20), Text = "Graph Cache Folder" };
+        tb_CacheFolder.Location = new Point(165, 278);
+        var select = new RoundedButton { Name = "bt_SelectCacheFolder", Location = new Point(553, 277), Size = new Size(70, 26), TabIndex = 12,
             Text = "Select", UseVisualStyleBackColor = true };
-        var open = new RoundedButton { Name = "bt_OpenCacheFolder", Location = new Point(629, 273), Size = new Size(100, 26), TabIndex = 13,
+        var open = new RoundedButton { Name = "bt_OpenCacheFolder", Location = new Point(629, 277), Size = new Size(100, 26), TabIndex = 13,
             Text = "Open Folder", UseVisualStyleBackColor = true };
         select.Click += bt_SelectCacheFolder_Click;
         open.Click += bt_OpenCacheFolder_Click;
-        Controls.AddRange([label, tb_CacheFolder, select, open]);
+        Control[] added = [label, tb_CacheFolder, select, open];
+        foreach (var c in added)
+        {
+            c.Scale(factor);
+        }
+
+        Controls.AddRange(added);
         bt_Apply.TabIndex = 14;
         bt_Cancel.TabIndex = 15;
         ResumeLayout(false);
