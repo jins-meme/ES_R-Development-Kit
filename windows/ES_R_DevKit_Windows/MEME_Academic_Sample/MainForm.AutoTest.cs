@@ -423,8 +423,9 @@ public partial class MainForm
         var outputsTest = args.Contains("--outputs");
         if (outputsTest)
         {
-            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)
-            await Eval("localStorage.setItem('advanced.notify', JSON.stringify(['posture'])); localStorage.setItem('advanced.csv', JSON.stringify(['hve'])); 0");
+            // 高機能版の設定の Notify(立ち座り)・CSV(高さ・速度)をオンにして読み込み直す(設定はページの localStorage)。
+            // キーは advanced が advanced.*、advanced2 が advanced2.* なので、どちらを読み込んでいても効くよう両方に入れる
+            await Eval("for (const p of ['advanced', 'advanced2']) { localStorage.setItem(p + '.notify', JSON.stringify(['posture'])); localStorage.setItem(p + '.csv', JSON.stringify(['hve'])); } 0");
             var readyBefore = web.ReadyCount;
             web.Load();
             await Wait("page reloaded", 30, () => web.ReadyCount > readyBefore && web.IsReady);
